@@ -3,6 +3,12 @@ import axios from 'axios'
 import _ from 'lodash'
 import BatchRunner from './BatchRunner'
 
+export const selectedElementReceived = createAction('ELEMENT/RECEIVED')
+
+export const selectedElement = element => (dispatch, getState) => {
+  dispatch(selectedElementReceived(element))
+}
+
 // Flows
 export const requestFlows = createAction('FLOWS/REQUEST')
 export const receiveFlows = createAction('FLOWS/RECEIVE', flows => flows, () => ({ receiveAt: new Date() }))

@@ -12,6 +12,8 @@ import { hashCode } from '~/util'
 import { StandardNodeModel, StandardWidgetFactory } from './nodes/StandardNode'
 import { SkillCallNodeModel, SkillCallWidgetFactory } from './nodes/SkillCallNode'
 import { DeletableLinkFactory } from './nodes/LinkWidget'
+import { DropTarget } from 'react-dnd'
+import { ItemTypes } from '../panels/Constants'
 
 const style = require('./style.scss')
 
@@ -26,7 +28,51 @@ const createNodeModel = (node, props) => {
   }
 }
 
-export default class FlowBuilder extends Component {
+const spec = {
+  canDrop(props, monitor) {
+    return true
+  },
+
+  hover(props, monitor, component) {},
+
+  drop(props, monitor, component) {
+    if (monitor.didDrop()) {
+      return
+    }
+
+    const item = monitor.getItem()
+
+    if (component.closestElementOnDrop) {
+      component.closestElementOnDrop.onEnter.push('say') //say  #!base_text-N3KTaK
+      component.onNodeSelection(component.closestElementOnDrop)
+    } else {
+      let model
+      if (item.type === 'text') {
+        model = { onEnter: ['say #!base_text-N3KTaK'] }
+      } else if (item.type === 'single-choice') {
+        model = { onEnter: ['say #!base_text-N3KTaK'] }
+      } else {
+        model = {}
+      }
+
+      component.addNodeAt(model, monitor.getClientOffset())
+    }
+  }
+}
+
+function collect(connect, monitor) {
+  return {
+    connectDropTarget: connect.dropTarget(),
+    isOver: monitor.isOver(),
+    isOverCurrent: monitor.isOver({ shallow: true }),
+    canDrop: monitor.canDrop(),
+    itemType: monitor.getItemType()
+  }
+}
+class FlowBuilder extends Component {
+  elementUnderCursor
+  closestElementOnDrop
+
   constructor(props) {
     super(props)
     this.state = {}
@@ -38,6 +84,20 @@ export default class FlowBuilder extends Component {
     this.diagramEngine.registerLinkFactory(new DeletableLinkFactory())
 
     this.setModel()
+  }
+
+  addNodeAt(payload, location) {
+    let { x, y } = this.diagramEngine.getRelativePoint(location.x, location.y)
+
+    const zoomFactor = this.activeModel.getZoomLevel() / 100
+
+    x /= zoomFactor
+    y /= zoomFactor
+
+    x -= this.activeModel.getOffsetX() / zoomFactor
+    y -= this.activeModel.getOffsetY() / zoomFactor
+
+    this.props.createFlowNode({ x, y, ...payload })
   }
 
   setTranslation(x = 0, y = 0) {
@@ -232,8 +292,23 @@ export default class FlowBuilder extends Component {
     return _.first(this.activeModel.getSelectedItems() || [], { selected: true })
   }
 
+  onMouseMove(e) {
+    this.elementUnderCursor = this.diagramWidget.getMouseElement(e)
+  }
+  onDrop(e) {
+    const element = this.diagramWidget.getMouseElement(e)
+    this.closestElementOnDrop = (element && element.model) || element
+  }
+
   componentDidMount() {
+    this.props.glEventHub.on('saveAllFlows', () => this.saveAllFlows())
+    this.props.glEventHub.on('deleteSelection', () => this.deleteSelectedElements())
+    this.props.glEventHub.on('copyClipboard', () => this.copySelectedElementToBuffer())
+    this.props.glEventHub.on('pasteClipboard', () => this.pasteElementFromBuffer())
+
     this.props.fetchFlows()
+    ReactDOM.findDOMNode(this.diagramWidget).addEventListener('mousemove', e => this.onMouseMove(e))
+    ReactDOM.findDOMNode(this.diagramWidget).addEventListener('drop', e => this.onDrop(e))
     ReactDOM.findDOMNode(this.diagramWidget).addEventListener('click', this.onDiagramClick)
     ReactDOM.findDOMNode(this.diagramWidget).addEventListener('dblclick', this.onDiagramDoubleClick)
     document.getElementById('diagramContainer').addEventListener('keydown', this.onKeyDown)
@@ -265,10 +340,15 @@ export default class FlowBuilder extends Component {
     this.props.openFlowNodeProps()
   }
 
+  onNodeSelection = element => {
+    this.props.selectedElement(element)
+  }
+
   onDiagramClick = event => {
     const selectedNode = this.getSelectedNode()
     const currentNode = this.props.currentFlowNode
 
+    this.onNodeSelection(selectedNode)
     // Sanitizing the links, making sure that:
     // 1) All links are connected to ONE [out] and [in] port
     // 2) All ports have only ONE outbound link
@@ -477,7 +557,7 @@ export default class FlowBuilder extends Component {
     const classNames = classnames({ [style.insertNode]: isInserting })
     const cancelInsert = () => this.props.setDiagramAction(null)
 
-    return (
+    return this.props.connectDropTarget(
       <div
         id="diagramContainer"
         tabIndex="1"
@@ -504,3 +584,5 @@ export default class FlowBuilder extends Component {
     )
   }
 }
+
+export default DropTarget('node', spec, collect)(FlowBuilder)

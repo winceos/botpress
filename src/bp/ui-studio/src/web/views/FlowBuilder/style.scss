@@ -4,6 +4,11 @@
   height: calc(100vh - 93px);
 }
 
+.container {
+  width: 100%;
+  height: calc(100vh - 93px);
+}
+
 .workspace :global(.Resizer.vertical) {
   background: black;
   width: 8px;

@@ -1,33 +1,32 @@
 import React, { Component } from 'react'
-import Select from 'react-select'
+import Select, { components } from 'react-select'
 import Highlighter from 'react-highlight-words'
-
 const style = require('./actionDropdown.scss')
 
 export default class SelectActionDropdown extends Component {
-  renderOption = option => {
+  renderOption = props => {
+    const { label, className, cx, getStyles, isDisabled, isFocused, isSelected, innerRef, innerProps } = props
+    const { metadata } = props.data
     const highlight = txt => <Highlighter searchWords={[this._inputValue]} textToHighlight={txt} />
 
-    if (option.metadata) {
-      const category = option.metadata.category ? (
-        <span className={style.category}>{highlight(option.metadata.category)} –</span>
+    if (metadata) {
+      const category = metadata.category ? (
+        <span className={style.category}>{highlight(metadata.category)} –</span>
       ) : null
-      const title = option.metadata.title ? (
-        <span className={style.title}>{highlight(option.metadata.title)}</span>
-      ) : null
+      const title = metadata.title ? <span className={style.title}>{highlight(metadata.title)}</span> : null
 
       return (
-        <div>
+        <components.Option {...props}>
           <span>
             {category}
             {title}
-            <span className={style.name}>–&gt; {highlight(option.label)}</span>
+            <span className={style.name}>–&gt; {highlight(label)}</span>
           </span>
-        </div>
+        </components.Option>
       )
     }
 
-    return highlight(option.label)
+    return highlight(label)
   }
 
   render() {
@@ -43,7 +42,7 @@ export default class SelectActionDropdown extends Component {
         onChange={this.props.onChange}
         options={options}
         value={this.props.value}
-        optionRenderer={this.renderOption}
+        components={{ Option: this.renderOption }}
       />
     )
   }

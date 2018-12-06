@@ -1,147 +1,120 @@
 import React, { Component } from 'react'
-import SplitPane from 'react-split-pane'
-import { connect } from 'react-redux'
-import { withRouter } from 'react-router-dom'
+
+import { connect, Provider } from 'react-redux'
+import { withRouter, Router } from 'react-router-dom'
 import _ from 'lodash'
-import { HotKeys } from 'react-hotkeys'
+import PropTypes from 'prop-types'
+import GoldenLayout from 'golden-layout'
+import 'golden-layout/src/css/goldenlayout-base.css'
+import 'golden-layout/src/css/goldenlayout-dark-theme.css'
+import ToolsPanel from './panels/ToolsPanel'
+import FlowPanel from './panels/FlowPanel'
+import ChatWindow from './panels/ChatWindow'
+import FlowContainer from './FlowContainer'
+import ContentEditorPanel from './panels/ContentEditorPanel'
+import style from './style.scss'
 
-import ContentWrapper from '~/components/Layout/ContentWrapper'
-import PageHeader from '~/components/Layout/PageHeader'
-import { operationAllowed } from '~/components/Layout/PermissionsChecker'
+import { withDragDropContext } from './panels/WithDragDropContext'
 
-import Toolbar from './containers/Toolbar'
-import Diagram from './containers/Diagram'
-import SidePanel from './containers/SidePanel'
-import Topbar from './containers/Topbar'
-import SkillsBuilder from './containers/SkillsBuilder'
-import NodeProps from './containers/NodeProps'
-
-import { switchFlow, setDiagramAction } from '~/actions'
-import { getDirtyFlows } from '~/reducers'
-
-const style = require('./style.scss')
-
-class FlowBuilder extends Component {
-  state = {
-    initialized: false
-  }
-
-  init() {
-    if (this.state.initialized || !this.props.user || this.props.user.id == null) {
-      return
-    }
-    this.setState({
-      initialized: true,
-      readOnly: !operationAllowed({ user: this.props.user, op: 'write', res: 'bot.flows' })
-    })
-  }
-
+class MainPage extends Component {
   componentDidMount() {
-    this.init()
+    this.setupWindows()
   }
 
-  componentDidUpdate() {
-    this.init()
-  }
-
-  componentWillReceiveProps(nextProps) {
-    const { flow } = nextProps.match.params
-    if (flow) {
-      const nextFlow = `${flow}.flow.json`
-      if (this.props.currentFlow !== nextFlow) {
-        this.props.switchFlow(nextFlow)
-      }
-    } else if (this.props.currentFlow) {
-      this.props.history.push(`/flows/${this.props.currentFlow.replace(/\.flow\.json/, '')}`)
+  setupWindows() {
+    const config = {
+      settings: {
+        showPopoutIcon: false,
+        showCloseIcon: false
+      },
+      content: [
+        {
+          type: 'row',
+          content: [
+            {
+              type: 'stack',
+              width: 170,
+              content: [
+                {
+                  title: 'Tools',
+                  type: 'react-component',
+                  component: 'tools',
+                  isClosable: false
+                },
+                {
+                  title: 'Flows',
+                  type: 'react-component',
+                  component: 'flows',
+                  isClosable: false
+                }
+              ]
+            },
+            {
+              title: 'Flow Builder',
+              type: 'react-component',
+              component: 'diagram',
+              props: this.props,
+              isClosable: false,
+              width: 700,
+              componentState: { test: 'B' }
+            },
+            {
+              type: 'column',
+              width: 217,
+              content: [
+                {
+                  title: 'Properties',
+                  type: 'react-component',
+                  component: 'contentEditor'
+                },
+                {
+                  title: 'Chat Window',
+                  type: 'react-component',
+                  component: 'chatWindow',
+                  componentState: { label: 'B' }
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
+
+    const layout = new GoldenLayout(config, document.getElementById('container'))
+    layout.registerComponent('chatWindow', this.connectStoreRouter(ChatWindow))
+    layout.registerComponent('tools', this.connectStoreRouter(withDragDropContext(ToolsPanel)))
+    layout.registerComponent('flows', withDragDropContext(FlowPanel))
+    layout.registerComponent('contentEditor', this.connectStoreRouter(ContentEditorPanel))
+    layout.registerComponent('diagram', this.connectStoreRouter(withDragDropContext(FlowContainer)))
+    layout.init()
   }
 
-  componentWillUnmount() {
-    const { pathname } = this.props.history.location
-    const hasDirtyFlows = !_.isEmpty(this.props.dirtyFlows)
-
-    const hasUnsavedChanges = !/^\/flows\//g.exec(pathname) && !window.BOTPRESS_FLOW_EDITOR_DISABLED && hasDirtyFlows
-
-    if (hasUnsavedChanges) {
-      const isSave = confirm('Save changes?')
-
-      if (isSave) {
-        this.diagram.saveAllFlows()
+  connectStoreRouter(Component) {
+    const { store, router } = this.context
+    class Wrapped extends React.Component {
+      render() {
+        return (
+          <Provider store={store}>
+            <Router history={router.history}>
+              <Component {...this.props} />
+            </Router>
+          </Provider>
+        )
       }
     }
+    return Wrapped
   }
 
   render() {
-    if (!this.state.initialized) {
-      return null
-    }
-
-    const { readOnly } = this.state
-
-    const keyHandlers = {
-      'flow-add-node': () => this.props.setDiagramAction('insert_node'),
-      'flow-save': () => this.diagram.saveAllFlows()
-    }
-
-    return (
-      <HotKeys handlers={keyHandlers} focused>
-        <ContentWrapper stretch={true} className={style.wrapper}>
-          <PageHeader className={style.header} width="100%">
-            <Topbar readOnly={readOnly} />
-          </PageHeader>
-          {!readOnly && (
-            <Toolbar
-              onSaveAllFlows={() => {
-                this.diagram.saveAllFlows()
-              }}
-              onCreateFlow={name => {
-                this.diagram.createFlow(name)
-              }}
-              onDelete={() => {
-                this.diagram.deleteSelectedElements()
-              }}
-              onCopy={() => {
-                this.diagram.copySelectedElementToBuffer()
-              }}
-              onPaste={() => {
-                this.diagram.pasteElementFromBuffer()
-              }}
-            />
-          )}
-          <div className={style.workspace}>
-            <SplitPane split="vertical" minSize={200} defaultSize={250}>
-              <div className={style.sidePanel}>
-                <SidePanel readOnly={readOnly} />
-              </div>
-
-              <div className={style.diagram}>
-                <Diagram
-                  readOnly={readOnly}
-                  ref={el => {
-                    if (!!el) {
-                      this.diagram = el.getWrappedInstance()
-                    }
-                  }}
-                />
-              </div>
-            </SplitPane>
-            <SkillsBuilder />
-            <NodeProps readOnly={readOnly} show={this.props.showFlowNodeProps} />
-          </div>
-        </ContentWrapper>
-      </HotKeys>
-    )
+    return <div id="container" className={style.container} />
   }
 }
 
-const mapStateToProps = state => ({
-  currentFlow: state.flows.currentFlow,
-  showFlowNodeProps: state.flows.showFlowNodeProps,
-  dirtyFlows: getDirtyFlows(state),
-  user: state.user
-})
+MainPage.contextTypes = {
+  store: PropTypes.object.isRequired,
+  router: PropTypes.object
+}
 
-export default connect(
-  mapStateToProps,
-  { switchFlow, setDiagramAction }
-)(withRouter(FlowBuilder))
+const mapStateToProps = state => ({})
+
+export default connect(mapStateToProps)(withRouter(MainPage))
