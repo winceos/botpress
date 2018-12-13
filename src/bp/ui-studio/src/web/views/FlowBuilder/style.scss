@@ -1,12 +1,12 @@
 .workspace {
   width: 100%;
   min-height: 500px;
-  height: calc(100vh - 93px);
+  height: calc(100vh);
 }
 
 .container {
   width: 100%;
-  height: calc(100vh - 93px);
+  height: calc(100vh);
 }
 
 .workspace :global(.Resizer.vertical) {

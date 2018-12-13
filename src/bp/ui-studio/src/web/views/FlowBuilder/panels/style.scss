@@ -49,31 +49,6 @@
   .inputRadio {
     margin-bottom: 0.8rem;
   }
-
-  /*input[type='radio'] {
-    display: none;
-  }
-
-  input[type='radio']:checked {
-    font-size: 2.5rem;
-    background-color: #0078cf;
-  }
-
-  .inputRadio label:before {
-    content: '';
-    font-size: 0;
-    text-align: center;
-    transition: all 0.2s ease-in-out;
-
-    background-color: #fff;
-    width: 1.2rem;
-    height: 1.2rem;
-    border: 1px solid #ddd;
-    position: absolute;
-    left: 0;
-    top: 0;
-    border-radius: 8px;
-  }*/
 }
 
 .formField {
@@ -82,6 +57,7 @@
   margin-bottom: 1.6rem;
 
   input,
+  .input,
   .select {
     background-color: #555556;
     color: #fff;
@@ -165,4 +141,90 @@
       opacity: 1;
     }
   }
+}
+
+.invalid input {
+  border: 1px solid red;
+}
+
+.table {
+  td {
+    padding: 0;
+    position: relative;
+  }
+
+  input {
+    width: 100%;
+  }
+
+  margin-bottom: 0;
+}
+
+.keyTip {
+  position: absolute;
+  right: 15px;
+  font-size: 20px;
+  top: 11px;
+  color: green;
+}
+
+.mandatory {
+  input {
+    font-weight: bold;
+  }
+}
+
+.input {
+  background-color: #555556;
+  color: #fff;
+  border: 1px solid #626262;
+  font-size: 1.2rem;
+  height: 2.4rem;
+  padding: 0.4rem 0.8rem;
+  outline: none;
+}
+
+.tip {
+  font-size: 90%;
+  color: #777;
+  float: right;
+}
+
+/** ACTIONS */
+.action_category {
+  font-weight: bold;
+  margin-right: 5px;
+}
+
+.action_title {
+  margin-right: 5px;
+}
+
+.action_name {
+  color: #dedede;
+  font-size: 90%;
+}
+
+/** TRANSITIONS */
+.endBloc,
+.nodeBloc,
+.subflowBloc,
+.returnBloc {
+  display: inline-block;
+  width: 20px;
+  height: 15px;
+  margin-top: 5px;
+}
+
+.returnBloc {
+  background-color: darkcyan;
+}
+.endBloc {
+  background-color: #e62eea;
+}
+.nodeBloc {
+  background-color: black;
+}
+.subflowBloc {
+  background-color: blue;
 }

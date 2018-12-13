@@ -15,7 +15,7 @@ import {
   createFlow,
   updateFlow,
   insertNewSkillNode,
-  selectedElement
+  viewElementProperties
 } from '~/actions'
 
 import Diagram from '../diagram'
@@ -41,7 +41,7 @@ const mapDispatchToProps = {
   copyFlowNode,
   pasteFlowNode,
   insertNewSkillNode,
-  selectedElement
+  viewElementProperties
 }
 
 const ConnectedDiagram = connect(

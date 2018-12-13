@@ -13,8 +13,9 @@ import Diagram from './containers/Diagram'
 import Topbar from './containers/Topbar'
 import SkillsBuilder from './containers/SkillsBuilder'
 import NodeProps from './containers/NodeProps'
+import { ToolTypes } from './panels/Constants'
 
-import { switchFlow, setDiagramAction } from '~/actions'
+import { switchFlow, setDiagramAction, refreshFlowsLinks } from '~/actions'
 import { getDirtyFlows } from '~/reducers'
 import 'golden-layout/src/css/goldenlayout-base.css'
 import 'golden-layout/src/css/goldenlayout-dark-theme.css'
@@ -82,6 +83,7 @@ class FlowContainer extends Component {
       'flow-add-node': () => this.props.setDiagramAction('insert_node'),
       'flow-save': () => this.diagram.saveAllFlows()
     }
+    const dropTypes = [ToolTypes.Node, ToolTypes.Content, ToolTypes.Skills, ToolTypes.Action, ToolTypes.Transition]
 
     return (
       <HotKeys handlers={keyHandlers} focused>
@@ -100,6 +102,8 @@ class FlowContainer extends Component {
                   }
                 }}
                 glEventHub={this.props.glEventHub}
+                refreshFlowsLinks={this.props.refreshFlowsLinks}
+                dropType={dropTypes}
               />
             </div>
 
@@ -122,7 +126,7 @@ const mapStateToProps = state => ({
 export default compose(
   connect(
     mapStateToProps,
-    { switchFlow, setDiagramAction }
+    { switchFlow, setDiagramAction, refreshFlowsLinks }
   ),
   withRouter
 )(FlowContainer)

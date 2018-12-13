@@ -6,20 +6,19 @@ import _ from 'lodash'
 import Mustache from 'mustache'
 
 import { fetchContentItem, refreshFlowsLinks } from '~/actions'
+import { textToItemId } from '../helpers'
 
 const style = require('./style.scss')
 
 class ActionItem extends Component {
   constructor(props) {
     super(props)
-    this.state = { itemId: this.textToItemId(this.props.text) }
+    this.state = { itemId: textToItemId(this.props.text) }
   }
 
   componentDidMount() {
-    this.fetchItem(this.textToItemId(this.props.text))
+    this.fetchItem(textToItemId(this.props.text))
   }
-
-  textToItemId = text => _.get(text.match(/^say #!(.*)$/), '[1]')
 
   fetchItem = itemId => {
     if (itemId) {
@@ -29,7 +28,7 @@ class ActionItem extends Component {
 
   componentWillReceiveProps({ text }) {
     if (text !== this.props.text) {
-      this.fetchItem(this.textToItemId(text))
+      this.fetchItem(textToItemId(text))
     }
   }
 
@@ -74,7 +73,7 @@ class ActionItem extends Component {
     }
 
     const item = this.props.items[this.state.itemId]
-    const textContent = (item && `${item.schema && item.schema.title} | ${item.previewText}`) || ''
+    const textContent = (item && `${item.schema && item.schema.title} | ${item.previewText}`) || action
     const vars = {}
 
     const stripDots = str => str.replace(/\./g, '--dot--')

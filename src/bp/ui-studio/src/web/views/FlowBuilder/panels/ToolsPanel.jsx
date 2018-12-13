@@ -3,8 +3,9 @@ import style from './style.scss'
 import DragNode from './DragNode'
 import { Button, OverlayTrigger, Tooltip } from 'react-bootstrap'
 import { connect } from 'react-redux'
-import { setDiagramAction, updateFlow, flowEditorRedo, flowEditorUndo, buildNewSkill } from '~/actions'
-import { getCurrentFlow, getCurrentFlowNode, getDirtyFlows, canFlowUndo, canFlowRedo } from '~/reducers'
+import { updateFlow, flowEditorRedo, flowEditorUndo, buildNewSkill, fetchContentCategories } from '~/actions'
+import { getDirtyFlows, canFlowUndo, canFlowRedo } from '~/reducers'
+import { ToolTypes } from './Constants'
 
 class ToolsPanel extends React.Component {
   constructor(props) {
@@ -12,24 +13,10 @@ class ToolsPanel extends React.Component {
     this.state = {}
   }
 
-  componentDidMount() {
-    this.setState({
-      elements: [
-        { id: 'text', label: 'Text' },
-        { id: 'single-choice', label: 'Single-Choice' },
-        { id: 'card', label: 'Card' },
-        { id: 'image', label: 'Image' }
-      ]
-    })
-  }
-
-  renderItem(item) {
-    return (
-      <div className={style.toolContainer} key={item.label}>
-        <div className={style.title}>{item.label}</div>
-        <DragNode type={item.id} />
-      </div>
-    )
+  componentDidUpdate(prevProps) {
+    if (prevProps !== this.props && !this.props.contentTypes) {
+      this.props.fetchContentCategories()
+    }
   }
 
   render() {
@@ -39,18 +26,17 @@ class ToolsPanel extends React.Component {
         <header>
           <span>Node</span>
         </header>
-        {this.renderItem({ id: 'node', label: 'Node' })}
-        {this.renderItem({ id: 'node', label: 'Action' })}
-        {this.renderItem({ id: 'node', label: 'Transition' })}
+        {this.renderTool('Node', 'node', ToolTypes.Node)}
+        {this.renderTool('Action', 'action', ToolTypes.Action, '')}
+        {this.renderTool('Transition', 'transition', ToolTypes.Transition, { condition: 'true', node: '' })}
         <header>
           <span>Content</span>
         </header>
-        {this.state.elements && this.state.elements.map(element => this.renderItem(element))}
+        {this.props.contentTypes && this.props.contentTypes.map(type => this.renderContentType(type))}
         <header>
           <span>Skills</span>
         </header>
-        {this.renderItem({ id: 'node', label: 'Choice' })}
-        {this.renderItem({ id: 'node', label: 'SF LiveAgent' })}
+        {this.props.skills && this.props.skills.map(skill => this.renderSkill(skill))}
       </div>
     )
   }
@@ -103,6 +89,18 @@ class ToolsPanel extends React.Component {
     )
   }
 
+  renderContentType = type => this.renderTool(type.title, type.id, ToolTypes.Content, `say ${type.id}`)
+  renderSkill = skill => this.renderTool(skill.name, skill.id, ToolTypes.Skills)
+
+  renderTool(name, id, type, defaultValue) {
+    return (
+      <div className={style.toolContainer} key={id}>
+        <div className={style.title}>{name}</div>
+        <DragNode type={type} id={id} defaultValue={defaultValue} />
+      </div>
+    )
+  }
+
   createTooltip = (name, text) => <Tooltip id={name}>{text}</Tooltip>
   emit = (event, ...args) => {
     this.props.glEventHub.emit(event, ...args)
@@ -115,11 +113,13 @@ const mapStateToProps = state => ({
   canUndo: canFlowUndo(state),
   canRedo: canFlowRedo(state),
   canPasteNode: Boolean(state.flows.nodeInBuffer),
-  skills: state.skills.installed
+  skills: state.skills.installed,
+  contentTypes: state.content.categories
 })
 
 const mapDispatchToProps = {
-  updateFlow: updateFlow,
+  updateFlow,
+  fetchContentCategories,
   undo: flowEditorUndo,
   redo: flowEditorRedo,
   buildSkill: buildNewSkill

@@ -1,3 +1,15 @@
+.hoverOnEnter {
+  border-top: 3px solid green !important;
+}
+
+.hoverOnReceive {
+  border-bottom: 3px solid red !important;
+}
+
+.hoverTransition {
+  border-bottom: 3px solid purple !important;
+}
+
 :global(.storm-diagrams-canvas .node) {
   opacity: 0.9;
 }
@@ -6,7 +18,7 @@
   border-color: #028aee !important;
 }
 
-.node-container {
+.nodeContainer {
   width: 200px;
   background: white;
   border: 1px solid black;
@@ -19,6 +31,11 @@
   overflow-y: scroll;
   border-bottom: 1px solid black;
   font-size: 11px;
+}
+
+.selected {
+  border: 1px solid #028aee !important;
+  background: #9ad4fe !important;
 }
 
 .section-next .item {
@@ -52,8 +69,8 @@
   }
 }
 
-.section-onEnter .item,
-.section-onReceive .item,
+.sectionOnEnter .item,
+.sectionOnReceive .item,
 .section-next .item {
   padding: 3px 8px;
 
@@ -170,4 +187,10 @@
   font-size: 11px;
   right: -83px;
   top: -40px;
+}
+
+.node-container {
+  width: 200px;
+  background: white;
+  border: 1px solid black;
 }

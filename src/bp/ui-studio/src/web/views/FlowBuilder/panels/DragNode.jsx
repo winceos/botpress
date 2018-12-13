@@ -1,11 +1,10 @@
 import React from 'react'
-import { ItemTypes } from './Constants'
 import { DragSource } from 'react-dnd'
 import style from './style.scss'
 
 const source = {
   beginDrag(props) {
-    return { ...props }
+    return { source: 'panel', ...props }
   }
 }
 
@@ -32,4 +31,4 @@ const DragNode = ({ connectDragSource, isDragging }) => {
   )
 }
 
-export default DragSource(ItemTypes.NODE, source, collect)(DragNode)
+export default DragSource(props => props.type, source, collect)(DragNode)

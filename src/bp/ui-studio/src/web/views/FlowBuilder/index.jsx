@@ -11,7 +11,7 @@ import ToolsPanel from './panels/ToolsPanel'
 import FlowPanel from './panels/FlowPanel'
 import ChatWindow from './panels/ChatWindow'
 import FlowContainer from './FlowContainer'
-import ContentEditorPanel from './panels/ContentEditorPanel'
+import Properties from './panels/Properties'
 import style from './style.scss'
 
 import { withDragDropContext } from './panels/WithDragDropContext'
@@ -33,7 +33,7 @@ class MainPage extends Component {
           content: [
             {
               type: 'stack',
-              width: 170,
+              width: 175,
               content: [
                 {
                   title: 'Tools',
@@ -65,7 +65,8 @@ class MainPage extends Component {
                 {
                   title: 'Properties',
                   type: 'react-component',
-                  component: 'contentEditor'
+                  component: 'properties',
+                  height: 500
                 },
                 {
                   title: 'Chat Window',
@@ -84,9 +85,13 @@ class MainPage extends Component {
     layout.registerComponent('chatWindow', this.connectStoreRouter(ChatWindow))
     layout.registerComponent('tools', this.connectStoreRouter(withDragDropContext(ToolsPanel)))
     layout.registerComponent('flows', withDragDropContext(FlowPanel))
-    layout.registerComponent('contentEditor', this.connectStoreRouter(ContentEditorPanel))
+    layout.registerComponent('properties', this.connectStoreRouter(Properties))
     layout.registerComponent('diagram', this.connectStoreRouter(withDragDropContext(FlowContainer)))
     layout.init()
+
+    window.onresize = function() {
+      layout.updateSize()
+    }
   }
 
   connectStoreRouter(Component) {

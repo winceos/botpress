@@ -3,10 +3,10 @@ import axios from 'axios'
 import _ from 'lodash'
 import BatchRunner from './BatchRunner'
 
-export const selectedElementReceived = createAction('ELEMENT/RECEIVED')
+export const elementPropertiesReceived = createAction('ELEMENT/PROPERTIES')
 
-export const selectedElement = element => (dispatch, getState) => {
-  dispatch(selectedElementReceived(element))
+export const viewElementProperties = element => (dispatch, getState) => {
+  dispatch(elementPropertiesReceived(element))
 }
 
 // Flows

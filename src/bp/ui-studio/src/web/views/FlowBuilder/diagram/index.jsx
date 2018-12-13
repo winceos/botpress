@@ -6,16 +6,16 @@ import classnames from 'classnames'
 import _ from 'lodash'
 import { DiagramWidget, DiagramEngine, DiagramModel, LinkModel, PointModel } from 'storm-react-diagrams'
 import { toast } from 'react-toastify'
+import update from 'immutability-helper'
 
 import { hashCode } from '~/util'
-
 import { StandardNodeModel, StandardWidgetFactory } from './nodes/StandardNode'
 import { SkillCallNodeModel, SkillCallWidgetFactory } from './nodes/SkillCallNode'
 import { DeletableLinkFactory } from './nodes/LinkWidget'
 import { DropTarget } from 'react-dnd'
-import { ItemTypes } from '../panels/Constants'
+import { moveElement } from '../helpers'
 
-const style = require('./style.scss')
+import style from './style.scss'
 
 const passThroughNodeProps = ['name', 'onEnter', 'onReceive', 'next', 'skill']
 const PADDING = 100
@@ -28,50 +28,8 @@ const createNodeModel = (node, props) => {
   }
 }
 
-const spec = {
-  canDrop(props, monitor) {
-    return true
-  },
-
-  hover(props, monitor, component) {},
-
-  drop(props, monitor, component) {
-    if (monitor.didDrop()) {
-      return
-    }
-
-    const item = monitor.getItem()
-
-    if (component.closestElementOnDrop) {
-      component.closestElementOnDrop.onEnter.push('say') //say  #!base_text-N3KTaK
-      component.onNodeSelection(component.closestElementOnDrop)
-    } else {
-      let model
-      if (item.type === 'text') {
-        model = { onEnter: ['say #!base_text-N3KTaK'] }
-      } else if (item.type === 'single-choice') {
-        model = { onEnter: ['say #!base_text-N3KTaK'] }
-      } else {
-        model = {}
-      }
-
-      component.addNodeAt(model, monitor.getClientOffset())
-    }
-  }
-}
-
-function collect(connect, monitor) {
-  return {
-    connectDropTarget: connect.dropTarget(),
-    isOver: monitor.isOver(),
-    isOverCurrent: monitor.isOver({ shallow: true }),
-    canDrop: monitor.canDrop(),
-    itemType: monitor.getItemType()
-  }
-}
 class FlowBuilder extends Component {
-  elementUnderCursor
-  closestElementOnDrop
+  dropTargetElement
 
   constructor(props) {
     super(props)
@@ -86,7 +44,45 @@ class FlowBuilder extends Component {
     this.setModel()
   }
 
-  addNodeAt(payload, location) {
+  addActionToNode(model, { dropEffect, source, target }) {
+    model.setSelected(true)
+    this.props.switchFlowNode(model.id)
+
+    const action = target.actionType
+
+    if (dropEffect === 'move') {
+      if (source.node.id === target.node.id) {
+        this.props.updateFlowNode({ [action]: moveElement(model[action], source.index, target.index) })
+      } else {
+        this.moveItemToNode(model, source, target)
+      }
+    } else {
+      this.props.updateFlowNode({
+        [action]: update(model[action], { $splice: [[target.index, 0, source.item.defaultValue]] })
+      })
+    }
+
+    this.props.refreshFlowsLinks()
+  }
+
+  moveItemToNode(model, source, target) {
+    this.props.updateFlowNode({
+      [target.actionType]: update(model[target.actionType], { $splice: [[target.index, 0, source.item]] })
+    })
+
+    setTimeout(() => {
+      this.props.switchFlowNode(source.node.id)
+
+      setTimeout(() => {
+        const live = this.props.currentFlowNode[source.actionType]
+        this.props.updateFlowNode({
+          [source.actionType]: update(live, { $splice: [[source.index, 1]] })
+        })
+      }, 0)
+    }, 0)
+  }
+
+  addEmptyNodeAt(location) {
     let { x, y } = this.diagramEngine.getRelativePoint(location.x, location.y)
 
     const zoomFactor = this.activeModel.getZoomLevel() / 100
@@ -97,7 +93,7 @@ class FlowBuilder extends Component {
     x -= this.activeModel.getOffsetX() / zoomFactor
     y -= this.activeModel.getOffsetY() / zoomFactor
 
-    this.props.createFlowNode({ x, y, ...payload })
+    this.props.createFlowNode({ x, y })
   }
 
   setTranslation(x = 0, y = 0) {
@@ -292,12 +288,9 @@ class FlowBuilder extends Component {
     return _.first(this.activeModel.getSelectedItems() || [], { selected: true })
   }
 
-  onMouseMove(e) {
-    this.elementUnderCursor = this.diagramWidget.getMouseElement(e)
-  }
   onDrop(e) {
     const element = this.diagramWidget.getMouseElement(e)
-    this.closestElementOnDrop = (element && element.model) || element
+    this.dropTargetElement = (element && element.model) || element
   }
 
   componentDidMount() {
@@ -307,7 +300,7 @@ class FlowBuilder extends Component {
     this.props.glEventHub.on('pasteClipboard', () => this.pasteElementFromBuffer())
 
     this.props.fetchFlows()
-    ReactDOM.findDOMNode(this.diagramWidget).addEventListener('mousemove', e => this.onMouseMove(e))
+
     ReactDOM.findDOMNode(this.diagramWidget).addEventListener('drop', e => this.onDrop(e))
     ReactDOM.findDOMNode(this.diagramWidget).addEventListener('click', this.onDiagramClick)
     ReactDOM.findDOMNode(this.diagramWidget).addEventListener('dblclick', this.onDiagramDoubleClick)
@@ -340,15 +333,10 @@ class FlowBuilder extends Component {
     this.props.openFlowNodeProps()
   }
 
-  onNodeSelection = element => {
-    this.props.selectedElement(element)
-  }
-
   onDiagramClick = event => {
     const selectedNode = this.getSelectedNode()
     const currentNode = this.props.currentFlowNode
 
-    this.onNodeSelection(selectedNode)
     // Sanitizing the links, making sure that:
     // 1) All links are connected to ONE [out] and [in] port
     // 2) All ports have only ONE outbound link
@@ -585,4 +573,26 @@ class FlowBuilder extends Component {
   }
 }
 
-export default DropTarget('node', spec, collect)(FlowBuilder)
+const targetSpec = {
+  drop(props, monitor, component) {
+    const dropResult = monitor.getDropResult()
+    if (!dropResult) {
+      return
+    }
+
+    if (monitor.didDrop()) {
+      component.addActionToNode(component.dropTargetElement, dropResult)
+    } else {
+      component.addEmptyNodeAt(monitor.getClientOffset())
+    }
+  }
+}
+
+function collect(connect, monitor) {
+  return {
+    connectDropTarget: connect.dropTarget(),
+    itemType: monitor.getItemType()
+  }
+}
+
+export default DropTarget(props => props.dropType, targetSpec, collect)(FlowBuilder)

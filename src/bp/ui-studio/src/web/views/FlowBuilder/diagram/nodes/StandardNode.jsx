@@ -2,12 +2,12 @@ import React, { Component } from 'react'
 import classnames from 'classnames'
 import _ from 'lodash'
 import { NodeModel, NodeFactory } from 'storm-react-diagrams'
-
+import { ToolTypes, ActionTypes } from '../../panels/Constants'
 import { StandardOutgoingPortModel, StandardPortWidget, StandardIncomingPortModel } from './Ports'
-import ActionItem from '../../common/action'
-import ConditionItem from '../../common/condition'
+import NodeElement from './NodeElement'
+import NodeTitle from './NodeTitle'
 
-const style = require('./style.scss')
+import style from './style.scss'
 
 export class StandardNodeWidget extends Component {
   static defaultProps = {
@@ -17,46 +17,88 @@ export class StandardNodeWidget extends Component {
 
   state = {}
 
+  renderOnEnter(node) {
+    const dropTypes = [ToolTypes.Content, ToolTypes.Skills, ToolTypes.Action]
+    return (
+      <div className={style.sectionOnEnter}>
+        {node.onEnter.map((item, i) => {
+          return (
+            <NodeElement
+              key={`${i}.${item}`}
+              index={i}
+              dropType={dropTypes}
+              dragType={ToolTypes.Content}
+              actionType={ActionTypes.OnEnter}
+              item={item}
+              node={node}
+            />
+          )
+        })}
+      </div>
+    )
+  }
+
+  renderOnReceive(node) {
+    const dropTypes = [ToolTypes.Content, ToolTypes.Skills, ToolTypes.Action]
+    return (
+      <div className={style.sectionOnReceive}>
+        {node.onReceive.map((item, i) => {
+          return (
+            <NodeElement
+              key={`${i}.${item}`}
+              index={i}
+              dropType={dropTypes}
+              dragType={ToolTypes.Content}
+              actionType={ActionTypes.OnReceive}
+              item={item}
+              node={node}
+            />
+          )
+        })}
+      </div>
+    )
+  }
+
+  renderTransition(node) {
+    const dropTypes = [ToolTypes.Transition]
+    return (
+      <div className={classnames(style['section-next'], style.section)}>
+        {node.next.map((item, i) => {
+          return (
+            <NodeElement
+              key={`${i}.${item}`}
+              dropType={dropTypes}
+              dragType={ToolTypes.Transition}
+              actionType={ActionTypes.Transition}
+              index={i}
+              item={item}
+              node={node}
+              outputPortName={`out${i}`}
+            />
+          )
+        })}
+      </div>
+    )
+  }
+
+  renderTitle(node) {
+    const dropTypes = [ToolTypes.Content, ToolTypes.Skills, ToolTypes.Action, ToolTypes.Transition]
+    return <NodeTitle dropType={dropTypes} isWaiting={node.waitOnReceive} title={node.name} node={node} parent={this} />
+  }
+
   render() {
     const node = this.props.node
-    const isWaiting = node.waitOnReceive
-
-    const className = classnames(style['node-container'])
-
     return (
-      <div className={className}>
+      <div className={style.nodeContainer}>
         <div className={style.topPort}>
           <StandardPortWidget name="in" node={node} />
         </div>
         <div className={style.header} />
         <div className={style.content}>
-          <div className={classnames(style['section-onEnter'], style.section)}>
-            {node.onEnter &&
-              node.onEnter.map((item, i) => {
-                return <ActionItem key={`${i}.${item}`} className={style.item} text={item} />
-              })}
-          </div>
-          <div className={classnames(style['section-title'], style.section, { [style.waiting]: isWaiting })}>
-            {node.name}
-          </div>
-          <div className={classnames(style['section-onReceive'], style.section)}>
-            {node.onReceive &&
-              node.onReceive.map((item, i) => {
-                return <ActionItem key={`${i}.${item}`} className={style.item} text={item} />
-              })}
-          </div>
-          <div className={classnames(style['section-next'], style.section)}>
-            {node.next &&
-              node.next.map((item, i) => {
-                const outputPortName = `out${i}`
-                return (
-                  <div key={`${i}.${item}`} className={classnames(style.item)}>
-                    <ConditionItem condition={item} position={i} />
-                    <StandardPortWidget name={outputPortName} node={node} />
-                  </div>
-                )
-              })}
-          </div>
+          {node.onEnter && this.renderOnEnter(node)}
+          {this.renderTitle(node)}
+          {node.onReceive && this.renderOnReceive(node)}
+          {node.next && this.renderTransition(node)}
         </div>
         <div className={style.footer}>
           <div />
