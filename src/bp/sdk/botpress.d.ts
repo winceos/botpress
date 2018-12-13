@@ -86,11 +86,18 @@ declare module 'botpress/sdk' {
     botTemplates?: BotTemplate[]
   }
 
+  /**
+   * Identifies new Bot Template that can be used to speed up the creation of a new bot without
+   * having to start from scratch
+   */
   export interface BotTemplate {
+    /** Used internally to identify this template  */
     id: string
+    /** The name that will be displayed in the bot templte menu */
     name: string
+    /** Gives a short description of your module, which is displayed once the template is selected */
     desc: string
-    /**  */
+    /** These are used internally by Botpress when they are registered on startup */
     readonly moduleId?: string
     readonly moduleName?: string
   }
@@ -147,10 +154,17 @@ declare module 'botpress/sdk' {
   export namespace NLU {
     export type EntityType = 'system' | 'pattern' | 'list'
 
+    export interface EntityDefOccurence {
+      name: string
+      synonyms: string[]
+    }
+
     export interface EntityDefinition {
+      id: string
       name: string
       type: EntityType
-      body: any
+      occurences?: EntityDefOccurence[]
+      pattern?: string
     }
 
     export interface IntentSlot {
@@ -190,7 +204,6 @@ declare module 'botpress/sdk' {
       raw: any
     }
   }
-
   export namespace IO {
     export type EventDirection = 'incoming' | 'outgoing'
     export namespace WellKnownFlags {
@@ -198,6 +211,8 @@ declare module 'botpress/sdk' {
       export const SKIP_DIALOG_ENGINE: symbol
       /** When this flag is active, the QNA module won't intercept this event */
       export const SKIP_QNA_PROCESSING: symbol
+      /** When this flag is active, Botpress Native NLU will not process this event */
+      export const SKIP_NATIVE_NLU: symbol
     }
 
     /**
@@ -409,8 +424,9 @@ declare module 'botpress/sdk' {
      * @example bp.ghost.forBot('welcome-bot').directoryListing('./questions', '*.json')
      * @param rootFolder - Folder relative to the scoped parent
      * @param fileEndingPattern - The pattern to match. Don't forget to include wildcards!
+     * @param exclude - The pattern to match excluded files.
      */
-    directoryListing(rootFolder: string, fileEndingPattern: string): Promise<string[]>
+    directoryListing(rootFolder: string, fileEndingPattern: string, exclude?: string | string[]): Promise<string[]>
   }
 
   /**
@@ -438,6 +454,7 @@ declare module 'botpress/sdk' {
 
   export interface DialogConfig {
     timeoutInterval: string
+    sessionTimeoutInterval: string
   }
 
   /**

@@ -90,12 +90,12 @@ export default class Storage {
     }
   }
 
-  async getIntents() {
+  async getIntents(): Promise<sdk.NLU.Intent[]> {
     const intents = await this.ghost.directoryListing(this.intentsDir, '*.json')
     return Promise.mapSeries(intents, intent => this.getIntent(intent))
   }
 
-  async getIntent(intent) {
+  async getIntent(intent): Promise<sdk.NLU.Intent> {
     intent = sanitizeFilenameNoExt(intent)
 
     if (intent.length < 1) {
@@ -146,19 +146,26 @@ export default class Storage {
       e =>
         ({
           name: e,
-          type: 'system',
-          body: {}
+          type: 'system'
         } as sdk.NLU.EntityDefinition)
     )
   }
 
   async getCustomEntities(): Promise<sdk.NLU.EntityDefinition[]> {
-    return []
+    const files = await this.ghost.directoryListing(this.entitiesDir, '*.json')
+    return Promise.mapSeries(files, async f => {
+      return await this.ghost.readFileAsObject<sdk.NLU.EntityDefinition>(this.entitiesDir, f)
+    })
   }
 
   async saveEntity(entity: sdk.NLU.EntityDefinition): Promise<void> {
     const fileName = this._getEntityFileName(entity.name)
     return this.ghost.upsertFile(this.entitiesDir, fileName, JSON.stringify(entity))
+  }
+
+  async updateEntity(entityName: string, updatedEntity: sdk.NLU.EntityDefinition): Promise<void> {
+    const fileName = this._getEntityFileName(entityName)
+    return this.ghost.upsertFile(this.entitiesDir, fileName, JSON.stringify(updatedEntity))
   }
 
   async deleteEntity(entityName: string): Promise<void> {

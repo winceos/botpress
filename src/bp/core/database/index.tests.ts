@@ -18,12 +18,15 @@ export function createDatabaseSuite(suiteName: string, suite: DatabaseTestSuite)
   const sqlite = new Database(logger.T)
   const postgres = new Database(logger.T)
 
-  describe(`DB[SQLite] ${suiteName}`, () => {
+  describe(`DB[SQLite] ${suiteName}`, async () => {
     beforeAll(async () => {
       await sqlite.initialize({
         location: sqlitePath,
         type: 'sqlite'
       })
+
+      await sqlite.bootstrap()
+      await sqlite.seedForTests()
     })
 
     afterAll(async () => {
@@ -37,7 +40,7 @@ export function createDatabaseSuite(suiteName: string, suite: DatabaseTestSuite)
       await sqlite.seedForTests()
     })
 
-    suite(sqlite)
+    await suite(sqlite)
   })
 
   describe(`DB[Postgres] ${suiteName}`, () => {
@@ -50,6 +53,9 @@ export function createDatabaseSuite(suiteName: string, suite: DatabaseTestSuite)
         user: process.env.PG_USER || 'postgres',
         password: process.env.PG_PASSWORD || ''
       })
+
+      await postgres.bootstrap()
+      await postgres.seedForTests()
     })
 
     afterAll(async () => {
