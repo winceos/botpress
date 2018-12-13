@@ -13,10 +13,14 @@ class ToolsPanel extends React.Component {
     this.state = {}
   }
 
-  componentDidUpdate(prevProps) {
-    if (prevProps !== this.props && !this.props.contentTypes) {
+  componentDidMount() {
+    if (!this.props.contentTypes) {
       this.props.fetchContentCategories()
     }
+  }
+
+  shouldComponentUpdate(nextProps) {
+    return this.props.skills !== nextProps.skills || this.props.contentTypes !== nextProps.contentTypes
   }
 
   render() {

@@ -5,7 +5,7 @@ import { connect } from 'react-redux'
 import { getCurrentFlow } from '~/reducers'
 import ConditionForm from './components/ConditionForm'
 
-import style from '../../style.scss'
+import style from '../style.scss'
 
 class TransitionProps extends React.Component {
   state = {}

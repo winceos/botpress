@@ -17,11 +17,24 @@ import style from './style.scss'
 import { withDragDropContext } from './panels/WithDragDropContext'
 
 class MainPage extends Component {
+  gLayout
+
   componentDidMount() {
-    this.setupWindows()
+    setTimeout(() => {
+      this.setupLayout()
+    }, 0)
+
+    window.addEventListener('resize', this.resizeLayout)
   }
 
-  setupWindows() {
+  componentWillUnmount() {
+    window.removeEventListener('resize', this.resizeLayout)
+    this.gLayout.destroy()
+  }
+
+  resizeLayout = () => this.gLayout.updateSize()
+
+  setupLayout() {
     const config = {
       settings: {
         showPopoutIcon: false,
@@ -89,9 +102,7 @@ class MainPage extends Component {
     layout.registerComponent('diagram', this.connectStoreRouter(withDragDropContext(FlowContainer)))
     layout.init()
 
-    window.onresize = function() {
-      layout.updateSize()
-    }
+    this.gLayout = layout
   }
 
   connectStoreRouter(Component) {
@@ -120,6 +131,4 @@ MainPage.contextTypes = {
   router: PropTypes.object
 }
 
-const mapStateToProps = state => ({})
-
-export default connect(mapStateToProps)(withRouter(MainPage))
+export default withRouter(MainPage)

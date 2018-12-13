@@ -304,13 +304,15 @@ class FlowBuilder extends Component {
     ReactDOM.findDOMNode(this.diagramWidget).addEventListener('drop', e => this.onDrop(e))
     ReactDOM.findDOMNode(this.diagramWidget).addEventListener('click', this.onDiagramClick)
     ReactDOM.findDOMNode(this.diagramWidget).addEventListener('dblclick', this.onDiagramDoubleClick)
-    document.getElementById('diagramContainer').addEventListener('keydown', this.onKeyDown)
+    const container = document.getElementById('diagramContainer')
+    container && container.addEventListener('keydown', this.onKeyDown)
   }
 
   componentWillUnmount() {
     ReactDOM.findDOMNode(this.diagramWidget).removeEventListener('click', this.onDiagramClick)
     ReactDOM.findDOMNode(this.diagramWidget).removeEventListener('dblclick', this.onDiagramDoubleClick)
-    document.getElementById('diagramContainer').removeEventListener('keydown', this.onKeyDown)
+    const container = document.getElementById('diagramContainer')
+    container && container.removeEventListener('keydown', this.onKeyDown)
   }
 
   componentDidUpdate(prevProps) {

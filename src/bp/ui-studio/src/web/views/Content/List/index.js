@@ -19,6 +19,7 @@ export default class ListView extends Component {
 
   componentDidMount() {
     this.debouncedHandleSearch = _.debounce(() => this.launchSearch(), 1000)
+    this.setState({ columns: this.getTableColumns() })
   }
 
   handleCheckboxChanged(id) {
@@ -254,11 +255,16 @@ export default class ListView extends Component {
         width: 150
       },
       {
-        Cell: !this.props.readOnly && (
-          <Button bsSize="xs">
-            <Glyphicon glyph="pencil" />
-          </Button>
-        ),
+        Header: '',
+        Cell: x => {
+          if (!this.props.readOnly) {
+            return (
+              <Button bsSize="xs">
+                <Glyphicon glyph="pencil" />
+              </Button>
+            )
+          }
+        },
         filterable: false,
         width: 45
       }
@@ -266,6 +272,10 @@ export default class ListView extends Component {
   }
 
   renderTable() {
+    if (!this.state.columns) {
+      return null
+    }
+
     const pageCount = Math.ceil(this.props.count / this.state.pageSize)
     const noDataMessage = this.props.readOnly
       ? "There's no content here."
@@ -273,7 +283,7 @@ export default class ListView extends Component {
 
     return (
       <ReactTable
-        columns={this.getTableColumns()}
+        columns={this.state.columns}
         data={this.props.contentItems}
         onFetchData={this.fetchData}
         onPageSizeChange={(pageSize, page) => this.setState({ page, pageSize })}
