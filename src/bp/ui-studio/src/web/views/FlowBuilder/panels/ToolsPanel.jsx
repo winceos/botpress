@@ -20,7 +20,12 @@ class ToolsPanel extends React.Component {
   }
 
   shouldComponentUpdate(nextProps) {
-    return this.props.skills !== nextProps.skills || this.props.contentTypes !== nextProps.contentTypes
+    return (
+      this.props.skills !== nextProps.skills ||
+      this.props.contentTypes !== nextProps.contentTypes ||
+      this.props.canUndo !== nextProps.canUndo ||
+      this.props.canRedo !== nextProps.canRedo
+    )
   }
 
   render() {

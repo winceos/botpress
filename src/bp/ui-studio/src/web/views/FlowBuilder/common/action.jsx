@@ -4,9 +4,8 @@ import { connect } from 'react-redux'
 import { Popover, OverlayTrigger } from 'react-bootstrap'
 import _ from 'lodash'
 import Mustache from 'mustache'
-
 import { fetchContentItem, refreshFlowsLinks } from '~/actions'
-import { textToItemId } from '../helpers'
+import { textToItemId, isAction } from '~/util'
 
 const style = require('./style.scss')
 
@@ -66,9 +65,8 @@ class ActionItem extends Component {
 
   render() {
     const action = this.props.text
-    const isAction = typeof action !== 'string' || !action.startsWith('say ')
 
-    if (isAction) {
+    if (isAction(action)) {
       return this.renderAction()
     }
 

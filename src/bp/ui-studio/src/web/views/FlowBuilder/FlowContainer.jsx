@@ -15,7 +15,14 @@ import SkillsBuilder from './containers/SkillsBuilder'
 import NodeProps from './containers/NodeProps'
 import { ToolTypes } from './panels/Constants'
 
-import { switchFlow, setDiagramAction, refreshFlowsLinks } from '~/actions'
+import {
+  switchFlow,
+  setDiagramAction,
+  refreshFlowsLinks,
+  buildNewSkill,
+  viewElementProperties,
+  editFlowNodeAction
+} from '~/actions'
 import { getDirtyFlows } from '~/reducers'
 import 'golden-layout/src/css/goldenlayout-base.css'
 import 'golden-layout/src/css/goldenlayout-dark-theme.css'
@@ -104,6 +111,9 @@ class FlowContainer extends Component {
                 glEventHub={this.props.glEventHub}
                 refreshFlowsLinks={this.props.refreshFlowsLinks}
                 dropType={dropTypes}
+                buildSkill={this.props.buildSkill}
+                editFlowNodeAction={this.props.editFlowNodeAction}
+                viewElementProperties={this.props.viewElementProperties}
               />
             </div>
 
@@ -126,7 +136,14 @@ const mapStateToProps = state => ({
 export default compose(
   connect(
     mapStateToProps,
-    { switchFlow, setDiagramAction, refreshFlowsLinks }
+    {
+      switchFlow,
+      setDiagramAction,
+      refreshFlowsLinks,
+      buildSkill: buildNewSkill,
+      editFlowNodeAction,
+      viewElementProperties
+    }
   ),
   withRouter
 )(FlowContainer)

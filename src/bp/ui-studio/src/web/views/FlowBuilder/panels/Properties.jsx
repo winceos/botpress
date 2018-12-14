@@ -1,23 +1,40 @@
 import React from 'react'
 import { connect } from 'react-redux'
 import _ from 'lodash'
-import { fetchContentItem, fetchContentCategories, updateFlowNode, switchFlowNode } from '~/actions'
-import { getCurrentFlow, getCurrentFlowNode } from '~/reducers'
+import { Button } from 'react-bootstrap'
+import classnames from 'classnames'
 import { ToolTypes } from './Constants'
 import ActionProps from './props/ActionProps'
 import NodeProps from './props/NodeProps'
 import ContentProps from './props/ContentProps'
 import TransitionProps from './props/TransitionProps'
+import { editFlowNodeAction, viewElementProperties } from '~/actions'
+import style from './style.scss'
 
 class Properties extends React.Component {
-  constructor(props) {
-    super(props)
-    this.state = {}
+  handleDelete = () => {
+    const { node, actionType, index } = this.props.selectedItem
+
+    this.props.editFlowNodeAction({
+      nodeId: node.id,
+      actionType,
+      remove: { index }
+    })
+
+    this.props.viewElementProperties(undefined)
   }
 
-  componentDidUpdate(prevProps) {
-    if (this.props.selectedItem !== prevProps.selectedItem && !this.props.contentTypes) {
-      this.props.fetchContentCategories()
+  renderAdvanced() {
+    const { dragType, node } = this.props.selectedItem
+
+    if (dragType === ToolTypes.Content) {
+      return <ContentProps data={this.props.selectedItem} node={node} />
+    } else if (dragType === ToolTypes.Action) {
+      return <ActionProps data={this.props.selectedItem} node={node} />
+    } else if (dragType === ToolTypes.Transition) {
+      return <TransitionProps data={this.props.selectedItem} node={node} />
+    } else if (dragType === ToolTypes.Node) {
+      return <NodeProps node={node} />
     }
   }
 
@@ -26,47 +43,25 @@ class Properties extends React.Component {
       return null
     }
 
-    const { type, node } = this.props.selectedItem
+    return (
+      <div className={classnames(style.panel, style.padded)}>
+        <div className={style.formField}>
+          <label htmlFor="title">Parent Node</label>
+          <span>{this.props.selectedItem.node.name}</span>
+        </div>
 
-    if (type === ToolTypes.Content) {
-      return (
-        <ContentProps
-          data={this.props.selectedItem}
-          node={node}
-          contentTypes={this.props.contentTypes}
-          contentElements={this.props.contentElements}
-          updateFlowNode={this.props.updateFlowNode}
-          currentFlow={this.props.currentFlow}
-          currentFlowNode={this.props.currentFlowNode}
-        />
-      )
-    } else if (type === ToolTypes.Action) {
-      return (
-        <ActionProps
-          data={this.props.selectedItem}
-          node={node}
-          updateFlowNode={this.props.updateFlowNode}
-          currentFlow={this.props.currentFlow}
-          currentFlowNode={this.props.currentFlowNode}
-          switchFlowNode={this.props.switchFlowNode}
-        />
-      )
-    } else if (type === ToolTypes.Transition) {
-      return <TransitionProps node={node} data={this.props.selectedItem} />
-    } else if (type === ToolTypes.Node) {
-      return <NodeProps node={node} />
-    }
+        <Button bsSize="xs" onClick={this.handleDelete}>
+          Delete element
+        </Button>
+        <hr />
+        {this.renderAdvanced()}
+      </div>
+    )
   }
 }
 
-const mapStateToProps = state => ({
-  contentElements: state.content.itemsById,
-  selectedItem: state.panels.selectedItem,
-  contentTypes: state.content.categories,
-  currentFlow: getCurrentFlow(state),
-  currentFlowNode: getCurrentFlowNode(state)
-})
-const mapDispatchToProps = { fetchContentItem, fetchContentCategories, updateFlowNode, switchFlowNode }
+const mapStateToProps = state => ({ selectedItem: state.panels.selectedItem })
+const mapDispatchToProps = { viewElementProperties, editFlowNodeAction }
 
 export default connect(
   mapStateToProps,
