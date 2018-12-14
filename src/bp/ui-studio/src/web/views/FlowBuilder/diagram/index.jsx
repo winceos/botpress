@@ -1,19 +1,17 @@
 import React, { Component } from 'react'
 import { Button, Label } from 'react-bootstrap'
-
+import { DropTarget } from 'react-dnd'
 import ReactDOM from 'react-dom'
 import classnames from 'classnames'
 import _ from 'lodash'
 import { DiagramWidget, DiagramEngine, DiagramModel, LinkModel, PointModel } from 'storm-react-diagrams'
 import { toast } from 'react-toastify'
-import update from 'immutability-helper'
 
 import { hashCode } from '~/util'
 import { StandardNodeModel, StandardWidgetFactory } from './nodes/StandardNode'
 import { SkillCallNodeModel, SkillCallWidgetFactory } from './nodes/SkillCallNode'
 import { DeletableLinkFactory } from './nodes/LinkWidget'
-import { DropTarget } from 'react-dnd'
-import { moveElement } from '../helpers'
+import { ToolTypes } from './../panels/Constants'
 
 import style from './style.scss'
 
@@ -29,11 +27,10 @@ const createNodeModel = (node, props) => {
 }
 
 class FlowBuilder extends Component {
-  dropTargetElement
-
   constructor(props) {
     super(props)
     this.state = {}
+    this.dropTargetElement = undefined
 
     this.diagramEngine = new DiagramEngine()
 
@@ -45,41 +42,41 @@ class FlowBuilder extends Component {
   }
 
   addActionToNode(model, { dropEffect, source, target }) {
-    model.setSelected(true)
-    this.props.switchFlowNode(model.id)
-
-    const action = target.actionType
-
     if (dropEffect === 'move') {
-      if (source.node.id === target.node.id) {
-        this.props.updateFlowNode({ [action]: moveElement(model[action], source.index, target.index) })
+      if (source.node.id === target.node.id && source.actionType === target.actionType) {
+        this.props.editFlowNodeAction({
+          nodeId: source.node.id,
+          actionType: source.actionType,
+          move: { fromIndex: source.index, toIndex: target.index }
+        })
       } else {
-        this.moveItemToNode(model, source, target)
+        this.moveItemToNode(source, target)
       }
     } else {
-      this.props.updateFlowNode({
-        [action]: update(model[action], { $splice: [[target.index, 0, source.item.defaultValue]] })
+      this.props.editFlowNodeAction({
+        nodeId: model.id,
+        actionType: target.actionType,
+        add: { index: target.index },
+        item: source.item.defaultValue
       })
     }
 
     this.props.refreshFlowsLinks()
   }
 
-  moveItemToNode(model, source, target) {
-    this.props.updateFlowNode({
-      [target.actionType]: update(model[target.actionType], { $splice: [[target.index, 0, source.item]] })
+  moveItemToNode(source, target) {
+    this.props.editFlowNodeAction({
+      nodeId: source.node.id,
+      actionType: source.actionType,
+      remove: { index: source.index }
     })
 
-    setTimeout(() => {
-      this.props.switchFlowNode(source.node.id)
-
-      setTimeout(() => {
-        const live = this.props.currentFlowNode[source.actionType]
-        this.props.updateFlowNode({
-          [source.actionType]: update(live, { $splice: [[source.index, 1]] })
-        })
-      }, 0)
-    }, 0)
+    this.props.editFlowNodeAction({
+      nodeId: target.node.id,
+      actionType: target.actionType,
+      add: { index: target.index },
+      item: source.item
+    })
   }
 
   addEmptyNodeAt(location) {
@@ -94,6 +91,13 @@ class FlowBuilder extends Component {
     y -= this.activeModel.getOffsetY() / zoomFactor
 
     this.props.createFlowNode({ x, y })
+  }
+
+  droppedToolOnDiagram(item, location) {
+    if (item.type === ToolTypes.Skills) {
+      this.props.buildSkill('choice')
+      console.log('Add skill at ', location)
+    }
   }
 
   setTranslation(x = 0, y = 0) {
@@ -579,6 +583,7 @@ const targetSpec = {
   drop(props, monitor, component) {
     const dropResult = monitor.getDropResult()
     if (!dropResult) {
+      component.droppedToolOnDiagram(monitor.getItem(), monitor.getClientOffset())
       return
     }
 

@@ -3,7 +3,7 @@ import _ from 'lodash'
 
 import { Alert, Tabs, Tab } from 'react-bootstrap'
 
-import { WithContext as ReactTags } from 'react-tag-input'
+import { WithOutContext as ReactTags } from 'react-tag-input'
 
 import ContentPickerWidget from 'botpress/content-picker'
 
@@ -107,11 +107,11 @@ export default class TemplateModule extends React.Component {
   }
 
   renderMatchingSection() {
-    return this.choices.map(choice => {
+    return this.choices.map((choice, idx) => {
       const keywordsEntry = this.state.keywords[choice.value] || []
       const tags = keywordsEntry.map(x => ({ id: x, text: x }))
       return (
-        <div className={style.keywords}>
+        <div className={style.keywords} key={`${idx}.${choice.value}`}>
           <h4>
             {choice.title} <small>({choice.value})</small>
           </h4>

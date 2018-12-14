@@ -1,6 +1,6 @@
 import React from 'react'
 import { connect } from 'react-redux'
-import ContentForm from './components/ContentForm'
+import ContentForm from '~/components/ContentForm'
 import { textToItemId } from '~/util'
 import { fetchContentItem, fetchContentCategories, upsertContentItem, editFlowNodeAction } from '~/actions'
 import style from '../style.scss'
