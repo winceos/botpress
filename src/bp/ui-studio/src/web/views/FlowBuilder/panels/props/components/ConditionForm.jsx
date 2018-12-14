@@ -1,6 +1,6 @@
 import React from 'react'
 import Select from 'react-select'
-import { Radio, Alert } from 'react-bootstrap'
+import { Radio, Alert, Button } from 'react-bootstrap'
 import classnames from 'classnames'
 import _ from 'lodash'
 
@@ -13,7 +13,10 @@ export default class ConditionForm extends React.Component {
     flowToSubflow: null,
     flowToNode: null,
     transitionError: null,
-    conditionError: null
+    conditionError: null,
+    returnToNode: '',
+    condition: '',
+    caption: ''
   }
 
   componentDidUpdate(prevProps) {
@@ -28,16 +31,18 @@ export default class ConditionForm extends React.Component {
       let typeOfTransition = item.node.indexOf('.') !== -1 ? 'subflow' : 'node'
       typeOfTransition = item.node === 'END' ? 'end' : typeOfTransition
       typeOfTransition = /^#/.test(item.node) ? 'return' : typeOfTransition
+      const node = { label: item.node, value: item.node }
 
       this.setState({
         typeOfTransition,
         condition: item.condition,
-        flowToSubflow: typeOfTransition === 'subflow' ? item.node : null,
-        flowToNode: typeOfTransition === 'node' ? item.node : null,
+        caption: item.caption || '',
+        flowToSubflow: typeOfTransition === 'subflow' ? node : null,
+        flowToNode: typeOfTransition === 'node' ? node : null,
         returnToNode: typeOfTransition === 'return' ? item.node.substr(1) : ''
       })
     } else {
-      this.resetForm({ condition: (item && item.condition) || '' })
+      this.resetForm({ condition: (item && item.condition) || '', caption: (item && item.caption) || '' })
     }
   }
 
@@ -54,26 +59,16 @@ export default class ConditionForm extends React.Component {
 
   validation() {
     if (this.state.typeOfTransition === 'subflow' && !this.state.flowToSubflow) {
-      this.setState({
-        transitionError: 'You must select a subflow to transition to'
-      })
-
+      this.setState({ transitionError: 'You must select a subflow to transition to' })
       return false
     }
 
     if (_.isEmpty(this.state.condition)) {
-      this.setState({
-        conditionError: 'Specify a condition'
-      })
-
+      this.setState({ conditionError: 'Specify a condition' })
       return false
     }
 
-    this.setState({
-      conditionError: null,
-      transitionError: null
-    })
-
+    this.setState({ conditionError: null, transitionError: null })
     return true
   }
 
@@ -86,15 +81,16 @@ export default class ConditionForm extends React.Component {
       conditionError: null,
       transitionError: null,
       condition: '',
+      caption: '',
       ...props
     })
   }
 
-  onSubmitClick = () => {
+  handleSubmit = () => {
     if (!this.validation()) {
       return
     }
-    const payload = { condition: this.state.condition }
+    const payload = { condition: this.state.condition, caption: this.state.caption }
 
     if (this.state.typeOfTransition === 'subflow') {
       payload.node = _.get(this.state, 'flowToSubflow.value') || _.get(this.state, 'flowToSubflow')
@@ -118,7 +114,6 @@ export default class ConditionForm extends React.Component {
     }
 
     this.props.onSubmit(payload)
-    this.resetForm()
   }
 
   getSubflowOptions() {
@@ -144,15 +139,17 @@ export default class ConditionForm extends React.Component {
   }
 
   renderReturnToNode() {
-    const updateNode = value =>
-      this.setState({
-        returnToNode: value
-      })
+    const updateNode = value => this.setState({ returnToNode: value })
 
     return (
       <div className={style.returnToNodeSection}>
         <div>Return to node called:</div>
-        <input type="text" value={this.state.returnToNode} onChange={e => updateNode(e.target.value)} />
+        <input
+          type="text"
+          className={style.input}
+          value={this.state.returnToNode}
+          onChange={e => updateNode(e.target.value)}
+        />
         <div>
           <input
             type="checkbox"
@@ -190,9 +187,8 @@ export default class ConditionForm extends React.Component {
     )
   }
 
-  onConditionChanged = event => {
-    this.setState({ condition: event.target.value })
-  }
+  handleConditionChanged = event => this.setState({ condition: event.target.value })
+  handleCaptionChanged = event => this.setState({ caption: event.target.value })
 
   render() {
     return (
@@ -206,7 +202,17 @@ export default class ConditionForm extends React.Component {
             type="text"
             placeholder="Javascript expression"
             value={this.state.condition}
-            onChange={this.onConditionChanged}
+            onChange={this.handleConditionChanged}
+          />
+        </div>
+        <h5>Caption:</h5>
+        <div className={style.section}>
+          <input
+            className={style.input}
+            type="text"
+            placeholder="Label for transition"
+            value={this.state.caption}
+            onChange={this.handleCaptionChanged}
           />
         </div>
         <h5>When condition is met, do:</h5>
@@ -234,6 +240,8 @@ export default class ConditionForm extends React.Component {
           {this.state.transitionError && <Alert bsStyle="danger">{this.state.transitionError}</Alert>}
           {this.state.typeOfTransition === 'subflow' && this.renderSubflowChoice()}
         </div>
+
+        <Button onClick={this.handleSubmit}>Save </Button>
       </div>
     )
   }
