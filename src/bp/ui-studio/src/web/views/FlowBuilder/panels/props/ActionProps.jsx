@@ -1,16 +1,27 @@
 import React from 'react'
+import { connect } from 'react-redux'
 import { OverlayTrigger, Tooltip, Button } from 'react-bootstrap'
 import axios from 'axios'
 import _ from 'lodash'
-import classnames from 'classnames'
 import Markdown from 'react-markdown'
+import { editFlowNodeAction } from '~/actions'
 import SelectActionDropdown from './components/SelectActionDropdown'
 import ParametersTable from './components/ParametersTable'
 import style from '../style.scss'
-import update from 'immutability-helper'
-import { extractActionDetails } from '../../helpers'
 
-export default class ActionProps extends React.Component {
+const extractActionDetails = text => {
+  const action = text.trim()
+
+  if (action.indexOf(' ') >= 0) {
+    const tokens = action.split(' ')
+    return {
+      name: _.head(tokens),
+      params: JSON.parse(_.tail(tokens).join(' '))
+    }
+  }
+}
+
+class ActionProps extends React.Component {
   state = {
     actionsList: [],
     actionMetadata: {},
@@ -143,34 +154,32 @@ export default class ActionProps extends React.Component {
     )
   }
 
-  save = async () => {
+  handleSubmit = async () => {
     const { selectedItem, parameters } = this.state
-    const { actionType, index } = this.props.data
-    const actionStr = `${selectedItem.value} ${JSON.stringify(parameters || {})}`
+    const { node, actionType, index } = this.props.data
 
-    this.props.switchFlowNode(this.props.node.id)
-
-    setTimeout(() => {
-      const currentActions = this.props.currentFlowNode[actionType]
-      this.props.updateFlowNode({
-        [actionType]: update(currentActions, { $splice: [[index, 1, actionStr]] })
-      })
-    }, 0)
+    this.props.editFlowNodeAction({
+      nodeId: node.id,
+      actionType,
+      replace: { index },
+      item: `${selectedItem.value} ${JSON.stringify(parameters || {})}`
+    })
   }
 
   render() {
-    console.log('render', this.props)
     return (
-      <div className={classnames(style.panel, style.padded)}>
-        <div className={style.formField}>
-          <label htmlFor="title">Parent Node</label>
-          <span>{this.props.node.name}</span>
-        </div>
-
-        <hr />
+      <div>
         {this.renderPicker()}
-        <Button onClick={this.save}>Save </Button>
+        <Button onClick={this.handleSubmit}>Save </Button>
       </div>
     )
   }
 }
+
+const mapStateToProps = state => ({})
+const mapDispatchToProps = { editFlowNodeAction }
+
+export default connect(
+  mapStateToProps,
+  mapDispatchToProps
+)(ActionProps)
