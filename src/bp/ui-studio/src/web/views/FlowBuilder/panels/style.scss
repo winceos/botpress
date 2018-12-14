@@ -182,6 +182,7 @@
   height: 2.4rem;
   padding: 0.4rem 0.8rem;
   outline: none;
+  width: 100%;
 }
 
 .tip {
@@ -227,4 +228,15 @@
 }
 .subflowBloc {
   background-color: blue;
+}
+
+.rjsf {
+  :global(.form-control) {
+    background-color: #555556;
+    color: #fff;
+    border: 1px solid #626262;
+    padding: 0.4rem 0.8rem;
+    outline: none;
+    width: 100%;
+  }
 }
