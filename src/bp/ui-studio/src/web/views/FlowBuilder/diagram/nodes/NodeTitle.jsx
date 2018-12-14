@@ -20,11 +20,10 @@ class NodeTitle extends React.Component {
   }
 
   handleClick = e => {
-    const properties = {
-      type: 'node',
+    this.props.viewElementProperties({
+      type: ToolTypes.Node,
       node: this.props.node
-    }
-    this.props.viewElementProperties(properties)
+    })
   }
 
   render() {
@@ -64,13 +63,14 @@ const targetSpec = {
 
     component.updateHoverStatus({
       isOverFirstHalf: mouseYposOnDomElement < domElementRect.height / 2,
-      itemType: monitor.getItem().type
+      itemType: monitor.getItemType()
     })
   },
 
   drop(props, monitor, component) {
     if (!monitor.didDrop()) {
       const selected = monitor.getItem()
+
       return {
         dropEffect: selected.source === 'diagram' ? 'move' : 'add',
         target: {

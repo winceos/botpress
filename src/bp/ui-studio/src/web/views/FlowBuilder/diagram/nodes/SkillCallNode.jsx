@@ -6,8 +6,9 @@ import { NodeModel, NodeFactory } from 'storm-react-diagrams'
 import ActionItem from '../../common/action'
 import ConditionItem from '../../common/condition'
 import { StandardOutgoingPortModel, StandardPortWidget, StandardIncomingPortModel } from './Ports'
-
-const style = require('./style.scss')
+import { ToolTypes, ActionTypes } from '../../panels/Constants'
+import NodeElement from './NodeElement'
+import style from './style.scss'
 
 export class SkillCallNodeWidget extends React.Component {
   static defaultProps = {
@@ -16,6 +17,28 @@ export class SkillCallNodeWidget extends React.Component {
   }
 
   state = {}
+
+  renderTransition(node) {
+    const dropTypes = [ToolTypes.Transition]
+    return (
+      <div className={classnames(style['section-next'], style.section)}>
+        {node.next.map((item, i) => {
+          return (
+            <NodeElement
+              key={`${i}.${item}`}
+              dropType={dropTypes}
+              dragType={ToolTypes.Transition}
+              actionType={ActionTypes.Transition}
+              index={i}
+              item={item}
+              node={node}
+              outputPortName={`out${i}`}
+            />
+          )
+        })}
+      </div>
+    )
+  }
 
   render() {
     const node = this.props.node
@@ -40,18 +63,7 @@ export class SkillCallNodeWidget extends React.Component {
                 return <ActionItem key={`${i}.${item}`} className={style.item} text={item} />
               })}
           </div>
-          <div className={classnames(style['section-next'], style.section)}>
-            {node.next &&
-              node.next.map((item, i) => {
-                const outputPortName = `out${i}`
-                return (
-                  <div key={`${i}.${item}`} className={classnames(style.item)}>
-                    <ConditionItem condition={item} position={i} />
-                    <StandardPortWidget name={outputPortName} node={node} />
-                  </div>
-                )
-              })}
-          </div>
+          {node.next && this.renderTransition(node)}
         </div>
         <div className={style.footer}>
           <div />

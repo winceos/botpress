@@ -4,13 +4,13 @@ import { compose } from 'redux'
 import { connect } from 'react-redux'
 import classnames from 'classnames'
 import nanoid from 'nanoid'
+import _ from 'lodash'
 
 import ActionItem from '../../common/action'
 import ConditionItem from '../../common/condition'
 import { StandardPortWidget } from './Ports'
 import { ActionTypes } from '../../panels/Constants'
 import { viewElementProperties } from '~/actions'
-import { isAction } from '../../helpers'
 
 import style from './style.scss'
 
@@ -23,14 +23,12 @@ class NodeElement extends React.Component {
   }
 
   shouldComponentUpdate(nextProps) {
-    if (
+    return (
       this.props.index !== nextProps.index ||
       this.props.isOver !== nextProps.isOver ||
-      this.props.selectedItem !== nextProps.selectedItem
-    ) {
-      return true
-    }
-    return false
+      this.props.selectedItem !== nextProps.selectedItem ||
+      this.props.item !== nextProps.item
+    )
   }
 
   render() {
@@ -42,27 +40,10 @@ class NodeElement extends React.Component {
   }
 
   handleClick = () => {
-    const properties = {
-      type: isAction(this.props.item) ? 'action' : 'content',
+    this.props.viewElementProperties({
       id: this.state.id,
-      index: this.props.index,
-      node: this.props.node,
-      item: this.props.item,
-      actionType: this.props.actionType
-    }
-
-    this.props.viewElementProperties(properties)
-  }
-
-  handleClickTransition = () => {
-    const properties = {
-      type: 'transition',
-      id: this.state.id,
-      node: this.props.node,
-      item: this.props.item
-    }
-
-    this.props.viewElementProperties(properties)
+      ..._.pick(this.props, ['index', 'node', 'item', 'actionType', 'dragType'])
+    })
   }
 
   renderContent() {
@@ -101,7 +82,7 @@ class NodeElement extends React.Component {
             },
             style.item
           )}
-          onClick={this.handleClickTransition}
+          onClick={this.handleClick}
           onMouseDown={e => e.stopPropagation()}
         >
           <ConditionItem condition={item} position={index} />
@@ -140,7 +121,6 @@ function collectTarget(connect, monitor) {
   return {
     connectDropTarget: connect.dropTarget(),
     isOver: monitor.isOver(),
-    canDrop: monitor.canDrop(),
     itemType: monitor.getItemType()
   }
 }

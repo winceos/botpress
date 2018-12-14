@@ -4,52 +4,32 @@ import _ from 'lodash'
 import { NodeModel, NodeFactory } from 'storm-react-diagrams'
 import { ToolTypes, ActionTypes } from '../../panels/Constants'
 import { StandardOutgoingPortModel, StandardPortWidget, StandardIncomingPortModel } from './Ports'
+import { isAction } from '~/util'
 import NodeElement from './NodeElement'
 import NodeTitle from './NodeTitle'
 
 import style from './style.scss'
 
 export class StandardNodeWidget extends Component {
+  state = {}
+
   static defaultProps = {
     size: 200,
     node: null
   }
 
-  state = {}
-
-  renderOnEnter(node) {
+  renderContent(node, actionType) {
     const dropTypes = [ToolTypes.Content, ToolTypes.Skills, ToolTypes.Action]
     return (
-      <div className={style.sectionOnEnter}>
-        {node.onEnter.map((item, i) => {
+      <div className={style.sectionContent}>
+        {node[actionType].map((item, i) => {
           return (
             <NodeElement
               key={`${i}.${item}`}
               index={i}
               dropType={dropTypes}
-              dragType={ToolTypes.Content}
-              actionType={ActionTypes.OnEnter}
-              item={item}
-              node={node}
-            />
-          )
-        })}
-      </div>
-    )
-  }
-
-  renderOnReceive(node) {
-    const dropTypes = [ToolTypes.Content, ToolTypes.Skills, ToolTypes.Action]
-    return (
-      <div className={style.sectionOnReceive}>
-        {node.onReceive.map((item, i) => {
-          return (
-            <NodeElement
-              key={`${i}.${item}`}
-              index={i}
-              dropType={dropTypes}
-              dragType={ToolTypes.Content}
-              actionType={ActionTypes.OnReceive}
+              dragType={isAction(item) ? ToolTypes.Action : ToolTypes.Content}
+              actionType={actionType}
               item={item}
               node={node}
             />
@@ -95,9 +75,9 @@ export class StandardNodeWidget extends Component {
         </div>
         <div className={style.header} />
         <div className={style.content}>
-          {node.onEnter && this.renderOnEnter(node)}
+          {node.onEnter && this.renderContent(node, ActionTypes.OnEnter)}
           {this.renderTitle(node)}
-          {node.onReceive && this.renderOnReceive(node)}
+          {node.onReceive && this.renderContent(node, ActionTypes.OnReceive)}
           {node.next && this.renderTransition(node)}
         </div>
         <div className={style.footer}>
