@@ -53,3 +53,19 @@ export const parseBotId = () => {
   }
   return (matches && matches[2]) || ''
 }
+
+export const changeElementPosition = (array, from, to) => {
+  const item = array[from]
+  const diff = from - to
+
+  if (diff > 0) {
+    return [...array.slice(0, to), item, ...array.slice(to, from), ...array.slice(from + 1, array.length)]
+  } else if (diff < 0) {
+    return [...array.slice(0, from), ...array.slice(from + 1, to + 1), item, ...array.slice(to + 1, array.length)]
+  } else {
+    return array
+  }
+}
+
+export const isAction = item => typeof item !== 'string' || !item.startsWith('say ')
+export const textToItemId = text => text && _.get(text.match(/^say #!(.*)$/), '[1]')

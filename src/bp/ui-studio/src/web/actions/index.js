@@ -56,6 +56,7 @@ export const handleRefreshFlowLinks = createAction('FLOWS/FLOW/UPDATE_LINKS')
 export const refreshFlowsLinks = () => dispatch => setTimeout(() => dispatch(handleRefreshFlowLinks()), 10)
 
 export const updateFlowNode = createAction('FLOWS/FLOW/UPDATE_NODE')
+export const editFlowNodeAction = createAction('FLOWS/FLOW/EDIT_FLOW_NODE_ACTION')
 export const switchFlowNode = createAction('FLOWS/FLOW/SWITCH_NODE')
 export const createFlowNode = createAction('FLOWS/FLOW/CREATE')
 export const removeFlowNode = createAction('FLOWS/FLOW/REMOVE')

@@ -1,8 +1,9 @@
 import { handleActions } from 'redux-actions'
 import reduceReducers from 'reduce-reducers'
+import update from 'immutability-helper'
 import _ from 'lodash'
 
-import { hashCode, prettyId } from '~/util'
+import { hashCode, prettyId, changeElementPosition } from '~/util'
 
 import {
   requestFlows,
@@ -14,6 +15,7 @@ import {
   handleRefreshFlowLinks,
   renameFlow,
   updateFlowNode,
+  editFlowNodeAction,
   switchFlowNode,
   openFlowNodeProps,
   closeFlowNodeProps,
@@ -460,6 +462,46 @@ reducer = reduceReducers(
         }
       },
 
+      [editFlowNodeAction]: (state, { payload }) => {
+        const { nodeId, actionType, item } = payload
+        const currentFlow = state.flowsByName[state.currentFlow]
+
+        return {
+          ...state,
+          flowsByName: {
+            ...state.flowsByName,
+            [state.currentFlow]: {
+              ...currentFlow,
+              nodes: currentFlow.nodes.map(node => {
+                if (node.id !== nodeId) {
+                  return {
+                    ...node
+                  }
+                }
+
+                const nodeAction = node[actionType] || []
+                let result
+                if (payload.add) {
+                  result = update(nodeAction, { $splice: [[payload.add.index, 0, item]] })
+                } else if (payload.remove) {
+                  result = update(nodeAction, { $splice: [[payload.remove.index, 1]] })
+                } else if (payload.move) {
+                  result = changeElementPosition(nodeAction, payload.move.fromIndex, payload.move.toIndex)
+                } else if (payload.replace) {
+                  result = update(nodeAction, { $splice: [[payload.replace.index, 1, item]] })
+                } else if (payload.set) {
+                  result = item instanceof Array ? item : [item]
+                } else {
+                  result = nodeAction
+                }
+
+                return { ...node, [actionType]: result, lastModified: new Date() }
+              })
+            }
+          }
+        }
+      },
+
       [updateFlowNode]: (state, { payload }) => {
         const currentFlow = state.flowsByName[state.currentFlow]
         const currentNode = _.find(state.flowsByName[state.currentFlow].nodes, { id: state.currentFlowNode })
@@ -635,6 +677,7 @@ reducer = reduceReducers(
       [updateFlow]: updateCurrentHash,
       [renameFlow]: updateCurrentHash,
       [updateFlowNode]: updateCurrentHash,
+      [editFlowNodeAction]: updateCurrentHash,
 
       [createFlowNode]: updateCurrentHash,
       [createFlow]: updateCurrentHash,
@@ -661,6 +704,7 @@ reducer = reduceReducers(
       [updateFlow]: recordHistory,
       [renameFlow]: recordHistory,
       [updateFlowNode]: recordHistory,
+      [editFlowNodeAction]: recordHistory,
       [createFlowNode]: recordHistory,
       [createFlow]: recordHistory,
       [deleteFlow]: recordHistory,
