@@ -2,13 +2,13 @@
   position: relative !important;
   width: 100%;
   min-height: 500px;
-  height: calc(100vh);
+  height: calc(95vh);
 }
 
 .container {
   width: 100%;
   margin-top: 50px;
-  height: calc(100vh - 70px);
+  height: calc(100vh);
 
   :global(.lm_content) {
     overflow-y: auto;

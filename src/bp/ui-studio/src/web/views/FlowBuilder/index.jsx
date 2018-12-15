@@ -1,6 +1,6 @@
 import React, { Component } from 'react'
 
-import { connect, Provider } from 'react-redux'
+import { Provider } from 'react-redux'
 import { withRouter, Router } from 'react-router-dom'
 import _ from 'lodash'
 import PropTypes from 'prop-types'
@@ -32,7 +32,7 @@ class MainPage extends Component {
     this.gLayout.destroy()
   }
 
-  resizeLayout = () => this.gLayout.updateSize()
+  resizeLayout = () => this.gLayout.updateSize && this.gLayout.updateSize()
 
   setupLayout() {
     const config = {

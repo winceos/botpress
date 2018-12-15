@@ -6,11 +6,9 @@ import _ from 'lodash'
 import { HotKeys } from 'react-hotkeys'
 
 import ContentWrapper from '~/components/Layout/ContentWrapper'
-import PageHeader from '~/components/Layout/PageHeader'
 import { operationAllowed } from '~/components/Layout/PermissionsChecker'
 
 import Diagram from './containers/Diagram'
-import Topbar from './containers/Topbar'
 import SkillsBuilder from './containers/SkillsBuilder'
 import NodeProps from './containers/NodeProps'
 import { ToolTypes } from './panels/Constants'
@@ -48,8 +46,20 @@ class FlowContainer extends Component {
     this.init()
   }
 
-  componentDidUpdate() {
+  componentDidUpdate(prevProps) {
+    if (this.props.currentFlow !== prevProps.currentFlow) {
+      this.props.glContainer.setTitle(`Flow Builder - ${this.getCurrentFlowName()}`)
+    }
+
     this.init()
+  }
+
+  getCurrentFlowName() {
+    return this.cleanFlowName(this.props.currentFlow || '')
+  }
+
+  cleanFlowName(name) {
+    return name.replace(/\.flow\.json$/i, '')
   }
 
   componentWillReceiveProps(nextProps) {
@@ -95,10 +105,6 @@ class FlowContainer extends Component {
     return (
       <HotKeys handlers={keyHandlers} focused>
         <ContentWrapper stretch={true} className={style.wrapper}>
-          <PageHeader className={style.header} width="100%">
-            <Topbar readOnly={readOnly} />
-          </PageHeader>
-
           <div className={style.workspace}>
             <div className={style.diagram}>
               <Diagram

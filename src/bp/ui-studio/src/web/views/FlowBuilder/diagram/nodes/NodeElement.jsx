@@ -39,6 +39,7 @@ class NodeElement extends React.Component {
     }
   }
 
+  handleMouseDown = e => e.stopPropagation()
   handleClick = () => {
     this.props.viewElementProperties({
       id: this.state.id,
@@ -61,7 +62,7 @@ class NodeElement extends React.Component {
             style.item
           )}
           onClick={this.handleClick}
-          onMouseDown={e => e.stopPropagation()}
+          onMouseDown={this.handleMouseDown}
         >
           <ActionItem text={item} />
         </div>
@@ -72,23 +73,27 @@ class NodeElement extends React.Component {
   renderTransition() {
     const { index, outputPortName, item, node, isOver, connectDropTarget, connectDragSource } = this.props
 
-    return connectDragSource(
-      connectDropTarget(
-        <div
-          className={classnames(
-            {
-              [style.hoverTransition]: isOver,
-              [style.selected]: this.props.selectedItem && this.props.selectedItem.id === this.state.id
-            },
-            style.item
-          )}
-          onClick={this.handleClick}
-          onMouseDown={e => e.stopPropagation()}
-        >
-          <ConditionItem condition={item} position={index} />
-          <StandardPortWidget name={outputPortName} node={node} />
-        </div>
-      )
+    return (
+      <div
+        className={classnames(
+          {
+            [style.hoverTransition]: isOver,
+            [style.selected]: this.props.selectedItem && this.props.selectedItem.id === this.state.id
+          },
+          style.item
+        )}
+        onClick={this.handleClick}
+        onMouseDown={this.handleMouseDown}
+      >
+        {connectDragSource(
+          connectDropTarget(
+            <div>
+              <ConditionItem condition={item} position={index} />
+            </div>
+          )
+        )}
+        <StandardPortWidget name={outputPortName} node={node} />
+      </div>
     )
   }
 }

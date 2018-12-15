@@ -3,6 +3,7 @@ import { connect } from 'react-redux'
 import ContentForm from '~/components/ContentForm'
 import { textToItemId } from '~/util'
 import { fetchContentItem, fetchContentCategories, upsertContentItem, editFlowNodeAction } from '~/actions'
+import ContentSearch from './components/ContentSearch'
 import style from '../style.scss'
 
 const extractContentType = text =>
@@ -63,6 +64,8 @@ class ContentProps extends React.Component {
       })
   }
 
+  handleElementChanged = element => this.setState({ contentElement: element })
+
   render() {
     const { contentType, contentElement } = this.state
     if (!contentType) {
@@ -71,6 +74,8 @@ class ContentProps extends React.Component {
 
     return (
       <div>
+        <ContentSearch contentTypeId={contentType.id} onElementChanged={this.handleElementChanged} />
+        <hr />
         <ContentForm
           className={style.rjsf}
           schema={contentType.schema.json}

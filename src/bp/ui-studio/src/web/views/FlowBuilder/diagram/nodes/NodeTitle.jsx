@@ -21,7 +21,7 @@ class NodeTitle extends React.Component {
 
   handleClick = e => {
     this.props.viewElementProperties({
-      type: ToolTypes.Node,
+      dragType: ToolTypes.Node,
       node: this.props.node
     })
   }
