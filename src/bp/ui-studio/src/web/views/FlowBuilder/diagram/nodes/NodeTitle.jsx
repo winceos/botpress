@@ -5,7 +5,7 @@ import { compose } from 'redux'
 import { connect } from 'react-redux'
 import { ToolTypes, ActionTypes } from '../../panels/Constants'
 import { viewElementProperties } from '~/actions'
-import style from './style.scss'
+import style from './NodeTitle.styl'
 
 class NodeTitle extends React.Component {
   constructor() {

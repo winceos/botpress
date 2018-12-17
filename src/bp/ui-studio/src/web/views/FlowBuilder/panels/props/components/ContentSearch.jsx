@@ -20,7 +20,7 @@ class ContentSearch extends React.Component {
 
   debounceSearch = _.debounce((searchTerm, cb) => {
     if (!this.state.searchTerm || !this.state.searchTerm.length) {
-      return false
+      return cb()
     }
 
     this.props
@@ -50,7 +50,7 @@ class ContentSearch extends React.Component {
     return (
       <AsyncSelect
         defaultOptions
-        placeholder="Select an existing content element"
+        placeholder="Select Content Element"
         loadOptions={this.debounceSearch}
         onChange={this.handleSelectChanged}
         onInputChange={this.handleInputChanged}

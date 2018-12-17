@@ -1,0 +1,65 @@
+.hoverOnEnter {
+  border-top: 3px solid green !important;
+}
+
+.hoverOnReceive {
+  border-bottom: 3px solid red !important;
+}
+
+.hoverTransition {
+  border-bottom: 3px solid purple !important;
+}
+
+.selected {
+  border: 1px solid #028aee !important;
+  background: #9ad4fe !important;
+}
+
+.item {
+  word-wrap: break-word;
+  text-overflow: ellipsis;
+  max-height: 78px;
+  overflow-y: scroll;
+  border-bottom: 1px solid black;
+  font-size: 11px;
+}
+
+.item:last-child {
+  border-bottom: none;
+}
+
+.contentItem, .transitionItem {
+  cursor: pointer;
+  padding: 3px 8px;
+
+  &.fn {
+    color: blue;
+    font-style: italic;
+  }
+
+  &.msg {
+    color: #00a653;
+  }
+}
+
+.transitionItem {
+  overflow: unset;
+}
+
+.transitionItem {
+  position: relative;
+  background: #ececec;
+}
+
+.transitionItem :global(.port) {
+  background: rgba(0, 0, 0, 0.2);
+
+  &:global(.selected) {
+    background: rgba(0, 0, 0, 0.5);
+  }
+}
+
+.topPort {
+  width: 100%;
+  margin-top: -15px;
+}

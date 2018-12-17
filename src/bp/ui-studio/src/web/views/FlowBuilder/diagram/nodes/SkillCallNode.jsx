@@ -8,7 +8,7 @@ import ConditionItem from '../../common/condition'
 import { StandardOutgoingPortModel, StandardPortWidget, StandardIncomingPortModel } from './Ports'
 import { ToolTypes, ActionTypes } from '../../panels/Constants'
 import NodeElement from './NodeElement'
-import style from './style.scss'
+import style from './SkillCallNode.styl'
 
 export class SkillCallNodeWidget extends React.Component {
   static defaultProps = {
@@ -21,7 +21,7 @@ export class SkillCallNodeWidget extends React.Component {
   renderTransition(node) {
     const dropTypes = [ToolTypes.Transition]
     return (
-      <div className={classnames(style.sectionTransition, style.section)}>
+      <div>
         {node.next.map((item, i) => {
           return (
             <NodeElement
@@ -44,7 +44,7 @@ export class SkillCallNodeWidget extends React.Component {
     const node = this.props.node
     const isWaiting = node.waitOnReceive
 
-    const className = classnames(style['skill-call-node'], style['node-container'])
+    const className = classnames(style.skillCallNode, style.nodeContainer)
 
     return (
       <div className={className}>

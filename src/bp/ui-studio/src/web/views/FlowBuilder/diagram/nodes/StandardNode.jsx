@@ -8,7 +8,7 @@ import { isAction } from '~/util'
 import NodeElement from './NodeElement'
 import NodeTitle from './NodeTitle'
 
-import style from './style.scss'
+import style from './StandardNode.styl'
 
 export class StandardNodeWidget extends Component {
   state = {}
@@ -21,7 +21,7 @@ export class StandardNodeWidget extends Component {
   renderContent(node, actionType) {
     const dropTypes = [ToolTypes.Content, ToolTypes.Skills, ToolTypes.Action]
     return (
-      <div className={style.sectionContent}>
+      <div>
         {node[actionType].map((item, i) => {
           return (
             <NodeElement
@@ -42,7 +42,7 @@ export class StandardNodeWidget extends Component {
   renderTransition(node) {
     const dropTypes = [ToolTypes.Transition]
     return (
-      <div className={classnames(style.sectionTransition, style.section)}>
+      <div>
         {node.next.map((item, i) => {
           return (
             <NodeElement

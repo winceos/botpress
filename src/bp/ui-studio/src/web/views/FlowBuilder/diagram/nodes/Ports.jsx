@@ -2,10 +2,8 @@ import React, { Component } from 'react'
 import classnames from 'classnames'
 import _ from 'lodash'
 import { withRouter } from 'react-router-dom'
-
-const { PortWidget, PortModel } = require('storm-react-diagrams')
-
-const style = require('./style.scss')
+import { PortWidget, PortModel } from 'storm-react-diagrams'
+import style from './Ports.styl'
 
 export class StandardOutgoingPortModel extends PortModel {
   constructor(name) {
@@ -77,13 +75,15 @@ export class StandardPortWidgetDisconnected extends React.Component {
       }
     }
 
-    const className = classnames(this.props.className, style.portContainer, {
+    const className = classnames(this.props.className, {
       [style.startPort]: type === 'start',
       [style.subflowPort]: type === 'subflow',
       [style.endPort]: type === 'end',
       [style.returnPort]: type === 'return',
       [style.portLabel]: /end|subflow|start|return/i.test(type),
-      [style.missingConnection]: missingConnection
+      [style.missingConnection]: missingConnection,
+      [style.topPort]: this.props.name === 'in',
+      [style.sectionTransition]: this.props.name !== 'in'
     })
 
     return (

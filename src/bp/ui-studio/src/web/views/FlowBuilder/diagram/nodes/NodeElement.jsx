@@ -12,7 +12,7 @@ import { StandardPortWidget } from './Ports'
 import { ActionTypes } from '../../panels/Constants'
 import { viewElementProperties } from '~/actions'
 
-import style from './style.scss'
+import style from './NodeElement.styl'
 
 class NodeElement extends React.Component {
   constructor() {
@@ -59,6 +59,7 @@ class NodeElement extends React.Component {
               [style.hoverOnReceive]: isOver && this.props.actionType === ActionTypes.OnReceive,
               [style.selected]: this.props.selectedItem && this.props.selectedItem.id === this.state.id
             },
+            style.contentItem,
             style.item
           )}
           onClick={this.handleClick}
@@ -80,6 +81,7 @@ class NodeElement extends React.Component {
             [style.hoverTransition]: isOver,
             [style.selected]: this.props.selectedItem && this.props.selectedItem.id === this.state.id
           },
+          style.transitionItem,
           style.item
         )}
         onClick={this.handleClick}
