@@ -19,7 +19,6 @@ import {
   switchFlowNode,
   openFlowNodeProps,
   closeFlowNodeProps,
-  setDiagramAction,
   createFlowNode,
   copyFlowNode,
   pasteFlowNode,
@@ -45,7 +44,6 @@ const defaultState = {
   currentFlow: null,
   currentFlowNode: null,
   showFlowNodeProps: false,
-  currentDiagramAction: null,
   currentSnapshot: null,
   undoStack: [],
   redoStack: [],
@@ -272,11 +270,6 @@ let reducer = handleActions(
       }
     },
 
-    [setDiagramAction]: (state, { payload }) => ({
-      ...state,
-      currentDiagramAction: payload
-    }),
-
     [handleRefreshFlowLinks]: state => ({
       ...state,
       flowsByName: {
@@ -385,7 +378,6 @@ reducer = reduceReducers(
 
         return {
           ...state,
-          currentDiagramAction: 'insert_skill',
           nodeInBuffer: newNode,
           flowsByName: {
             ...state.flowsByName,

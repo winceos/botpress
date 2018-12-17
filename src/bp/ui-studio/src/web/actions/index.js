@@ -80,8 +80,6 @@ export const flowEditorRedo = () => dispatch => {
   dispatch(refreshFlowsLinks())
 }
 
-export const setDiagramAction = createAction('FLOWS/FLOW/SET_ACTION')
-
 // Content
 export const receiveContentCategories = createAction('CONTENT/CATEGORIES/RECEIVE')
 export const fetchContentCategories = () => dispatch =>

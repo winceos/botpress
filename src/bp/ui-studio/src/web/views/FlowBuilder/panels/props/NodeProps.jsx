@@ -3,6 +3,17 @@ import classnames from 'classnames'
 import style from './NodeProps.styl'
 
 export default class NodeProps extends React.Component {
+  /** const canMakeStartNode = () => {
+      const current = this.props.currentFlow && this.props.currentFlow.startNode
+      const potential = this.props.currentFlowNode && this.props.currentFlowNode.name
+      return current && potential && current !== potential
+    }
+
+    const setAsCurrentNode = () => {
+      this.props.updateFlow({
+        startNode: this.props.currentFlowNode.name
+      })
+    } */
   render() {
     const { name, isStartNode, onEnter, onReceive, next } = this.props.node
     const isWait = false

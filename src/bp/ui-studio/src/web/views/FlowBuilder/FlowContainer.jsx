@@ -13,14 +13,7 @@ import SkillsBuilder from './containers/SkillsBuilder'
 import NodeProps from './containers/NodeProps'
 import { ToolTypes } from './panels/Constants'
 
-import {
-  switchFlow,
-  setDiagramAction,
-  refreshFlowsLinks,
-  buildNewSkill,
-  viewElementProperties,
-  editFlowNodeAction
-} from '~/actions'
+import { switchFlow, refreshFlowsLinks, buildNewSkill, viewElementProperties, editFlowNodeAction } from '~/actions'
 import { getDirtyFlows } from '~/reducers'
 import 'golden-layout/src/css/goldenlayout-base.css'
 import 'golden-layout/src/css/goldenlayout-dark-theme.css'
@@ -88,6 +81,7 @@ class FlowContainer extends Component {
       }
     }
   }
+  handleSkillSave = () => this.props.glEventHub.emit('addSkillToDiagram')
 
   render() {
     if (!this.state.initialized) {
@@ -97,7 +91,6 @@ class FlowContainer extends Component {
     const { readOnly } = this.state
 
     const keyHandlers = {
-      'flow-add-node': () => this.props.setDiagramAction('insert_node'),
       'flow-save': () => this.diagram.saveAllFlows()
     }
     const dropTypes = [ToolTypes.Node, ToolTypes.Content, ToolTypes.Skills, ToolTypes.Action, ToolTypes.Transition]
@@ -123,7 +116,7 @@ class FlowContainer extends Component {
               />
             </div>
 
-            <SkillsBuilder />
+            <SkillsBuilder onNewSkillSaved={this.handleSkillSave} />
             <NodeProps readOnly={readOnly} show={this.props.showFlowNodeProps} />
           </div>
         </ContentWrapper>
@@ -144,7 +137,6 @@ export default compose(
     mapStateToProps,
     {
       switchFlow,
-      setDiagramAction,
       refreshFlowsLinks,
       buildSkill: buildNewSkill,
       editFlowNodeAction,

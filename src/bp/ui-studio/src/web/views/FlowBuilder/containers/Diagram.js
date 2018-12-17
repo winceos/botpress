@@ -5,7 +5,6 @@ import {
   fetchFlows,
   switchFlowNode,
   openFlowNodeProps,
-  setDiagramAction,
   createFlowNode,
   saveAllFlows,
   updateFlowNode,
@@ -23,15 +22,13 @@ import Diagram from '../diagram'
 const mapStateToProps = state => ({
   flows: state.flows,
   currentFlow: getCurrentFlow(state),
-  currentFlowNode: getCurrentFlowNode(state),
-  currentDiagramAction: state.flows.currentDiagramAction
+  currentFlowNode: getCurrentFlowNode(state)
 })
 
 const mapDispatchToProps = {
   fetchFlows,
   switchFlowNode,
   openFlowNodeProps,
-  setDiagramAction,
   createFlowNode,
   saveAllFlows,
   removeFlowNode,

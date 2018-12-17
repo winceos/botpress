@@ -3,6 +3,7 @@ import { Button, OverlayTrigger, Tooltip } from 'react-bootstrap'
 import { connect } from 'react-redux'
 
 import DragNode from './DragNode'
+import PermissionsChecker from '~/components/Layout/PermissionsChecker'
 import { updateFlow, flowEditorRedo, flowEditorUndo, buildNewSkill, fetchContentCategories } from '~/actions'
 import { getDirtyFlows, canFlowUndo, canFlowRedo } from '~/reducers'
 import { ToolTypes } from './Constants'
@@ -46,7 +47,9 @@ class ToolsPanel extends React.Component {
         <header>
           <span>Skills</span>
         </header>
-        {this.props.skills && this.props.skills.map(skill => this.renderSkill(skill))}
+        <PermissionsChecker user={this.props.user} op="write" res="bot.skills">
+          {this.props.skills && this.props.skills.map(skill => this.renderSkill(skill))}
+        </PermissionsChecker>
       </div>
     )
   }
@@ -124,7 +127,8 @@ const mapStateToProps = state => ({
   canRedo: canFlowRedo(state),
   canPasteNode: Boolean(state.flows.nodeInBuffer),
   skills: state.skills.installed,
-  contentTypes: state.content.categories
+  contentTypes: state.content.categories,
+  user: state.user
 })
 
 const mapDispatchToProps = {

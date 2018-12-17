@@ -1,8 +1,6 @@
 import React, { Component } from 'react'
-import { Button, Label } from 'react-bootstrap'
 import { DropTarget } from 'react-dnd'
 import ReactDOM from 'react-dom'
-import classnames from 'classnames'
 import _ from 'lodash'
 import { DiagramWidget, DiagramEngine, DiagramModel, LinkModel, PointModel } from 'storm-react-diagrams'
 import { toast } from 'react-toastify'
@@ -12,8 +10,6 @@ import { StandardNodeModel, StandardWidgetFactory } from './nodes/StandardNode'
 import { SkillCallNodeModel, SkillCallWidgetFactory } from './nodes/SkillCallNode'
 import { DeletableLinkFactory } from './nodes/LinkWidget'
 import { ToolTypes } from './../panels/Constants'
-
-import style from './style.scss'
 
 const passThroughNodeProps = ['name', 'onEnter', 'onReceive', 'next', 'skill']
 const PADDING = 100
@@ -79,7 +75,7 @@ class FlowBuilder extends Component {
     })
   }
 
-  addEmptyNodeAt(location) {
+  getRealLocation(location) {
     let { x, y } = this.diagramEngine.getRelativePoint(location.x, location.y)
 
     const zoomFactor = this.activeModel.getZoomLevel() / 100
@@ -90,13 +86,16 @@ class FlowBuilder extends Component {
     x -= this.activeModel.getOffsetX() / zoomFactor
     y -= this.activeModel.getOffsetY() / zoomFactor
 
-    this.props.createFlowNode({ x, y })
+    return { x, y }
   }
 
   droppedToolOnDiagram(item, location) {
-    if (item.type === ToolTypes.Skills) {
+    this.lastClickLocation = this.getRealLocation(location)
+
+    if (item.type === ToolTypes.Node) {
+      this.props.createFlowNode(this.lastClickLocation)
+    } else if (item.type === ToolTypes.Skills) {
       this.props.buildSkill('choice')
-      console.log('Add skill at ', location)
     }
   }
 
@@ -302,6 +301,8 @@ class FlowBuilder extends Component {
     this.props.glEventHub.on('deleteSelection', () => this.deleteSelectedElements())
     this.props.glEventHub.on('copyClipboard', () => this.copySelectedElementToBuffer())
     this.props.glEventHub.on('pasteClipboard', () => this.pasteElementFromBuffer())
+    this.props.glEventHub.on('createNewFlow', name => this.createFlow(name))
+    this.props.glEventHub.on('addSkillToDiagram', () => this.props.insertNewSkillNode(this.lastClickLocation))
 
     this.props.fetchFlows()
 
@@ -387,26 +388,6 @@ class FlowBuilder extends Component {
         return this.diagramWidget.forceUpdate()
       }
     })
-
-    if (this.props.currentDiagramAction && this.props.currentDiagramAction.startsWith('insert_')) {
-      let { x, y } = this.diagramEngine.getRelativePoint(event.clientX, event.clientY)
-
-      const zoomFactor = this.activeModel.getZoomLevel() / 100
-
-      x /= zoomFactor
-      y /= zoomFactor
-
-      x -= this.activeModel.getOffsetX() / zoomFactor
-      y -= this.activeModel.getOffsetY() / zoomFactor
-
-      if (this.props.currentDiagramAction === 'insert_skill') {
-        this.props.insertNewSkillNode({ x, y })
-      } else {
-        this.props.createFlowNode({ x, y })
-      }
-
-      this.props.setDiagramAction(null)
-    }
 
     if (!selectedNode && currentNode) {
       this.props.switchFlowNode(null) // No node selected
@@ -547,27 +528,8 @@ class FlowBuilder extends Component {
   }
 
   render() {
-    const isInserting = this.props.currentDiagramAction && this.props.currentDiagramAction.startsWith('insert_')
-    const classNames = classnames({ [style.insertNode]: isInserting })
-    const cancelInsert = () => this.props.setDiagramAction(null)
-
     return this.props.connectDropTarget(
-      <div
-        id="diagramContainer"
-        tabIndex="1"
-        className={classNames}
-        style={{ outline: 'none', width: '100%', height: '100%' }}
-      >
-        {isInserting && (
-          <div className={style.insertMode}>
-            <div>
-              <Label bsStyle="primary">Insertion Mode</Label>
-            </div>
-            <Button bsStyle="danger" onClick={cancelInsert}>
-              Cancel
-            </Button>
-          </div>
-        )}
+      <div id="diagramContainer" tabIndex="1" style={{ outline: 'none', width: '100%', height: '100%' }}>
         <DiagramWidget
           readOnly={this.props.readOnly}
           ref={w => (this.diagramWidget = w)}

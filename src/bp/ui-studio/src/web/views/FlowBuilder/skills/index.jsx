@@ -82,6 +82,8 @@ export default class SkillsBuilder extends React.Component {
           generatedFlow: generated.flow,
           transitions: generated.transitions
         })
+
+        this.props.onNewSkillSaved()
       }
     })
   }
