@@ -3,7 +3,7 @@ import { OverlayTrigger, Tooltip, Table } from 'react-bootstrap'
 import classnames from 'classnames'
 import _ from 'lodash'
 
-import style from '../../style.scss'
+import style from './ParametersTable.styl'
 
 export default class ParametersTable extends React.Component {
   constructor(props) {

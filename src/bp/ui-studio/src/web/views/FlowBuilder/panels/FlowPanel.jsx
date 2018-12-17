@@ -1,5 +1,5 @@
 import React from 'react'
-import style from './style.scss'
+import style from './FlowPanel.styl'
 import { Button, OverlayTrigger, Tooltip } from 'react-bootstrap'
 
 export default class FlowPanel extends React.Component {

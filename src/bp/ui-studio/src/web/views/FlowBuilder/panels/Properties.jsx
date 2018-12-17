@@ -9,7 +9,7 @@ import NodeProps from './props/NodeProps'
 import ContentProps from './props/ContentProps'
 import TransitionProps from './props/TransitionProps'
 import { editFlowNodeAction, viewElementProperties, removeFlowNode } from '~/actions'
-import style from './style.scss'
+import style from './Properties.styl'
 
 class Properties extends React.Component {
   handleDelete = () => {
@@ -49,7 +49,7 @@ class Properties extends React.Component {
 
     return (
       <div className={classnames(style.panel, style.padded)}>
-        <div className={style.propsContainer}>
+        <div className={style.header}>
           <div className={style.parentNode}>
             Parent Node: <span>{this.props.selectedItem.node.name}</span>
           </div>

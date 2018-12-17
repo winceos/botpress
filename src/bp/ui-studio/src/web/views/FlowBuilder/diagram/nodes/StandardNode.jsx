@@ -42,7 +42,7 @@ export class StandardNodeWidget extends Component {
   renderTransition(node) {
     const dropTypes = [ToolTypes.Transition]
     return (
-      <div className={classnames(style['section-next'], style.section)}>
+      <div className={classnames(style.sectionTransition, style.section)}>
         {node.next.map((item, i) => {
           return (
             <NodeElement

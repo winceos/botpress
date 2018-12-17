@@ -25,7 +25,7 @@ import { getDirtyFlows } from '~/reducers'
 import 'golden-layout/src/css/goldenlayout-base.css'
 import 'golden-layout/src/css/goldenlayout-dark-theme.css'
 
-const style = require('./style.scss')
+import style from './FlowContainer.styl'
 
 class FlowContainer extends Component {
   state = {

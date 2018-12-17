@@ -41,7 +41,7 @@ class NodeTitle extends React.Component {
             [style.hoverTransition]: isOver && this.state.actionType === ActionTypes.Transition,
             [style.waiting]: isWaiting
           },
-          style['section-title']
+          style.sectionTitle
         )}
         onClick={this.handleClick}
       >

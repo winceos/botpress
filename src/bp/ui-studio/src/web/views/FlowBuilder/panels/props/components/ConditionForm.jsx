@@ -4,8 +4,7 @@ import { Radio, Alert, Button } from 'react-bootstrap'
 import classnames from 'classnames'
 import _ from 'lodash'
 
-import style from '../../style.scss'
-import ddStyle from '../../dropdown.scss'
+import style from './ConditionForm.styl'
 
 export default class ConditionForm extends React.Component {
   state = {
@@ -127,7 +126,7 @@ export default class ConditionForm extends React.Component {
     return (
       <Select
         name="flowToSubflow"
-        className={classnames(ddStyle.reactselect, ddStyle.smallopt)}
+        className={classnames(style.reactselect, style.smallopt)}
         classNamePrefix="rs"
         value={this.state.flowToSubflow}
         options={this.getSubflowOptions()}
@@ -178,7 +177,7 @@ export default class ConditionForm extends React.Component {
     return (
       <Select
         name="flowToNode"
-        className={ddStyle.reactselect}
+        className={style.reactselect}
         classNamePrefix="rs"
         value={this.state.flowToNode}
         options={this.getNodeOptions()}

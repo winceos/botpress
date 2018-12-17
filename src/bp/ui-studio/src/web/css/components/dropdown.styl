@@ -1,0 +1,38 @@
+.reactselect :global(.rs__control) {
+  background-color: var(--c-background);
+  border: 1px solid var(--c-background--light-1) !important;
+  box-shadow: none;
+  outline: none !important;
+  height: 27px;
+  min-height: 27px;
+}
+
+.reactselect :global(.rs__menu-list) {
+  background-color: var(--c-background);
+  color: var(--c-neutral--light-3);
+}
+
+.reactselect :global(.rs__option) {
+  background: var(--c-background);
+  color: var(--c-neutral--light-3);
+  padding: 1px 0 2px 5px;
+  font-size: 1.3rem;
+
+  &:hover, &:focus, &:active {
+    background: var(--c-background--light-1);
+  }
+}
+
+.smallopt :global(.rs__option) {
+  height: 27px;
+  min-height: 27px;
+}
+
+.reactselect :global(.rs__value-container) {
+  color: red;
+  outline: none;
+}
+
+.reactselect :global(.rs__single-value), :global(.rs__input), :global(.rs__placeholder) {
+  color: var(--c-neutral--light-3);
+}

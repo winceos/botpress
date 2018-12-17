@@ -21,7 +21,7 @@ export class SkillCallNodeWidget extends React.Component {
   renderTransition(node) {
     const dropTypes = [ToolTypes.Transition]
     return (
-      <div className={classnames(style['section-next'], style.section)}>
+      <div className={classnames(style.sectionTransition, style.section)}>
         {node.next.map((item, i) => {
           return (
             <NodeElement
@@ -53,11 +53,11 @@ export class SkillCallNodeWidget extends React.Component {
         </div>
         <div className={style.header} />
         <div className={style.content}>
-          <div className={classnames(style['section-title'], style.section, { [style.waiting]: isWaiting })}>
+          <div className={classnames(style.sectionTitle, style.section, { [style.waiting]: isWaiting })}>
             <div>{node.skill}</div>
             <div className={style['subtitle']}>Skill | {node.name}</div>
           </div>
-          <div className={classnames(style['section-onReceive'], style.section)}>
+          <div className={classnames(style.sectionContent, style.section)}>
             {node.onReceive &&
               node.onReceive.map((item, i) => {
                 return <ActionItem key={`${i}.${item}`} className={style.item} text={item} />

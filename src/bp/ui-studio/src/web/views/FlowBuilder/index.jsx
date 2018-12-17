@@ -9,10 +9,9 @@ import 'golden-layout/src/css/goldenlayout-base.css'
 import 'golden-layout/src/css/goldenlayout-dark-theme.css'
 import ToolsPanel from './panels/ToolsPanel'
 import FlowPanel from './panels/FlowPanel'
-import ChatWindow from './panels/ChatWindow'
 import FlowContainer from './FlowContainer'
 import Properties from './panels/Properties'
-import style from './style.scss'
+import style from './index.styl'
 
 import { withDragDropContext } from './panels/WithDragDropContext'
 
@@ -80,12 +79,6 @@ class MainPage extends Component {
                   type: 'react-component',
                   component: 'properties',
                   height: 500
-                },
-                {
-                  title: 'Chat Window',
-                  type: 'react-component',
-                  component: 'chatWindow',
-                  componentState: { label: 'B' }
                 }
               ]
             }
@@ -95,7 +88,6 @@ class MainPage extends Component {
     }
 
     const layout = new GoldenLayout(config, document.getElementById('container'))
-    layout.registerComponent('chatWindow', this.connectStoreRouter(ChatWindow))
     layout.registerComponent('tools', this.connectStoreRouter(withDragDropContext(ToolsPanel)))
     layout.registerComponent('flows', withDragDropContext(FlowPanel))
     layout.registerComponent('properties', this.connectStoreRouter(Properties))

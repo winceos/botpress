@@ -2,8 +2,7 @@ import React from 'react'
 import Select, { components } from 'react-select'
 import Highlighter from 'react-highlight-words'
 
-import style from '../../style.scss'
-import ddStyle from '../../dropdown.scss'
+import style from './SelectActionDropdown.styl'
 
 export default class SelectActionDropdown extends React.Component {
   renderOption = props => {
@@ -41,7 +40,7 @@ export default class SelectActionDropdown extends React.Component {
       <Select
         onInputChange={inputValue => (this._inputValue = inputValue)}
         onChange={this.props.onChange}
-        className={ddStyle.reactselect}
+        className={style.reactselect}
         classNamePrefix="rs"
         options={options}
         value={this.props.value}

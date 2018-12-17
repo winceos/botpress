@@ -4,7 +4,7 @@ import ContentForm from '~/components/ContentForm'
 import { textToItemId } from '~/util'
 import { fetchContentItem, fetchContentCategories, upsertContentItem, editFlowNodeAction } from '~/actions'
 import ContentSearch from './components/ContentSearch'
-import style from '../style.scss'
+import style from './ContentProps.styl'
 
 const extractContentType = text =>
   (text && _.get(text.match(/^say #!(.*)-.*$/), '[1]')) || text.replace('say', '').trim()

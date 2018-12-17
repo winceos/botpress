@@ -7,7 +7,7 @@ import Markdown from 'react-markdown'
 import { editFlowNodeAction } from '~/actions'
 import SelectActionDropdown from './components/SelectActionDropdown'
 import ParametersTable from './components/ParametersTable'
-import style from '../style.scss'
+import style from './ActionProps.styl'
 
 const extractActionDetails = text => {
   const action = text.trim()

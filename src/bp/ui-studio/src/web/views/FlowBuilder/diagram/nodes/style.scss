@@ -38,7 +38,7 @@
   background: #9ad4fe !important;
 }
 
-.section-next .item {
+.sectionTransition .item {
   overflow: unset;
 }
 
@@ -46,7 +46,7 @@
   border-bottom: none;
 }
 
-.section-title {
+.sectionTitle {
   font-size: 12px;
   font-weight: 600;
   padding: 3px 8px;
@@ -64,13 +64,13 @@
 }
 
 .skill-call-node {
-  .section-title {
+  .sectionTitle {
     background: #5353fb;
   }
 }
 
 .sectionContent .item,
-.section-next .item {
+.sectionTransition .item {
   padding: 3px 8px;
 
   &.fn {
@@ -83,16 +83,16 @@
   }
 }
 
-.section-next {
+.sectionTransition {
   border-top: 1px solid black;
 }
 
-.section-next .item {
+.sectionTransition .item {
   position: relative;
   background: #ececec;
 }
 
-.section-next .item :global(.port) {
+.sectionTransition .item :global(.port) {
   background: rgba(0, 0, 0, 0.2);
 
   &:global(.selected) {
@@ -143,14 +143,14 @@
   border-bottom-right-radius: 20px;
 }
 
-.section-next .portContainer {
+.sectionTransition .portContainer {
   position: absolute;
   right: -20px;
   top: 3px;
   width: 20px;
 }
 
-.section-next .portContainer.portLabel {
+.sectionTransition .portContainer.portLabel {
   width: 150px;
   right: -150px;
 }

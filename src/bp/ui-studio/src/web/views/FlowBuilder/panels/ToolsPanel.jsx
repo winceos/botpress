@@ -1,11 +1,12 @@
-import React, { Fragment } from 'react'
-import style from './style.scss'
-import DragNode from './DragNode'
+import React from 'react'
 import { Button, OverlayTrigger, Tooltip } from 'react-bootstrap'
 import { connect } from 'react-redux'
+
+import DragNode from './DragNode'
 import { updateFlow, flowEditorRedo, flowEditorUndo, buildNewSkill, fetchContentCategories } from '~/actions'
 import { getDirtyFlows, canFlowUndo, canFlowRedo } from '~/reducers'
 import { ToolTypes } from './Constants'
+import style from './ToolsPanel.styl'
 
 class ToolsPanel extends React.Component {
   constructor(props) {
@@ -52,44 +53,44 @@ class ToolsPanel extends React.Component {
 
   renderBtn() {
     return (
-      <div>
-        <Button className={style.btn} bsStyle="default" onClick={() => this.emit('saveAllFlows')}>
+      <div className={style.btns}>
+        <Button className={style.btn} onClick={() => this.emit('saveAllFlows')}>
           <OverlayTrigger placement="bottom" overlay={this.createTooltip('saveAll', 'Save all (ctrl+s)')}>
             <i className="material-icons">save</i>
           </OverlayTrigger>
         </Button>
 
-        <Button className={style.btn} bsStyle="default" disabled={!this.props.canUndo} onClick={this.props.undo}>
+        <Button className={style.btn} disabled={!this.props.canUndo} onClick={this.props.undo}>
           <OverlayTrigger placement="bottom" overlay={this.createTooltip('undo', 'Undo')}>
             <i className="material-icons">undo</i>
           </OverlayTrigger>
         </Button>
 
-        <Button className={style.btn} bsStyle="default" disabled={!this.props.canRedo} onClick={this.props.redo}>
+        <Button className={style.btn} disabled={!this.props.canRedo} onClick={this.props.redo}>
           <OverlayTrigger placement="bottom" overlay={this.createTooltip('redo', 'Redo')}>
             <i className="material-icons">redo</i>
           </OverlayTrigger>
         </Button>
 
-        <Button className={style.btn} bsStyle="default" onClick={() => this.emit('copyClipboard')}>
+        <Button className={style.btn} onClick={() => this.emit('copyClipboard')}>
           <OverlayTrigger placement="bottom" overlay={this.createTooltip('copy', 'Copy')}>
             <i className="material-icons">content_copy</i>
           </OverlayTrigger>
         </Button>
 
-        <Button className={style.btn} bsStyle="default" onClick={() => this.emit('pasteClipboard')}>
+        <Button className={style.btn} onClick={() => this.emit('pasteClipboard')}>
           <OverlayTrigger placement="bottom" overlay={this.createTooltip('paste', 'Paste')}>
             <i className="material-icons">content_paste</i>
           </OverlayTrigger>
         </Button>
 
-        <Button className={style.btn} bsStyle="default">
+        <Button className={style.btn}>
           <OverlayTrigger placement="bottom" overlay={this.createTooltip('makeStartNode', 'Set as Start node')}>
             <i className="material-icons">stars</i>
           </OverlayTrigger>
         </Button>
 
-        <Button className={style.btn} bsStyle="default" onClick={() => this.emit('deleteSelection')}>
+        <Button className={style.btn} onClick={() => this.emit('deleteSelection')}>
           <OverlayTrigger placement="bottom" overlay={this.createTooltip('delete', 'Delete')}>
             <i className="material-icons">delete</i>
           </OverlayTrigger>

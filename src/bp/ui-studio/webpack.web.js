@@ -24,9 +24,10 @@ const webConfig = {
     filename: '[name].[chunkhash].js'
   },
   resolve: {
-    extensions: ['.js', '.jsx', '.css'],
+    extensions: ['.js', '.jsx', '.css', '.styl'],
     alias: {
-      '~': path.resolve(__dirname, './src/web')
+      '~': path.resolve(__dirname, './src/web'),
+      css: path.resolve(__dirname, './src/web/css')
     }
   },
   optimization: {

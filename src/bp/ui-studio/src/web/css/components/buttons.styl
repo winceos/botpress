@@ -1,0 +1,224 @@
+/**
+ * BUTTONS
+ * 01-atoms/buttons.scss
+ */
+.btns {
+  display: flex;
+
+  &--round {
+    .btn {
+      &:first-child {
+        border-radius: 5px 0 0 5px;
+      }
+
+      &:last-child {
+        border-radius: 0 5px 5px 0;
+      }
+    }
+  }
+}
+
+.btn {
+  font-size: 62.5%;
+  color: var(--c-text--light);
+  background-color: var(--c-background);
+  line-height: 1;
+  font-size: 0.8rem;
+  text-align: center;
+  text-decoration: none;
+  font-weight: 400;
+  padding: 0.2rem 0.7rem;
+  margin-right: 0.2rem;
+  border: none;
+  outline: none;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  vertical-align: middle;
+  cursor: pointer;
+  transition: var(--t-default);
+
+  &:hover {
+    background-color: var(--c-background--light-2);
+  }
+
+  /* ---- COLORS ---- */
+  &--primary {
+    color: var(--c-text--light);
+    background-color: var(--c-primary);
+
+    &:hover {
+      background-color: var(--c-primary--dark-1);
+    }
+  }
+
+  &--secondary {
+    color: var(--c-text--light);
+    background-color: var(--c-secondary);
+
+    &:hover {
+      background-color: var(--c-secondary--dark-1);
+    }
+  }
+
+  &--tertiary {
+    color: var(--c-text--light);
+    background-color: var(--c-tertiary);
+
+    &:hover {
+      background-color: var(--c-tertiary--dark-1);
+    }
+  }
+
+  &--brand {
+    color: var(--c-text--light);
+    background-color: var(--c-brand);
+
+    &:hover {
+      background-color: var(--c-brand--dark-1);
+    }
+  }
+
+  /* ---- STYLE ---- */
+  &--text-only {
+    background: none;
+    color: var(--c-text--brand);
+    text-decoration: underline;
+    padding: 0;
+
+    &:hover {
+      background: none;
+      color: var(--c-text);
+    }
+  }
+
+  &--outline {
+    background-color: transparent;
+    color: var(--c-neutral);
+    box-shadow: inset 0 0 0 1px var(--c-neutral);
+
+    &:hover {
+      background-color: transparent;
+      color: var(--c-neutral--dark-1);
+      box-shadow: inset 0 0 0 1px var(--c-neutral--dark-1);
+    }
+
+    &.btn--brand {
+      color: var(--c-brand);
+      box-shadow: inset 0 0 0 1px var(--c-brand);
+
+      &:hover {
+        color: var(--c-brand--dark-1);
+        box-shadow: inset 0 0 0 1px var(--c-brand--dark-1);
+      }
+    }
+
+    &.btn--primary {
+      color: var(--c-primary);
+      box-shadow: inset 0 0 0 1px var(--c-primary);
+
+      &:hover {
+        color: var(--c-primary--dark-1);
+        box-shadow: inset 0 0 0 1px var(--c-primary--dark-1);
+      }
+    }
+
+    &.btn--secondary {
+      color: var(--c-secondary);
+      box-shadow: inset 0 0 0 1px var(--c-secondary);
+
+      &:hover {
+        color: var(--c-secondary--dark-1);
+        box-shadow: inset 0 0 0 1px var(--c-secondary--dark-1);
+      }
+    }
+
+    &.btn--tertiary {
+      color: var(--c-tertiary);
+      box-shadow: inset 0 0 0 1px var(--c-tertiary);
+
+      &:hover {
+        color: var(--c-tertiary--dark-1);
+        box-shadow: inset 0 0 0 1px var(--c-tertiary--dark-1);
+      }
+    }
+  }
+
+  /* ---- SIZES ---- */
+  &--small {
+    padding: 0.2rem 1.5rem;
+  }
+
+  &--large {
+    padding: 1rem 1.5rem;
+  }
+
+  &--full-width {
+    display: block;
+  }
+
+  /* ---- STATES ---- */
+  &--disabled {
+  }
+
+  &--alert {
+    color: var(--c-text--light);
+    background-color: var(--c-negative);
+
+    &:hover {
+    }
+  }
+
+  /* ---- ICON ---- */
+  &--icon {
+    color: currentColor;
+    background-color: transparent;
+    padding: var(--s-default);
+    justify-content: center;
+    width: 4.4rem;
+    height: 4.4rem;
+    position: relative;
+
+    svg > path {
+      fill: currentColor;
+    }
+
+    @media (min-width: 768px) {
+      width: auto;
+      height: auto;
+    }
+
+    &:hover {
+      background-color: transparent;
+    }
+  }
+
+  &__icon {
+    height: 1.6rem;
+
+    path {
+      fill: currentColor;
+    }
+
+    &:first-child {
+      margin-right: var(--s-default--half);
+    }
+
+    &:last-child {
+      margin-left: var(--s-default--half);
+    }
+
+    .btn--icon > & {
+      height: 1.2rem;
+      width: auto;
+      margin: 0;
+    }
+  }
+
+  /* ---- MULTILINE ---- */
+  &__content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
