@@ -2,7 +2,7 @@ import React from 'react'
 import { Button, OverlayTrigger, Tooltip } from 'react-bootstrap'
 import { connect } from 'react-redux'
 
-import DragNode from './DragNode'
+import DragNode from '../common/DragNode'
 import PermissionsChecker from '~/components/Layout/PermissionsChecker'
 import { updateFlow, flowEditorRedo, flowEditorUndo, buildNewSkill, fetchContentCategories } from '~/actions'
 import { getDirtyFlows, canFlowUndo, canFlowRedo } from '~/reducers'

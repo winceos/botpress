@@ -1,6 +1,6 @@
 import React from 'react'
 import { DragSource } from 'react-dnd'
-import style from './ToolsPanel.styl'
+import style from './DragNode.styl'
 
 const source = {
   beginDrag(props) {

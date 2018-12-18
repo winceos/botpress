@@ -1,71 +1,69 @@
+@import '../settings/vars.styl';
+
 .form {
-    &-fieldset {
-        margin: 2rem 0;
+  &-fieldset {
+    margin: 2rem 0;
+  }
+
+  &__legend {
+  }
+
+  &-field {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: var(--s-default--2x);
+
+    &:not(:first-child) {
+      margin: var(--s-default--2x) 0;
     }
 
-    &__legend {}
+    &__hint {
+      font-size: 1rem;
+      margin-top: var(--s-default--half);
 
-    &-field {
-        display: flex;
-        flex-direction: column;
-        margin-bottom: var(--s-default--2x);
-
-        &:not(:first-child) {
-            margin: var(--s-default--2x) 0;
-        }
-
-        &__hint {
-            font-size: 1rem;
-
-            margin-top: var(--s-default--half);
-
-            .form__label + & {
-                margin-top: 0;
-                margin-bottom: var(--s-default--half);
-            }
-        }
-
-        &__addenda {
-            font-size: 1rem;
-        }
-
-        &-input-labeled {
-            display: flex;
-            align-items: flex-start;
-
-            .btn {
-                // background-color: var(--c-neutral--light-1);
-                height: 2.4rem;
-            }
-        }
-    }
-
-    &__label {
-        color: currentColor;
-        font-size: 1.2rem;
-        font-weight: var(--fw-bold);
-
+      .form__label + & {
+        margin-top: 0;
         margin-bottom: var(--s-default--half);
-
-        &--optional {
-            font-style: italic;
-            font-weight: var(--fw-normal);
-            font-size: 1rem;
-        }
+      }
     }
 
-    &__input,
-    &__select,
-    &__textarea {
-        //margin-top: var(--s-default--half);
-
-        .form-field-input-labeled & {
-            flex: 1;
-            margin-right: var(--s-default--half);
-        }
+    &__addenda {
+      font-size: 1rem;
     }
 
-    &-radios {
-        margin-bottom: var(--s-default--2x);
+    &-input-labeled {
+      display: flex;
+      align-items: flex-start;
+
+      .btn {
+        // background-color: var(--c-neutral--light-1);
+        height: 2.4rem;
+      }
     }
+  }
+
+  &__label {
+    color: currentColor;
+    font-size: 1.2rem;
+    font-weight: var(--fw-bold);
+    margin-bottom: var(--s-default--half);
+
+    &--optional {
+      font-style: italic;
+      font-weight: var(--fw-normal);
+      font-size: 1rem;
+    }
+  }
+
+  &__input, &__select, &__textarea {
+    // margin-top: var(--s-default--half);
+    .form-field-input-labeled & {
+      flex: 1;
+      margin-right: var(--s-default--half);
+    }
+  }
+
+  &-radios {
+    margin-bottom: var(--s-default--2x);
+  }
 }

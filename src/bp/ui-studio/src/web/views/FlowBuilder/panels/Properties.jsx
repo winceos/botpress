@@ -42,6 +42,24 @@ class Properties extends React.Component {
     }
   }
 
+  renderHeader() {
+    return (
+      <div className={style.header}>
+        <div className={style.parentNode}>
+          Parent Node: <span>{this.props.selectedItem.node.name}</span>
+        </div>
+
+        <div className={style.buttons}>
+          <Button className={style.btn} bsStyle="default" onClick={this.handleDelete}>
+            <OverlayTrigger placement="bottom" overlay={this.createTooltip('delete', 'Delete')}>
+              <i className="material-icons">delete</i>
+            </OverlayTrigger>
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   render() {
     if (!this.props.selectedItem) {
       return null
@@ -49,20 +67,7 @@ class Properties extends React.Component {
 
     return (
       <div className={classnames(style.panel, style.padded)}>
-        <div className={style.header}>
-          <div className={style.parentNode}>
-            Parent Node: <span>{this.props.selectedItem.node.name}</span>
-          </div>
-
-          <div className={style.buttons}>
-            <Button className={style.btn} bsStyle="default" onClick={this.handleDelete}>
-              <OverlayTrigger placement="bottom" overlay={this.createTooltip('delete', 'Delete')}>
-                <i className="material-icons">delete</i>
-              </OverlayTrigger>
-            </Button>
-          </div>
-        </div>
-
+        {this.props.selectedItem.dragType !== ToolTypes.Node && this.renderHeader()}
         {this.renderAdvanced()}
       </div>
     )

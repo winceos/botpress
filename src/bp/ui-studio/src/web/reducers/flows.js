@@ -482,7 +482,7 @@ reducer = reduceReducers(
                 } else if (payload.replace) {
                   result = update(nodeAction, { $splice: [[payload.replace.index, 1, item]] })
                 } else if (payload.set) {
-                  result = item instanceof Array ? item : [item]
+                  result = item
                 } else {
                   result = nodeAction
                 }
