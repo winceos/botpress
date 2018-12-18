@@ -1,5 +1,6 @@
 import React from 'react'
 import { DragSource, DropTarget } from 'react-dnd'
+import { contextMenu } from 'react-contexify'
 import { compose } from 'redux'
 import { connect } from 'react-redux'
 import classnames from 'classnames'
@@ -37,6 +38,17 @@ class NodeElement extends React.Component {
     })
   }
 
+  handleContextMenu = e => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    contextMenu.show({
+      id: 'copyPaste',
+      event: e,
+      props: _.pick(this.props, ['index', 'node', 'item', 'actionType', 'dragType', 'dropType'])
+    })
+  }
+
   renderContent() {
     const { item, isOver, connectDropTarget, connectDragSource } = this.props
 
@@ -54,6 +66,7 @@ class NodeElement extends React.Component {
           )}
           onClick={this.handleClick}
           onMouseDown={this.handleMouseDown}
+          onContextMenu={this.handleContextMenu}
         >
           <ActionItem text={item} />
         </div>
@@ -76,6 +89,7 @@ class NodeElement extends React.Component {
         )}
         onClick={this.handleClick}
         onMouseDown={this.handleMouseDown}
+        onContextMenu={this.handleContextMenu}
       >
         {connectDragSource(
           connectDropTarget(

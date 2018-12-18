@@ -17,7 +17,7 @@ export class StandardNodeWidget extends Component {
   }
 
   renderContent(node, actionType) {
-    const dropTypes = [ToolTypes.Content, ToolTypes.Skills, ToolTypes.Action]
+    const dropTypes = [ToolTypes.Content, ToolTypes.Action]
     return (
       <div>
         {node[actionType].map((item, i) => {
@@ -60,7 +60,7 @@ export class StandardNodeWidget extends Component {
   }
 
   renderTitle(node) {
-    const dropTypes = [ToolTypes.Content, ToolTypes.Skills, ToolTypes.Action, ToolTypes.Transition]
+    const dropTypes = [ToolTypes.Content, ToolTypes.Action, ToolTypes.Transition]
     return <NodeTitle dropType={dropTypes} isWaiting={node.waitOnReceive} title={node.name} node={node} parent={this} />
   }
 

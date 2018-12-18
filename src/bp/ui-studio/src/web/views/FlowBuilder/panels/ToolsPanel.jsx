@@ -10,10 +10,7 @@ import { ToolTypes } from './Constants'
 import style from './ToolsPanel.styl'
 
 class ToolsPanel extends React.Component {
-  constructor(props) {
-    super(props)
-    this.state = {}
-  }
+  state = {}
 
   componentDidMount() {
     if (!this.props.contentTypes) {

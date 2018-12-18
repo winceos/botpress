@@ -1,13 +1,13 @@
-import React, { Component } from 'react'
+import React from 'react'
 import classnames from 'classnames'
 import _ from 'lodash'
 import { NodeModel, NodeFactory } from 'storm-react-diagrams'
 
 import ActionItem from '../../common/action'
-import ConditionItem from '../../common/condition'
 import { StandardOutgoingPortModel, StandardPortWidget, StandardIncomingPortModel } from './Ports'
 import { ToolTypes, ActionTypes } from '../../panels/Constants'
 import NodeElement from './NodeElement'
+import NodeTitle from './NodeTitle'
 import style from './SkillCallNode.styl'
 
 export class SkillCallNodeWidget extends React.Component {
@@ -19,7 +19,7 @@ export class SkillCallNodeWidget extends React.Component {
   state = {}
 
   renderTransition(node) {
-    const dropTypes = [ToolTypes.Transition]
+    const dropTypes = []
     return (
       <div>
         {node.next.map((item, i) => {
@@ -40,6 +40,21 @@ export class SkillCallNodeWidget extends React.Component {
     )
   }
 
+  renderTitle(node) {
+    const dropTypes = []
+    return (
+      <NodeTitle
+        dropType={dropTypes}
+        isWaiting={node.waitOnReceive}
+        title={node.skill}
+        subtitle={`Skill | ${node.name}`}
+        node={node}
+        parent={this}
+        isSkill={true}
+      />
+    )
+  }
+
   render() {
     const node = this.props.node
     const isWaiting = node.waitOnReceive
@@ -53,10 +68,7 @@ export class SkillCallNodeWidget extends React.Component {
         </div>
         <div className={style.header} />
         <div className={style.content}>
-          <div className={classnames(style.sectionTitle, style.section, { [style.waiting]: isWaiting })}>
-            <div>{node.skill}</div>
-            <div className={style['subtitle']}>Skill | {node.name}</div>
-          </div>
+          {this.renderTitle(node)}
           <div className={classnames(style.sectionContent, style.section)}>
             {node.onReceive &&
               node.onReceive.map((item, i) => {

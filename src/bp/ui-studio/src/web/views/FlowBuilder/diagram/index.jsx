@@ -4,12 +4,14 @@ import ReactDOM from 'react-dom'
 import _ from 'lodash'
 import { DiagramWidget, DiagramEngine, DiagramModel, LinkModel, PointModel } from 'storm-react-diagrams'
 import { toast } from 'react-toastify'
+import { Menu, Item, theme, contextMenu } from 'react-contexify'
+import 'react-contexify/dist/ReactContexify.min.css'
 
 import { hashCode } from '~/util'
 import { StandardNodeModel, StandardWidgetFactory } from './nodes/StandardNode'
 import { SkillCallNodeModel, SkillCallWidgetFactory } from './nodes/SkillCallNode'
 import { DeletableLinkFactory } from './nodes/LinkWidget'
-import { ToolTypes } from './../panels/Constants'
+import { ToolTypes, ActionTypes } from './../panels/Constants'
 
 const passThroughNodeProps = ['name', 'onEnter', 'onReceive', 'next', 'skill']
 const PADDING = 100
@@ -95,7 +97,7 @@ class FlowBuilder extends Component {
     if (item.type === ToolTypes.Node) {
       this.props.createFlowNode(this.lastClickLocation)
     } else if (item.type === ToolTypes.Skills) {
-      this.props.buildSkill('choice')
+      this.props.buildSkill(item.id)
     }
   }
 
@@ -527,15 +529,92 @@ class FlowBuilder extends Component {
     }
   }
 
+  handleCopy = ({ props }) => {
+    this.copyBuffer = props
+  }
+
+  handlePaste = ({ props }) => {
+    if (this.isPasteDisabled({ props })) {
+      return
+    }
+
+    if (props.actionType && props.index !== undefined) {
+      this.props.editFlowNodeAction({
+        nodeId: props.node.id,
+        actionType: props.actionType,
+        add: { index: props.index },
+        item: this.copyBuffer.item
+      })
+    } else {
+      this.props.editFlowNodeAction({
+        nodeId: props.node.id,
+        actionType: this.copyBuffer.dragType === ToolTypes.Transition ? ActionTypes.Transition : props.actionType,
+        add: { index: 0 },
+        item: this.copyBuffer.item
+      })
+    }
+    this.props.refreshFlowsLinks()
+  }
+
+  handleDelete = ({ props }) => {
+    this.props.editFlowNodeAction({
+      nodeId: props.node.id,
+      actionType: props.actionType,
+      remove: { index: props.index }
+    })
+  }
+
+  isPasteDisabled = ({ props }) => {
+    return !this.copyBuffer || !props.dropType || props.dropType.indexOf(this.copyBuffer.dragType) === -1
+  }
+
+  isCopyDisabled = ({ props }) => {
+    return !props || (props.item === undefined && props.node === undefined)
+  }
+
+  renderCopyPasteMenu() {
+    return (
+      <Menu id="copyPaste" theme={theme.dark}>
+        <Item onClick={this.handleCopy} disabled={this.isCopyDisabled}>
+          Copy
+        </Item>
+        <Item onClick={this.handlePaste} disabled={this.isPasteDisabled}>
+          Paste
+        </Item>
+        <Item onClick={this.handleDelete}>Delete</Item>
+      </Menu>
+    )
+  }
+
+  handleContextMenu = e => {
+    e.preventDefault()
+
+    contextMenu.show({
+      id: 'copyPaste',
+      event: e,
+      props: {
+        location: this.getRealLocation({ x: e.clientX, y: e.clientY }),
+        dropType: [ToolTypes.Node]
+      }
+    })
+  }
+
   render() {
     return this.props.connectDropTarget(
-      <div id="diagramContainer" tabIndex="1" style={{ outline: 'none', width: '100%', height: '100%' }}>
+      <div
+        id="diagramContainer"
+        tabIndex="1"
+        style={{ outline: 'none', width: '100%', height: '100%' }}
+        onContextMenu={this.handleContextMenu}
+      >
         <DiagramWidget
           readOnly={this.props.readOnly}
           ref={w => (this.diagramWidget = w)}
           deleteKeys={[]}
           diagramEngine={this.diagramEngine}
+          inverseZoom={true}
         />
+        {this.renderCopyPasteMenu()}
       </div>
     )
   }

@@ -1,8 +1,10 @@
-import { DropTarget } from 'react-dnd'
 import React from 'react'
-import classnames from 'classnames'
 import { compose } from 'redux'
 import { connect } from 'react-redux'
+import { DropTarget } from 'react-dnd'
+import { contextMenu } from 'react-contexify'
+import classnames from 'classnames'
+
 import { ToolTypes, ActionTypes } from '../../panels/Constants'
 import { viewElementProperties } from '~/actions'
 import style from './NodeTitle.styl'
@@ -23,8 +25,27 @@ class NodeTitle extends React.Component {
     })
   }
 
+  handleContextMenu = e => {
+    const domElementRect = e.target.getBoundingClientRect()
+    const isOverFirstHalf = e.clientY - domElementRect.top < domElementRect.height / 2
+    const enterOrReceive = isOverFirstHalf ? ActionTypes.OnEnter : ActionTypes.OnReceive
+
+    e.preventDefault()
+    e.stopPropagation()
+
+    contextMenu.show({
+      id: 'copyPaste',
+      event: e,
+      props: {
+        actionType: enterOrReceive,
+        dragType: ToolTypes.Node,
+        ..._.pick(this.props, ['node', 'dropType'])
+      }
+    })
+  }
+
   render() {
-    const { title, isWaiting, isOver, connectDropTarget } = this.props
+    const { title, subtitle, isWaiting, isOver, connectDropTarget } = this.props
 
     return connectDropTarget(
       <div
@@ -38,11 +59,14 @@ class NodeTitle extends React.Component {
             [style.hoverTransition]: isOver && this.state.actionType === ActionTypes.Transition,
             [style.waiting]: isWaiting
           },
-          style.sectionTitle
+          style.sectionTitle,
+          this.props.isSkill ? style.backgroundBlue : style.backgroundBlack
         )}
         onClick={this.handleClick}
+        onContextMenu={this.handleContextMenu}
       >
         {title}
+        {subtitle && <div className={style.subtitle}>{subtitle}</div>}
       </div>
     )
   }
