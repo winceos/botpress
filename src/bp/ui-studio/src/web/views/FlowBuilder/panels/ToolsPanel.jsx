@@ -30,6 +30,9 @@ class ToolsPanel extends React.Component {
     )
   }
 
+  save = () => this.emit('saveWorkspace')
+  restore = () => this.emit('loadWorkspace')
+
   render() {
     return (
       <div className={style.panel}>
@@ -50,6 +53,15 @@ class ToolsPanel extends React.Component {
         <PermissionsChecker user={this.props.user} op="write" res="bot.skills">
           {this.props.skills && this.props.skills.map(skill => this.renderSkill(skill))}
         </PermissionsChecker>
+
+        <hr />
+
+        <Button onClick={this.save} bsSize="xs">
+          Save Workspace
+        </Button>
+        <Button onClick={this.restore} bsSize="xs">
+          Restore Workspace
+        </Button>
       </div>
     )
   }

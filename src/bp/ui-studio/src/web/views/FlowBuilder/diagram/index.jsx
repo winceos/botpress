@@ -545,14 +545,11 @@ const targetSpec = {
   drop(props, monitor, component) {
     const dropResult = monitor.getDropResult()
     if (!dropResult) {
-      component.droppedToolOnDiagram(monitor.getItem(), monitor.getClientOffset())
-      return
+      return component.droppedToolOnDiagram(monitor.getItem(), monitor.getClientOffset())
     }
 
     if (monitor.didDrop()) {
       component.addActionToNode(component.dropTargetElement, dropResult)
-    } else {
-      component.addEmptyNodeAt(monitor.getClientOffset())
     }
   }
 }

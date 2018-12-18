@@ -15,11 +15,8 @@ import { viewElementProperties } from '~/actions'
 import style from './NodeElement.styl'
 
 class NodeElement extends React.Component {
-  constructor() {
-    super()
-    this.state = {
-      id: nanoid()
-    }
+  state = {
+    id: nanoid()
   }
 
   shouldComponentUpdate(nextProps) {
@@ -31,15 +28,8 @@ class NodeElement extends React.Component {
     )
   }
 
-  render() {
-    if (this.props.actionType === ActionTypes.Transition) {
-      return this.renderTransition()
-    } else {
-      return this.renderContent()
-    }
-  }
-
   handleMouseDown = e => e.stopPropagation()
+
   handleClick = () => {
     this.props.viewElementProperties({
       id: this.state.id,
@@ -98,10 +88,14 @@ class NodeElement extends React.Component {
       </div>
     )
   }
+
+  render() {
+    return this.props.actionType === ActionTypes.Transition ? this.renderTransition() : this.renderContent()
+  }
 }
 
 const targetSpec = {
-  drop(props, monitor, component) {
+  drop(props, monitor) {
     if (!monitor.didDrop()) {
       const selected = monitor.getItem()
 

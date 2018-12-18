@@ -75,16 +75,18 @@ export class StandardPortWidgetDisconnected extends React.Component {
       }
     }
 
-    const className = classnames(this.props.className, {
-      [style.startPort]: type === 'start',
-      [style.subflowPort]: type === 'subflow',
-      [style.endPort]: type === 'end',
-      [style.returnPort]: type === 'return',
-      [style.portLabel]: /end|subflow|start|return/i.test(type),
-      [style.missingConnection]: missingConnection,
-      [style.topPort]: this.props.name === 'in',
-      [style.sectionTransition]: this.props.name !== 'in'
-    })
+    const className = classnames(
+      this.props.className,
+      {
+        [style.startPort]: type === 'start',
+        [style.subflowPort]: type === 'subflow',
+        [style.endPort]: type === 'end',
+        [style.returnPort]: type === 'return',
+        [style.portLabel]: /end|subflow|start|return/i.test(type),
+        [style.missingConnection]: missingConnection
+      },
+      this.props.name === 'in' ? style.topPort : style.transitionPort
+    )
 
     return (
       <div className={className}>

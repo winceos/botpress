@@ -8,14 +8,10 @@ import style from '~/css/components/dropdown'
 const SEARCH_RESULTS_LIMIT = 15
 
 class ContentSearch extends React.Component {
-  constructor(props) {
-    super(props)
-
-    this.state = {
-      newItemCategory: null,
-      searchTerm: '',
-      newItemData: null
-    }
+  state = {
+    newItemCategory: null,
+    searchTerm: '',
+    newItemData: null
   }
 
   debounceSearch = _.debounce((searchTerm, cb) => {

@@ -11,8 +11,6 @@ import NodeTitle from './NodeTitle'
 import style from './StandardNode.styl'
 
 export class StandardNodeWidget extends Component {
-  state = {}
-
   static defaultProps = {
     size: 200,
     node: null

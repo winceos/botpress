@@ -8,10 +8,7 @@ import { viewElementProperties } from '~/actions'
 import style from './NodeTitle.styl'
 
 class NodeTitle extends React.Component {
-  constructor() {
-    super()
-    this.state = {}
-  }
+  state = {}
 
   updateHoverStatus({ isOverFirstHalf, itemType }) {
     const enterOrReceive = isOverFirstHalf ? ActionTypes.OnEnter : ActionTypes.OnReceive

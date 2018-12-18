@@ -15,12 +15,12 @@ import style from './index.styl'
 
 import { withDragDropContext } from './panels/WithDragDropContext'
 
-class MainPage extends Component {
+class PanelContainer extends Component {
   gLayout
 
   componentDidMount() {
     setTimeout(() => {
-      this.setupLayout()
+      this.loadLayoutWithConfig(this.getBaseConfig())
     }, 0)
 
     window.addEventListener('resize', this.resizeLayout)
@@ -33,8 +33,8 @@ class MainPage extends Component {
 
   resizeLayout = () => this.gLayout.updateSize && this.gLayout.updateSize()
 
-  setupLayout() {
-    const config = {
+  getBaseConfig() {
+    return {
       settings: {
         showPopoutIcon: false,
         showCloseIcon: false
@@ -86,7 +86,9 @@ class MainPage extends Component {
         }
       ]
     }
+  }
 
+  loadLayoutWithConfig = config => {
     const layout = new GoldenLayout(config, document.getElementById('container'))
     layout.registerComponent('tools', this.connectStoreRouter(withDragDropContext(ToolsPanel)))
     layout.registerComponent('flows', withDragDropContext(FlowPanel))
@@ -94,7 +96,31 @@ class MainPage extends Component {
     layout.registerComponent('diagram', this.connectStoreRouter(withDragDropContext(FlowContainer)))
     layout.init()
 
+    layout.eventHub.on('saveWorkspace', () => this.saveWorkspace())
+    layout.eventHub.on('loadWorkspace', () => this.restoreWorkspace())
+
     this.gLayout = layout
+  }
+
+  saveWorkspace = () => {
+    const config = this.gLayout.toConfig()
+    localStorage.setItem('savedState', JSON.stringify(config))
+  }
+
+  restoreWorkspace = () => {
+    const savedState = localStorage.getItem('savedState')
+    if (!savedState) {
+      return
+    }
+
+    try {
+      const config = JSON.parse(savedState)
+
+      this.gLayout.destroy()
+      this.loadLayoutWithConfig(config)
+    } catch (err) {
+      console.log(`Can't load workspace.`, err)
+    }
   }
 
   connectStoreRouter(Component) {
@@ -118,9 +144,9 @@ class MainPage extends Component {
   }
 }
 
-MainPage.contextTypes = {
+PanelContainer.contextTypes = {
   store: PropTypes.object.isRequired,
   router: PropTypes.object
 }
 
-export default withRouter(MainPage)
+export default withRouter(PanelContainer)
