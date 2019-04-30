@@ -137,6 +137,7 @@ export class Intent extends React.Component {
                         <td>{intent.label}</td>
                         <td>
                           <Select
+                            isClearable
                             placeholder="Select a flow"
                             options={this.state.flowsOptions}
                             value={this.state.selectedFlows[key]}
@@ -145,6 +146,7 @@ export class Intent extends React.Component {
                         </td>
                         <td>
                           <Select
+                            isClearable
                             placeholder="Select a node"
                             options={this.state.selectedFlows[key] && this.renderNodeOptions(key)}
                             value={this.state.selectedNodes[key]}
