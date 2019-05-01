@@ -39,15 +39,20 @@ export class Intent extends React.Component {
   }
 
   setStateFromProps() {
+    // FIXME: When transitions are updated by hand in the node modal, we should reflect the changes in this form too.
+    // We could call the /flows endpoint or pass it in initialData
     if (!_.get(this.props, 'initialData.intents')) {
       return
     }
 
-    const selectedIntents = this.props.initialData.intents.map(x => ({ label: x.intent, value: x.intent }))
-    let selectedFlows = this.props.initialData.intents.map(x => ({ [x.intent]: x.flow }))
-    let selectedNodes = this.props.initialData.intents.map(x => ({ [x.intent]: x.flow }))
-    selectedFlows = _.keyBy(selectedFlows, x => x.intent)
-    selectedNodes = _.keyBy(selectedNodes, x => x.intent)
+    let selectedFlows
+    let selectedNodes
+
+    const selectedIntents = this.props.initialData.intents.map(x => {
+      selectedFlows = { ...selectedFlows, [x.intent]: { label: x.flow, value: x.flow } }
+      selectedNodes = { ...selectedNodes, [x.intent]: { label: x.node, value: x.node } }
+      return { label: x.intent, value: x.intent }
+    })
 
     this.setState({
       selectedIntents,
@@ -75,6 +80,8 @@ export class Intent extends React.Component {
     })
   }
 
+  // FIXME: SelectedFlows are not updated when selectedIntents changes.
+  // We should get the index of the deleted intents and remove them from selectedFlows.
   handleIntentsChange = selectedIntents => {
     this.setState({ selectedIntents })
   }
