@@ -396,11 +396,11 @@ export default class ScopedEngine implements Engine {
 
   // returns a promise to comply with PipelineStep
   private _setAmbiguity = (ds: NLUStructure): Promise<NLUStructure> => {
-    const perfectConfusion = 1 / ds.intents.length
+    const perfectConfusion = 1 / Math.min(2, ds.intents && ds.intents.length)
     const lower = perfectConfusion - AMBIGUITY_RANGE
     const upper = perfectConfusion + AMBIGUITY_RANGE
 
-    ds.ambiguous = ds.intents.length > 1 && allInRange(ds.intents.map(i => i.confidence), lower, upper)
+    ds.ambiguous = allInRange(ds.intents.map(i => i.confidence), lower, upper)
 
     return Promise.resolve(ds)
   }
@@ -458,8 +458,8 @@ export default class ScopedEngine implements Engine {
     }
 
     const intentDef = await this.storage.getIntent(ds.intent.name)
-
-    if (!(intentDef.slots && intentDef.slots.length)) {
+    const hasSlots = intentDef && intentDef.slots && intentDef.slots.length >= 1
+    if (!hasSlots) {
       return ds
     }
 
