@@ -78,7 +78,7 @@ export class RemoteLanguageProvider implements LanguageProvider {
         headers['authorization'] = 'bearer ' + source.authToken
       }
 
-      const client = axios.create({ baseURL: source.endpoint, headers })
+      const client = axios.create({ baseURL: source.endpoint, headers, timeout: 3000 })
       try {
         await retry(async () => {
           const { data } = await client.get('/info')
