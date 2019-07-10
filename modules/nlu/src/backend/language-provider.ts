@@ -61,7 +61,7 @@ export class RemoteLanguageProvider implements LanguageProvider {
     this._validProvidersCount = 0
 
     this._junkwordsCache = new lru<string[], string[]>({
-      length: (val: string[], key: string[]) => sumBy(key, x => x.length * 4) + sumBy(val, x => x.length * 4),
+      length: (val: string[], key: string[]) => sumBy(key, x => x && x.length * 4) + sumBy(val, x => x && x.length * 4),
       max:
         4 * // bytes in strings
         10 * // token size
@@ -202,7 +202,7 @@ export class RemoteLanguageProvider implements LanguageProvider {
 
         return data
       } catch (err) {
-        if (this.getAvailableProviders(lang).length > 1) {
+        if ((await this.getAvailableProviders(lang).length) > 1) {
           // we don't disable providers when there's no backup
           provider.disabledUntil = moment()
             .add(provider.errors++, 'seconds')
@@ -253,7 +253,7 @@ export class RemoteLanguageProvider implements LanguageProvider {
 
   private generateJunkWords(subsetVocab: string[], gramset: string[]) {
     const realWords = _.uniq(subsetVocab)
-    const meanWordSize = _.meanBy(realWords, w => w.length)
+    const meanWordSize = _.meanBy(realWords, w => (w && w.length) || 1)
     const minJunkSize = Math.max(JUNK_TOKEN_MIN, meanWordSize / 2) // Twice as short
     const maxJunkSize = Math.min(JUNK_TOKEN_MAX, meanWordSize * 1.5) // A bit longer.  Those numbers are discretionary and are not expected to make a big impact on the models.
     return _.range(0, JUNK_VOCAB_SIZE).map(() => {
@@ -292,7 +292,7 @@ export class RemoteLanguageProvider implements LanguageProvider {
       // Fetch only the missing tokens
       const fetched = await this.queryProvider<number[][]>(lang, '/vectorize', { tokens: query }, 'vectors')
 
-      if (fetched.length !== query.length) {
+      if (!fetched || fetched.length !== query.length) {
         throw new Error(
           `Language Provider didn't receive as many vectors as we asked for (asked ${query.length} and received ${
             fetched.length
@@ -313,7 +313,7 @@ export class RemoteLanguageProvider implements LanguageProvider {
   }
 
   async tokenize(text: string, lang: string): Promise<string[]> {
-    if (!text.length) {
+    if (!text || !text.length) {
       return []
     }
 

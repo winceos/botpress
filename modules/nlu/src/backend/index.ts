@@ -33,7 +33,7 @@ const onServerStarted = async (bp: typeof sdk) => {
   const { validProvidersCount, validLanguages } = langProvider.getHealth()
 
   nluHealth = {
-    isEnabled: validProvidersCount > 0 && validLanguages.length > 0,
+    isEnabled: validProvidersCount > 0 && validLanguages && validLanguages.length > 0,
     validProvidersCount,
     validLanguages
   } as NLUHealth

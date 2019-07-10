@@ -21,7 +21,7 @@ export function findMostConfidentIntentMeanStd(
   fixedThreshold: number,
   zThresh: number = 1.15
 ): sdk.NLU.Intent {
-  if (!intents.length) {
+  if (!intents || !intents.length) {
     return NoneIntent
   }
 
