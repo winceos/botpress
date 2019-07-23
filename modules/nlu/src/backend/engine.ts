@@ -196,8 +196,6 @@ export default class ScopedEngine implements Engine {
   async extract(text: string, lastMessages: string[], includedContexts: string[]): Promise<sdk.IO.EventUnderstanding> {
     if (!this._preloaded) {
       await this.trainOrLoad()
-      const trainingComplete = { type: 'nlu', name: 'done', working: false, message: 'Model is up-to-date' }
-      this.realtime.sendPayload(this.realtimePayload.forAdmins('statusbar.event', trainingComplete))
     }
 
     const t0 = Date.now()
@@ -358,12 +356,16 @@ export default class ScopedEngine implements Engine {
         if (trainableIntents.length) {
           const ctx_intent_models = await this.intentClassifiers[lang].train(trainableIntents, modelHash)
           const slotTaggerModels = await this._trainSlotTagger(trainableIntents, modelHash, lang)
+
           await this.storage.persistModels([...slotTaggerModels, ...ctx_intent_models], lang)
         }
       } catch (err) {
         this.logger.attachError(err).error('Error training NLU model')
       }
     }
+
+    const trainingComplete = { type: 'nlu', name: 'done', working: false, message: 'Model is up-to-date' }
+    this.realtime.sendPayload(this.realtimePayload.forAdmins('statusbar.event', trainingComplete))
   }
 
   public get modelHash() {
