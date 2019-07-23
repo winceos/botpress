@@ -250,6 +250,7 @@ try {
         require('./extractor').default(argv)
       })
     })
+    .version(metadataContent.version)
     .option('verbose', {
       alias: 'v',
       description: 'verbosity level'
