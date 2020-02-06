@@ -9,10 +9,12 @@ declare global {
     API_PATH: string
     BOTPRESS_VERSION: string
     BOT_NAME: string
+    ROOT_PATH: string
     BOT_ID: string
     BP_BASE_PATH: string
     SEND_USAGE_STATS: boolean
     SHOW_POWERED_BY: boolean
+    USE_SESSION_STORAGE: boolean
     BP_STORAGE: any
     botpress: {
       [moduleName: string]: any
@@ -54,6 +56,7 @@ export namespace Renderer {
   export type Text = {
     text: string
     markdown: boolean
+    escapeHTML: boolean
   } & Message
 
   export type QuickReply = {
@@ -73,6 +76,7 @@ export namespace Renderer {
       storage: string
       text: string
     }
+    escapeTextHTML: boolean
   }
 
   export interface FileInput {
@@ -115,7 +119,6 @@ export interface StudioConnector {
   events: any
   /** An axios instance */
   axios: any
-  toast: any
   getModuleInjector: any
   loadModuleView: any
 }
@@ -132,10 +135,16 @@ export type Config = {
   showConversationsButton: boolean
   showUserName: boolean
   showUserAvatar: boolean
+  showTimestamp: boolean
   enableTranscriptDownload: boolean
   enableArrowNavigation: boolean
   botName?: string
   avatarUrl?: string
+  /** Force the display language of the webchat (en, fr, ar, ru, etc..)
+   * Defaults to the user's browser language if not set
+   * Set to 'browser' to force use the browser's language
+   */
+  locale?: 'browser' | string
   /** Small description written under the bot's name */
   botConvoDescription?: string
   /** Replace or insert components at specific locations */
@@ -148,11 +157,17 @@ export type Config = {
   enableResetSessionShortcut: boolean
   recentConversationLifetime: string
   startNewConvoOnTimeout: boolean
+  /** Use sessionStorage instead of localStorage, which means the session expires when tab is closed */
+  useSessionStorage: boolean
   containerWidth?: string | number
   layoutWidth?: string | number
   showPoweredBy: boolean
   /** When enabled, sent messages are persisted to local storage (recall previous messages)  */
   enablePersistHistory: boolean
+  /** Experimental: expose the store to the parent frame for more control on the webchat's behavior */
+  exposeStore: boolean
+  /** Reference ensures that a specific value and its signature are valid */
+  reference: string
 }
 
 type OverridableComponents = 'below_conversation' | 'before_container' | 'composer'
@@ -180,6 +195,10 @@ export interface BotInfo {
   description: string
   details: BotDetails
   showBotInfoPage: boolean
+  languages: string[]
+  security: {
+    escapeHTML: boolean
+  }
 }
 
 interface Conversation {

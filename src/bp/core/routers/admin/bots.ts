@@ -1,4 +1,5 @@
 import { BotConfig, Logger } from 'botpress/sdk'
+import { RequestWithUser } from 'common/typings'
 import { ConfigProvider } from 'core/config/config-loader'
 import { BotService } from 'core/services/bot-service'
 import { WorkspaceService } from 'core/services/workspace-service'
@@ -7,14 +8,26 @@ import Joi from 'joi'
 import _ from 'lodash'
 
 import { CustomRouter } from '../customRouter'
-import { ConflictError } from '../errors'
-import { assertBotpressPro, needPermissions, success as sendSuccess } from '../util'
+import { ConflictError, ForbiddenError } from '../errors'
+import { assertBotpressPro, assertWorkspace, hasPermissions, needPermissions, success as sendSuccess } from '../util'
+
+const chatUserBotFields = [
+  'id',
+  'name',
+  'description',
+  'disabled',
+  'locked',
+  'private',
+  'defaultLanguage',
+  'pipeline_status.current_stage.id'
+]
 
 export class BotsRouter extends CustomRouter {
   public readonly router: Router
 
   private readonly resource = 'admin.bots'
   private needPermissions: (operation: string, resource: string) => RequestHandler
+  private hasPermissions: (req: RequestWithUser, operation: string, resource: string) => Promise<boolean>
   private assertBotpressPro: RequestHandler
   private logger!: Logger
 
@@ -27,6 +40,7 @@ export class BotsRouter extends CustomRouter {
     super('Bots', logger, Router({ mergeParams: true }))
     this.logger = logger
     this.needPermissions = needPermissions(this.workspaceService)
+    this.hasPermissions = hasPermissions(this.workspaceService)
     this.assertBotpressPro = assertBotpressPro(this.workspaceService)
     this.router = Router({ mergeParams: true })
     this.setupRoutes()
@@ -37,18 +51,20 @@ export class BotsRouter extends CustomRouter {
 
     router.get(
       '/',
-      this.needPermissions('read', this.resource),
+      assertWorkspace,
       this.asyncMiddleware(async (req, res) => {
-        const workspace = await this.workspaceService.findWorkspace(req.workspace!)
-        if (!workspace) {
-          return res.sendStatus(404)
+        const isBotAdmin = await this.hasPermissions(req, 'read', this.resource)
+        const isChatUser = await this.hasPermissions(req, 'read', 'user.bots')
+        if (!isBotAdmin && !isChatUser) {
+          throw new ForbiddenError(`No permission to view bots`)
         }
 
+        const workspace = await this.workspaceService.findWorkspace(req.workspace!)
         const botsRefs = await this.workspaceService.getBotRefs(workspace.id)
-        const bots = await this.botService.findBotsByIds(botsRefs)
+        const bots = (await this.botService.findBotsByIds(botsRefs)).filter(Boolean)
 
-        return sendSuccess(res, 'Retrieved bots for all teams', {
-          bots: bots && bots.filter(Boolean),
+        return sendSuccess(res, 'Retrieved bots', {
+          bots: isBotAdmin ? bots : bots.map(b => _.pick(b, chatUserBotFields)),
           workspace: _.pick(workspace, ['name', 'pipeline'])
         })
       })
@@ -59,7 +75,7 @@ export class BotsRouter extends CustomRouter {
       this.needPermissions('read', this.resource),
       this.asyncMiddleware(async (req, res) => {
         const categories = (await this.configProvider.getBotpressConfig()).botCategories
-        return sendSuccess(res, 'Retreived bot categories', { categories })
+        return sendSuccess(res, 'Retrieved bot categories', { categories })
       })
     )
 
@@ -92,7 +108,7 @@ export class BotsRouter extends CustomRouter {
         }
 
         if (botLinked) {
-          this.logger.warn(`Bot "${bot.id}" already linked in workspace. See workpaces.json for more details`)
+          this.logger.warn(`Bot "${bot.id}" already linked in workspace. See workspaces.json for more details`)
         } else {
           await this.workspaceService.addBotRef(bot.id, req.workspace!)
         }
@@ -132,7 +148,7 @@ export class BotsRouter extends CustomRouter {
       })
     )
 
-    router.put(
+    router.post(
       '/:botId',
       this.needPermissions('write', this.resource),
       this.asyncMiddleware(async (req, res) => {
@@ -147,8 +163,8 @@ export class BotsRouter extends CustomRouter {
       })
     )
 
-    router.delete(
-      '/:botId',
+    router.post(
+      '/:botId/delete',
       this.needPermissions('write', this.resource),
       this.asyncMiddleware(async (req, res) => {
         const { botId } = req.params
@@ -162,6 +178,7 @@ export class BotsRouter extends CustomRouter {
 
     router.get(
       '/:botId/export',
+      this.needPermissions('read', this.resource),
       this.asyncMiddleware(async (req, res) => {
         const botId = req.params.botId
         const tarball = await this.botService.exportBot(botId)
@@ -180,21 +197,15 @@ export class BotsRouter extends CustomRouter {
       this.needPermissions('write', this.resource),
       this.asyncMiddleware(async (req, res) => {
         if (!req.is('application/tar+gzip')) {
-          res.status(400).send('Bot should be imported from archive')
+          return res.status(400).send('Bot should be imported from archive')
         }
+
         const buffers: any[] = []
-        req.on('data', chunk => {
-          buffers.push(chunk)
-        })
-        req.on('end', async () => {
-          const botId = req.params.botId
-          try {
-            await this.botService.importBot(botId, Buffer.concat(buffers), false)
-            res.send('Ok')
-          } catch (error) {
-            res.status(500).send('Error while importing bot')
-          }
-        })
+        req.on('data', chunk => buffers.push(chunk))
+        await Promise.fromCallback(cb => req.on('end', cb))
+
+        await this.botService.importBot(req.params.botId, Buffer.concat(buffers), req.workspace!, false)
+        res.sendStatus(200)
       })
     )
 
@@ -231,6 +242,27 @@ export class BotsRouter extends CustomRouter {
         await this.botService.rollback(botId, req.body.revision)
 
         return sendSuccess(res, `Created a new revision for bot ${botId}`)
+      })
+    )
+
+    router.get(
+      '/health',
+      this.needPermissions('read', this.resource),
+      this.asyncMiddleware(async (req, res) => {
+        return sendSuccess(res, 'Retrieved bot health', await this.botService.getBotHealth())
+      })
+    )
+
+    router.post(
+      '/:botId/reload',
+      this.needPermissions('write', this.resource),
+      this.asyncMiddleware(async (req, res) => {
+        const botId = req.params.botId
+
+        await this.botService.unmountBot(botId)
+        const success = await this.botService.mountBot(botId)
+
+        return success ? sendSuccess(res, `Reloaded bot ${botId}`) : res.sendStatus(400)
       })
     )
   }

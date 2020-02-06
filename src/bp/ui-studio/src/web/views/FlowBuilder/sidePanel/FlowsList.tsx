@@ -1,5 +1,5 @@
 import { Classes, ContextMenu, ITreeNode, Menu, MenuItem, Tree } from '@blueprintjs/core'
-import { includes, isEqual } from 'lodash'
+import { isEqual } from 'lodash'
 import React, { Component } from 'react'
 
 import { buildFlowsTree } from './util'
@@ -7,88 +7,72 @@ import { buildFlowsTree } from './util'
 export const FOLDER_ICON = 'folder-close'
 export const DIRTY_ICON = 'clean'
 export const FLOW_ICON = 'document'
+export const MAIN_FLOW_ICON = 'flow-end'
+export const ERROR_FLOW_ICON = 'pivot'
+export const TIMEOUT_ICON = 'time'
+
+const lockedFlows = ['main.flow.json', 'error.flow.json']
+
+const traverseTree = (nodes: ITreeNode[], callback: (node: ITreeNode) => void) => {
+  if (nodes == null) {
+    return
+  }
+
+  for (const node of nodes) {
+    callback(node)
+    traverseTree(node.childNodes, callback)
+  }
+}
 
 export default class FlowsList extends Component<Props, State> {
-  state = {
-    nodes: [],
-    activeNode: null
+  state: State = {
+    nodes: []
   }
 
   componentDidMount() {
     this.updateFlows()
   }
 
-  componentDidUpdate(prevProps) {
+  componentDidUpdate(prevProps: Props) {
     if (!isEqual(prevProps.flows, this.props.flows)) {
       this.updateFlows()
     }
 
-    if (this.props.currentFlow && prevProps.currentFlow !== this.props.currentFlow) {
-      this.traverseTree(this.state.nodes, (n: ITreeNode<NodeData>) => {
-        return (n.isSelected = n.nodeData && n.nodeData.name === this.props.currentFlow['name'])
+    if (this.props.currentFlow) {
+      let parentPath = this.props.currentFlow.name
+      parentPath = parentPath.substr(0, parentPath.lastIndexOf('/') + 1)
+
+      traverseTree(this.state.nodes, (n: ITreeNode<NodeData>) => {
+        if (parentPath.startsWith(n['fullPath'] + '/')) {
+          n.isExpanded = true
+        }
+        n.isSelected = n.nodeData && n.nodeData.name === this.props.currentFlow.name
       })
     }
 
-    if (this.props.dirtyFlows && prevProps.dirtyFlows !== this.props.dirtyFlows) {
-      this.traverseTree(this.state.nodes, (node: ITreeNode<NodeData>) => {
-        if (node.nodeData) {
-          node.icon = this.props.dirtyFlows.includes(node.nodeData.name) ? DIRTY_ICON : FLOW_ICON
-        }
-      })
-      this.forceUpdate()
+    if (this.props.filter !== prevProps.filter) {
+      this.updateFlows()
     }
   }
 
   updateFlows() {
-    this.setState({ nodes: buildFlowsTree(this.props.flows) })
-  }
+    const nodes = buildFlowsTree(this.props.flows, this.props.filter)
 
-  handleDuplicate = flow => {
-    let name = prompt('Enter the name of the new flow')
-
-    if (!name) {
-      return
+    if (this.props.filter) {
+      traverseTree(nodes, n => (n.isExpanded = true))
     }
 
-    name = name.replace(/\.flow\.json$/i, '')
-
-    if (/[^A-Z0-9-_\/]/i.test(name)) {
-      return alert('ERROR: The flow name can only contain letters, numbers, underscores and hyphens.')
-    }
-
-    if (includes(this.props.flows.map(f => f.name), name + '.flow.json')) {
-      return alert(`ERROR: The flow ${name} already exists`)
-    }
-
-    this.props.duplicateFlow({ flowNameToDuplicate: flow.name, name: `${name}.flow.json` })
-  }
-
-  handleRename = flow => {
-    const name = window.prompt('Please enter the new name for that flow', flow.name.replace(/\.flow\.json$/i, ''))
-
-    if (!name) {
-      return
-    }
-
-    if (/[^A-Z0-9-_\/]/i.test(name)) {
-      return alert('ERROR: The flow name can only contain letters, numbers, underscores and hyphens.')
-    }
-
-    if (name !== flow.name && includes(this.props.flows.map(f => f.name), name + '.flow.json')) {
-      return alert(`ERROR: The flow ${name} already exists`)
-    }
-
-    this.props.renameFlow({ targetFlow: flow.name, name: `${name}.flow.json` })
+    this.setState({ nodes })
   }
 
   handleDelete = flow => {
-    if (confirm(`Are you sure you want to delete the flow ${flow.name}?`) === true) {
+    if (confirm(`Are you sure you want to delete the flow ${flow.name}?`)) {
       this.props.deleteFlow(flow.name)
     }
   }
 
   handleContextMenu = (node: ITreeNode<NodeData>, path, e) => {
-    if (this.props.readOnly || !node.nodeData) {
+    if (!node.nodeData) {
       return null
     }
 
@@ -97,18 +81,26 @@ export default class FlowsList extends Component<Props, State> {
     ContextMenu.show(
       <Menu>
         <MenuItem
-          disabled={node.nodeData.name === 'main.flow.json'}
+          id="btn-rename"
+          disabled={lockedFlows.includes(node.nodeData.name) || !this.props.canRename || this.props.readOnly}
           icon="edit"
           text="Rename"
-          onClick={() => this.handleRename(node.nodeData)}
+          onClick={() => this.props.renameFlow(node.nodeData.name)}
         />
         <MenuItem
-          disabled={node.nodeData.name === 'main.flow.json'}
+          id="btn-duplicate"
+          disabled={this.props.readOnly}
+          icon="duplicate"
+          text="Duplicate"
+          onClick={() => this.props.duplicateFlow(node.nodeData.name)}
+        />
+        <MenuItem
+          id="btn-delete"
+          disabled={lockedFlows.includes(node.nodeData.name) || !this.props.canDelete || this.props.readOnly}
           icon="delete"
           text="Delete"
           onClick={() => this.handleDelete(node.nodeData)}
         />
-        <MenuItem icon="duplicate" text="Duplicate" onClick={() => this.handleDuplicate(node.nodeData)} />
       </Menu>,
       { left: e.clientX, top: e.clientY }
     )
@@ -117,7 +109,7 @@ export default class FlowsList extends Component<Props, State> {
   private handleNodeClick = (node: ITreeNode<NodeData>) => {
     const originallySelected = node.isSelected
 
-    this.traverseTree(this.state.nodes, n => (n.isSelected = false))
+    traverseTree(this.state.nodes, n => (n.isSelected = false))
 
     node.isSelected = originallySelected !== null
 
@@ -140,17 +132,6 @@ export default class FlowsList extends Component<Props, State> {
     this.forceUpdate()
   }
 
-  private traverseTree(nodes: ITreeNode[], callback: (node: ITreeNode) => void) {
-    if (nodes == null) {
-      return
-    }
-
-    for (const node of nodes) {
-      callback(node)
-      this.traverseTree(node.childNodes, callback)
-    }
-  }
-
   render() {
     return (
       <Tree
@@ -166,8 +147,11 @@ export default class FlowsList extends Component<Props, State> {
 }
 
 interface Props {
-  currentFlow: any
+  filter: string
   readOnly: boolean
+  currentFlow: any
+  canRename: boolean
+  canDelete: boolean
   dirtyFlows: string[]
   goToFlow: Function
   flows: any

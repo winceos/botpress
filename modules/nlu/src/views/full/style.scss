@@ -6,6 +6,7 @@ $status-bar-height: 24px;
   flex-direction: column;
   height: calc(100vh - #{$status-bar-height});
   width: 100%;
+  padding: 10px 15px;
 }
 
 .headerTabs {
@@ -181,4 +182,8 @@ $status-bar-height: 24px;
 .synonym {
   width: 30%;
   display: none;
+}
+
+.chooseContainer {
+  padding: 10px;
 }

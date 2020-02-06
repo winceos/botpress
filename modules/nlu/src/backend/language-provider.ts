@@ -2,6 +2,7 @@ import axios, { AxiosInstance } from 'axios'
 import retry from 'bluebird-retry'
 import * as sdk from 'botpress/sdk'
 import fse from 'fs-extra'
+import httpsProxyAgent from 'https-proxy-agent'
 import _, { debounce, sumBy } from 'lodash'
 import lru from 'lru-cache'
 import moment from 'moment'
@@ -9,7 +10,8 @@ import ms from 'ms'
 import path from 'path'
 
 import { setSimilarity, vocabNGram } from './tools/strings'
-import { Gateway, LangsGateway, LanguageProvider, LanguageSource, NLUHealth } from './typings'
+import { isSpace, processUtteranceTokens, restoreOriginalUtteranceCasing } from './tools/token-utils'
+import { Gateway, LangsGateway, LanguageProvider, LanguageSource, NLUHealth, Token2Vec } from './typings'
 
 const debug = DEBUG('nlu').sub('lang')
 
@@ -29,6 +31,7 @@ export class RemoteLanguageProvider implements LanguageProvider {
 
   private _cacheDumpDisabled: boolean = false
   private _validProvidersCount: number
+  private _languageDims: number
 
   private discoveryRetryPolicy = {
     interval: 1000,
@@ -38,6 +41,10 @@ export class RemoteLanguageProvider implements LanguageProvider {
   }
 
   private langs: LangsGateway = {}
+
+  get languages(): string[] {
+    return Object.keys(this.langs)
+  }
 
   private addProvider(lang: string, source: LanguageSource, client: AxiosInstance) {
     this.langs[lang] = [...(this.langs[lang] || []), { source, client, errors: 0, disabledUntil: undefined }]
@@ -89,7 +96,13 @@ export class RemoteLanguageProvider implements LanguageProvider {
         headers['authorization'] = 'bearer ' + source.authToken
       }
 
-      const client = axios.create({ baseURL: source.endpoint, headers })
+      const proxyConfig = process.PROXY ? { httpsAgent: new httpsProxyAgent(process.PROXY) } : {}
+
+      const client = axios.create({
+        baseURL: source.endpoint,
+        headers,
+        ...proxyConfig
+      })
       try {
         await retry(async () => {
           const { data } = await client.get('/info')
@@ -98,6 +111,13 @@ export class RemoteLanguageProvider implements LanguageProvider {
             throw new Error('Language source is not ready')
           }
 
+          if (!this._languageDims) {
+            this._languageDims = data.dimentions // note typo in language server
+          }
+
+          if (this._languageDims !== data.dimentions) {
+            throw new Error('Language sources have different dimensions')
+          }
           this._validProvidersCount++
           data.languages.forEach(x => this.addProvider(x.lang, source, client))
         }, this.discoveryRetryPolicy)
@@ -108,9 +128,9 @@ export class RemoteLanguageProvider implements LanguageProvider {
 
     debug(`loaded ${Object.keys(this.langs).length} languages from ${sources.length} sources`)
 
-    this.restoreVectorsCache()
-    this.restoreJunkWordsCache()
-    this.restoreTokensCache()
+    await this.restoreVectorsCache()
+    await this.restoreJunkWordsCache()
+    await this.restoreTokensCache()
 
     return this
   }
@@ -130,28 +150,28 @@ export class RemoteLanguageProvider implements LanguageProvider {
     }
   }
 
-  private onTokensCacheChanged = debounce(() => {
+  private onTokensCacheChanged = debounce(async () => {
     if (!this._cacheDumpDisabled) {
-      this.dumpTokensCache()
+      await this.dumpTokensCache()
     }
   }, ms('5s'))
 
-  private onVectorsCacheChanged = debounce(() => {
+  private onVectorsCacheChanged = debounce(async () => {
     if (!this._cacheDumpDisabled) {
-      this.dumpVectorsCache()
+      await this.dumpVectorsCache()
     }
   }, ms('5s'))
 
-  private onJunkWordsCacheChanged = debounce(() => {
+  private onJunkWordsCacheChanged = debounce(async () => {
     if (!this._cacheDumpDisabled) {
-      this.dumpJunkWordsCache()
+      await this.dumpJunkWordsCache()
     }
   }, ms('5s'))
 
-  private dumpTokensCache() {
+  private async dumpTokensCache() {
     try {
-      fse.ensureFileSync(this._tokensCachePath)
-      fse.writeJSONSync(this._tokensCachePath, this._tokensCache.dump())
+      await fse.ensureFile(this._tokensCachePath)
+      await fse.writeJson(this._tokensCachePath, this._tokensCache.dump())
       debug('tokens cache updated at: %s', this._tokensCachePath)
     } catch (err) {
       debug('could not persist tokens cache, error: %s', err.message)
@@ -159,10 +179,10 @@ export class RemoteLanguageProvider implements LanguageProvider {
     }
   }
 
-  private restoreTokensCache() {
+  private async restoreTokensCache() {
     try {
-      if (fse.existsSync(this._tokensCachePath)) {
-        const dump = fse.readJSONSync(this._tokensCachePath)
+      if (await fse.pathExists(this._tokensCachePath)) {
+        const dump = await fse.readJSON(this._tokensCachePath)
         this._tokensCache.load(dump)
       }
     } catch (err) {
@@ -170,10 +190,10 @@ export class RemoteLanguageProvider implements LanguageProvider {
     }
   }
 
-  private dumpVectorsCache() {
+  private async dumpVectorsCache() {
     try {
-      fse.ensureFileSync(this._vectorsCachePath)
-      fse.writeJSONSync(this._vectorsCachePath, this._vectorsCache.dump())
+      await fse.ensureFile(this._vectorsCachePath)
+      await fse.writeJSON(this._vectorsCachePath, this._vectorsCache.dump())
       debug('vectors cache updated at: %s', this._vectorsCachePath)
     } catch (err) {
       debug('could not persist vectors cache, error: %s', err.message)
@@ -181,10 +201,10 @@ export class RemoteLanguageProvider implements LanguageProvider {
     }
   }
 
-  private restoreVectorsCache() {
+  private async restoreVectorsCache() {
     try {
-      if (fse.existsSync(this._vectorsCachePath)) {
-        const dump = fse.readJSONSync(this._vectorsCachePath)
+      if (await fse.pathExists(this._vectorsCachePath)) {
+        const dump = await fse.readJSON(this._vectorsCachePath)
         if (dump) {
           const kve = dump.map(x => ({ e: x.e, k: x.k, v: Float32Array.from(Object.values(x.v)) }))
           this._vectorsCache.load(kve)
@@ -195,10 +215,10 @@ export class RemoteLanguageProvider implements LanguageProvider {
     }
   }
 
-  private dumpJunkWordsCache() {
+  private async dumpJunkWordsCache() {
     try {
-      fse.ensureFileSync(this._junkwordsCachePath)
-      fse.writeJSONSync(this._junkwordsCachePath, this._junkwordsCache.dump())
+      await fse.ensureFile(this._junkwordsCachePath)
+      await fse.writeJSON(this._junkwordsCachePath, this._junkwordsCache.dump())
       debug('junk words cache updated at: %s', this._junkwordsCache)
     } catch (err) {
       debug('could not persist junk cache, error: %s', err.message)
@@ -206,10 +226,10 @@ export class RemoteLanguageProvider implements LanguageProvider {
     }
   }
 
-  private restoreJunkWordsCache() {
+  private async restoreJunkWordsCache() {
     try {
-      if (fse.existsSync(this._junkwordsCachePath)) {
-        const dump = fse.readJSONSync(this._junkwordsCachePath)
+      if (await fse.pathExists(this._junkwordsCachePath)) {
+        const dump = await fse.readJSON(this._junkwordsCachePath)
         this._vectorsCache.load(dump)
       }
     } catch (err) {
@@ -268,6 +288,7 @@ export class RemoteLanguageProvider implements LanguageProvider {
    * @param subsetVocab The tokens to which you want similar tokens to
    */
   async generateSimilarJunkWords(subsetVocab: string[], lang: string): Promise<string[]> {
+    // TODO: we can remove await + lang
     // from totalVocab compute the cachedKey the closest to what we have
     // if 75% of the vocabulary is the same, we keep the cache we have instead of rebuilding one
     const gramset = vocabNGram(subsetVocab)
@@ -285,9 +306,9 @@ export class RemoteLanguageProvider implements LanguageProvider {
     if (!result) {
       // didn't find any close gramset, let's create a new one
       result = this.generateJunkWords(subsetVocab, gramset) // randomly generated words
-      await this.vectorize(result, lang) // vectorize them all in one request to cache the tokens
+      await this.vectorize(result, lang) // vectorize them all in one request to cache the tokens // TODO: remove this
       this._junkwordsCache.set(gramset, result)
-      this.onJunkWordsCacheChanged()
+      await this.onJunkWordsCacheChanged()
     }
 
     return result
@@ -318,7 +339,9 @@ export class RemoteLanguageProvider implements LanguageProvider {
     const getCacheKey = (t: string) => `${lang}_${encodeURI(t)}`
 
     tokens.forEach((token, i) => {
-      if (this._vectorsCache.has(getCacheKey(token))) {
+      if (isSpace(token)) {
+        vectors[i] = new Float32Array(this._languageDims) // float 32 Arrays are initialized with 0s
+      } else if (this._vectorsCache.has(getCacheKey(token))) {
         vectors[i] = this._vectorsCache.get(getCacheKey(token))
       } else {
         idxToFetch.push(i)
@@ -330,7 +353,7 @@ export class RemoteLanguageProvider implements LanguageProvider {
       const group = idxToFetch.splice(0, 100)
 
       // We have new tokens we haven't cached yet
-      const query = group.map(idx => tokens[idx])
+      const query = group.map(idx => tokens[idx].toLowerCase())
       // Fetch only the missing tokens
       if (!query.length) {
         break
@@ -340,9 +363,7 @@ export class RemoteLanguageProvider implements LanguageProvider {
 
       if (fetched.length !== query.length) {
         throw new Error(
-          `Language Provider didn't receive as many vectors as we asked for (asked ${query.length} and received ${
-            fetched.length
-          })`
+          `Language Provider didn't receive as many vectors as we asked for (asked ${query.length} and received ${fetched.length})`
         )
       }
 
@@ -352,31 +373,31 @@ export class RemoteLanguageProvider implements LanguageProvider {
         this._vectorsCache.set(getCacheKey(tokens[tokenIdx]), vectors[tokenIdx])
       })
 
-      this.onVectorsCacheChanged()
+      await this.onVectorsCacheChanged()
     }
 
     return vectors
   }
 
-  async tokenize(utterances: string[], lang: string): Promise<string[][]> {
+  async tokenize(utterances: string[], lang: string, vocab: Token2Vec = {}): Promise<string[][]> {
     if (!utterances.length) {
       return []
     }
 
     const getCacheKey = (t: string) => `${lang}_${encodeURI(t)}`
-    const final: string[][] = Array(utterances.length)
+    const tokenUtterances: string[][] = Array(utterances.length)
     const idxToFetch: number[] = [] // the utterances we need to fetch remotely
 
     utterances.forEach((utterance, idx) => {
       if (this._tokensCache.has(getCacheKey(utterance))) {
-        final[idx] = this._tokensCache.get(getCacheKey(utterance))
+        tokenUtterances[idx] = this._tokensCache.get(getCacheKey(utterance))
       } else {
         idxToFetch.push(idx)
       }
     })
 
     // At this point, final[] contains the utterances we had cached
-    // It has somes "holes", we kept track of the indices where those wholes are in `idxToFetch`
+    // It has some "holes", we kept track of the indices where those wholes are in `idxToFetch`
 
     while (idxToFetch.length) {
       // While there's utterances we haven't tokenized yet
@@ -390,32 +411,32 @@ export class RemoteLanguageProvider implements LanguageProvider {
         }
       }, 0)
       const batch = idxToFetch.splice(0, sliceUntil + 1)
-      const query = batch.map(idx => utterances[idx])
+      const query = batch.map(idx => utterances[idx].toLowerCase())
 
       if (!query.length) {
         break
       }
 
-      const fetched = await this.queryProvider<string[][]>(lang, '/tokenize', { utterances: query }, 'tokens')
+      let fetched = await this.queryProvider<string[][]>(lang, '/tokenize', { utterances: query }, 'tokens')
+      fetched = fetched.map(toks => processUtteranceTokens(toks, vocab))
 
       if (fetched.length !== query.length) {
         throw new Error(
-          `Language Provider didn't receive as many utterances as we asked for (asked ${query.length} and received ${
-            fetched.length
-          })`
+          `Language Provider didn't receive as many utterances as we asked for (asked ${query.length} and received ${fetched.length})`
         )
       }
 
       // Reconstruct them in our array and cache them for future cache lookup
       batch.forEach((utteranceIdx, fetchIdx) => {
-        final[utteranceIdx] = Array.from(fetched[fetchIdx])
-        this._tokensCache.set(getCacheKey(utterances[utteranceIdx]), final[utteranceIdx])
+        tokenUtterances[utteranceIdx] = Array.from(fetched[fetchIdx])
+        this._tokensCache.set(getCacheKey(utterances[utteranceIdx]), tokenUtterances[utteranceIdx])
       })
 
-      this.onTokensCacheChanged()
+      await this.onTokensCacheChanged()
     }
 
-    return final
+    // we restore original chars and casing
+    return tokenUtterances.map((tokens, i) => restoreOriginalUtteranceCasing(tokens, utterances[i]))
   }
 }
 

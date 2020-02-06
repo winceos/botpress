@@ -1,22 +1,27 @@
 import { action, observable, runInAction } from 'mobx'
 import path from 'path'
 
-import { EditableFile, FilesDS, FileType } from '../../../backend/typings'
-import { Config, FileFilters, StudioConnector } from '../typings'
-import { FILENAME_REGEX, toastSuccess } from '../utils'
+import { EditableFile, FilePermissions, FilesDS, FileType } from '../../../backend/typings'
+import { FileFilters } from '../typings'
+import { FILENAME_REGEX, toastFailure, toastSuccess } from '../utils'
 import { baseAction, baseHook } from '../utils/templates'
 
 import CodeEditorApi from './api'
 import { EditorStore } from './editor'
 
 /** Includes the partial definitions of all classes */
-export type StoreDef = Partial<RootStore> & Partial<Config> & Partial<EditorStore>
+export type StoreDef = Partial<RootStore> & Partial<FilePermissions> & Partial<EditorStore>
+
+interface DuplicateOption {
+  forCurrentBot?: boolean
+  keepSameName?: boolean
+}
 
 class RootStore {
   public api: CodeEditorApi
   public editor: EditorStore
 
-  public config: Config
+  public permissions: FilePermissions
   public typings: { [fileName: string]: string } = {}
 
   @observable
@@ -28,6 +33,9 @@ class RootStore {
   @observable
   public fileFilter: string
 
+  @observable
+  public useRawEditor: boolean = false
+
   constructor({ bp }) {
     this.api = new CodeEditorApi(bp.axios)
     this.editor = new EditorStore(this)
@@ -38,9 +46,21 @@ class RootStore {
   }
 
   @action.bound
+  async enableRawEditor(e) {
+    e.preventDefault()
+
+    if (this.permissions['root.raw'].read) {
+      this.useRawEditor = !this.useRawEditor
+      await this.fetchFiles()
+    } else {
+      console.error(`Only Super Admins can use the raw file editor`)
+    }
+  }
+
+  @action.bound
   async initialize(): Promise<void> {
     try {
-      await this.fetchConfig()
+      await this.fetchPermissions()
       await this.fetchFiles()
       await this.fetchTypings()
     } catch (err) {
@@ -49,16 +69,16 @@ class RootStore {
   }
 
   @action.bound
-  async fetchConfig() {
-    const config = await this.api.fetchConfig()
+  async fetchPermissions() {
+    const permissions = await this.api.fetchPermissions()
     runInAction('-> setEditorConfig', () => {
-      this.config = config
+      this.permissions = permissions
     })
   }
 
   @action.bound
   async fetchFiles() {
-    const files = await this.api.fetchFiles()
+    const files = await this.api.fetchFiles(this.useRawEditor)
     runInAction('-> setFiles', () => {
       this.files = files
     })
@@ -75,7 +95,7 @@ class RootStore {
   }
 
   @action.bound
-  setFiles(messages) {
+  setFiles(messages: FilesDS) {
     this.files = messages
   }
 
@@ -85,7 +105,7 @@ class RootStore {
   }
 
   @action.bound
-  createFilePrompt(type: FileType, isGlobal?: boolean, hookType?: string) {
+  async createFilePrompt(type: FileType, isGlobal?: boolean, hookType?: string) {
     let name = window.prompt(`Choose the name of your ${type}. No special chars. Use camel case`)
     if (!name) {
       return
@@ -98,7 +118,7 @@ class RootStore {
 
     name = name.endsWith('.js') ? name : name + '.js'
 
-    this.editor.openFile({
+    await this.editor.openFile({
       name,
       location: name,
       content: type === 'action' ? baseAction : baseHook,
@@ -152,11 +172,22 @@ class RootStore {
   }
 
   @action.bound
-  async duplicateFile(file: EditableFile) {
+  async duplicateFile(file: EditableFile, { keepSameName, forCurrentBot }: DuplicateOption = {}) {
     const fileExt = path.extname(file.location)
+
     const duplicate = {
       ...file,
-      location: file.location.replace(fileExt, '_copy' + fileExt)
+      content: file.content || (await this.api.readFile(file)),
+      location: keepSameName ? file.location : file.location.replace(fileExt, '_copy' + fileExt)
+    }
+
+    if (forCurrentBot) {
+      duplicate.botId = window.BOT_ID
+    }
+
+    if (await this.api.fileExists(duplicate)) {
+      toastFailure('A file with that name already exists')
+      return
     }
 
     if (await this.api.saveFile(duplicate)) {

@@ -3,11 +3,11 @@ id: dialog
 title: Dialog Engine
 ---
 
-Botpress use what we call the **Dialog Engine** to handle conversations. The Dialog Engine is responsible for every interaction with a bot. It handles the user input and the bot response. But between the two, there's a whole lot happening.
+Botpress uses what we call the **Dialog Engine** to handle conversations. The Dialog Engine is responsible for every interaction with a bot. It handles the user input and the bot response. But between the two, there's a whole lot happening.
 
 ## Overview
 
-The Dialog Engine use [Flows](#flows) that represents the overall conversationnal logic of a bot. A Flow is then composed of [Nodes](#nodes) which execute a series of [Instructions](#node-lifecycle). Instructions are part of a Node lifecycle and can execute [Actions](#actions). An Action is code, usually code that you have written yourself, code provided by Botpress or by others (more on that later).
+The Dialog Engine use [Flows](#flows) that represent the overall conversational logic of a bot. A Flow is then composed of [Nodes](#nodes) which execute a series of [Instructions](#node-lifecycle). Instructions are part of a Node lifecycle and can execute [Actions](#actions). An Action is code, usually code that you have written yourself, code provided by Botpress or by others (more on that later).
 
 ## Flows
 
@@ -15,7 +15,7 @@ More complex bots are generally broken down into multiple smaller flows instead 
 
 ### Flow Lifecycle
 
-A flow always starts at the `startNode` of its `*.flow.json` file. The start node indicate the name of the node on which to start. Once the node is selected, the Dialog Engine will enqueue the instructions of the active node (more on instructions later). Then it will process the instructions sequencially.
+A flow always starts at the `startNode` of its `*.flow.json` file. The start node indicates the name of the node on which to start. Once the node is selected, the Dialog Engine will enqueue the instructions of the active node (more on instructions later). Then it will process the instructions sequentially.
 
 The Dialog Engine is event-based and is non-blocking by default, which means that a flow will execute all it can execute until it needs to wait.
 
@@ -24,7 +24,7 @@ The Dialog Engine is event-based and is non-blocking by default, which means tha
 > - A node is marked as waiting for user input
 > - A node couldn't match a condition to transition to another node
 
-Once the first node is processed, the Dialog Engine will proceed to the next node in the flow until it reach the very end. Flows are pretty straight forward. Nodes also have a [lifecycle](#node-lifecycle) of their own. It is the nodes that do the heavy lifting in a flow. The flow only orchestrates them.
+Once the first node is processed, the Dialog Engine will proceed to the next node in the flow until it reaches the very end. Flows are pretty straight forward. Nodes also have a [lifecycle](#node-lifecycle) of their own. It is the nodes that do the heavy lifting in a flow. The flow only orchestrates them.
 
 ### Storage
 
@@ -75,7 +75,7 @@ To define new _Flow-wide On Receive Actions_, navigate to the relevant flow, the
 > **Special cases**: If no condition is defined, the default behavior is that the conversation ends.
 > If there are conditions defined but none match, nothing happens, i.e., the current node stays active, and it will flow when a condition is matched. By default, the `onNext` will only be retried after `onReceive` is re-invoked.
 
-**Destination**: A Transition always have a target that we call a Destination. It can be:
+**Destination**: A Transition always has a target that we call a Destination. It can be:
 
 - A different Node
 - A different Flow
@@ -106,7 +106,7 @@ In the context of this tutorial, this means that a state is created just before 
 ## Session Timeout
 
 When the Dialog Engine is waiting for the input of an inactive user, after a while the session will **Timeout**.
-Timeout allows you to end the conversation gracefully, if need be. It can also be useful to do some processing before deleting the session. For instance, you could save the user contact information to an external database, or tell the user how to contact you, or tell simply inform the user his session has timed out.
+Timeout allows you to end the conversation gracefully, if need be. It can also be useful to do some processing before deleting the session. For instance, you could save the user contact information to an external database, or tell the user how to contact you, or inform the user his session has timed out.
 
 ### Timeout Flow
 
@@ -124,7 +124,7 @@ Another option that requires some coding is to add the property `timeoutNode` to
 
 ## Actions
 
-An **Action** is JavaScript code that is executed in a Node.js VM. It can be anything you want. Call an API, store something in the database or store something in the Key-value Store. Actions are called by onEnter and onReceive instructions. There is two types of Actions:
+An **Action** is JavaScript code that is executed in a Node.js VM. It can be anything you want. Call an API, store something in the database or store something in the Key-value Store. Actions are called by onEnter and onReceive instructions. There are two types of Actions:
 
 - **Script**: A user defined Action that is used to run custom code.
 - **Output**: An output Action that is used to make a bot output something.

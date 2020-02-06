@@ -18,7 +18,8 @@ function render(data) {
         title: c.title,
         payload: c.value.toUpperCase()
       })),
-      typing: data.typing
+      typing: data.typing,
+      markdown: data.markdown
     }
   ]
 }
@@ -32,7 +33,7 @@ function renderMessenger(data) {
       value: data.typing
     })
   }
-  
+
   return [
     ...events,
     {
@@ -46,14 +47,44 @@ function renderMessenger(data) {
   ]
 }
 
-function renderElement(data, channel) {
-  if (channel === 'web' || channel === 'api' || channel === 'telegram') {
-    return render(data)
-  } else if (channel === 'messenger') {
-    return renderMessenger(data)
+function renderSlack(data) {
+  const events = []
+
+  if (data.typing) {
+    events.push({
+      type: 'typing',
+      value: data.typing
+    })
   }
 
-  return [] // TODO Handle channel not supported
+  return [
+    ...events,
+    {
+      text: data.text,
+      quick_replies: {
+        type: 'actions',
+        elements: data.choices.map((q, idx) => ({
+          type: 'button',
+          action_id: 'replace_buttons' + idx,
+          text: {
+            type: 'plain_text',
+            text: q.title
+          },
+          value: q.value.toUpperCase()
+        }))
+      }
+    }
+  ]
+}
+
+function renderElement(data, channel) {
+  if (channel === 'messenger') {
+    return renderMessenger(data)
+  } else if (channel === 'slack') {
+    return renderSlack(data)
+  } else {
+    return render(data)
+  }
 }
 
 module.exports = {
@@ -92,6 +123,11 @@ module.exports = {
             }
           }
         }
+      },
+      markdown: {
+        type: 'boolean',
+        title: 'Use markdown',
+        default: true
       },
       ...base.typingIndicators
     }

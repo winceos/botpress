@@ -16,7 +16,7 @@ You can consume a memory action just like any other action from the Botpress Flo
 
 ### User Memory
 
-Variables stored inside this memory are persisted and remain available for the same user. They survive the different conversations. When a message is received from the user, his informations are automatically loaded and are available to actions and nodes without calling anything,.
+Variables stored inside this memory are persisted and remain available for the same user. They survive the different conversations. When a message is received from the user, his information is automatically loaded and is available to actions and nodes without calling anything.
 
 They never expires unless there is a data retention policy for some variables.
 
@@ -63,4 +63,4 @@ If you want to store information differently, or when outside of a flow (e.g. fr
 
 The KVS works very similarly to the get/set actions except you have to decide on the storage key yourself. Think of the KVS as an oversimplified NoSQL store where all you need to know to store something is a unique key.
 
-The KVS is available from the [Botpress SDK (**`bp.sdk`**)](https://botpress.io/reference/modules/_botpress_sdk_.kvs.html) and supports expiry as well. In fact, the storage actions are simply wrappers for the KVS.
+The KVS is available from the [Botpress SDK (**`bp.sdk`**)](https://botpress.com/reference/modules/_botpress_sdk_.kvs.html) and supports expiry as well. In fact, the storage actions are simply wrappers for the KVS.

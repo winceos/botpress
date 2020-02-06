@@ -1,12 +1,14 @@
-import { forceForwardSlashes } from 'core/misc/utils'
+import { filterByGlobs, forceForwardSlashes } from 'core/misc/utils'
 import { WrapErrorsWith } from 'errors'
 import { inject, injectable } from 'inversify'
+import _ from 'lodash'
 import nanoid from 'nanoid'
 import path from 'path'
 import { VError } from 'verror'
 
 import Database from '../../database'
 import { TYPES } from '../../types'
+import { BPError } from '../dialog/errors'
 
 import { FileRevision, StorageDriver } from '.'
 
@@ -68,11 +70,11 @@ export default class DBStorageDriver implements StorageDriver {
         })
         .select('content')
         .limit(1)
-        .get(0)
+        .first()
         .then()
 
       if (!file) {
-        throw new Error(`[DB Storage] File "${filePath}" not found`)
+        throw new BPError(`[DB Storage] File "${filePath}" not found`, 'ENOENT')
       }
 
       return Buffer.from((<any>file).content as Buffer)
@@ -127,7 +129,10 @@ export default class DBStorageDriver implements StorageDriver {
     }
   }
 
-  async directoryListing(folder: string): Promise<string[]> {
+  async directoryListing(
+    folder: string,
+    options: { excludes?: string | string[] } = { excludes: [] }
+  ): Promise<string[]> {
     try {
       let query = this.database
         .knex('srv_ghost_files')
@@ -140,9 +145,16 @@ export default class DBStorageDriver implements StorageDriver {
         query = query.andWhere('file_path', 'like', folder + '%')
       }
 
-      return query.then<Iterable<any>>().map((x: any) => {
-        return forceForwardSlashes(path.relative(folder, x.file_path))
-      })
+      const paths = await query
+        .then<Iterable<any>>()
+        .map((x: any) => forceForwardSlashes(path.relative(folder, x.file_path)))
+
+      if (!options.excludes || !options.excludes.length) {
+        return paths
+      }
+
+      const ignoredGlobs = Array.isArray(options.excludes) ? options.excludes : [options.excludes]
+      return filterByGlobs(paths, path => path, ignoredGlobs)
     } catch (e) {
       throw new VError(e, `[DB Storage] Error listing directory content for folder "${folder}"`)
     }

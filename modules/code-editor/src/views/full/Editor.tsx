@@ -1,7 +1,10 @@
 import { Icon, Position, Tooltip } from '@blueprintjs/core'
+import _ from 'lodash'
 import { observe } from 'mobx'
 import { inject, observer } from 'mobx-react'
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api'
+import babylon from 'prettier/parser-babylon'
+import prettier from 'prettier/standalone'
 import React from 'react'
 
 import SplashScreen from './components/SplashScreen'
@@ -34,6 +37,28 @@ class Editor extends React.Component<Props> {
       typeRoots: ['types']
     })
 
+    monaco.languages.registerDocumentFormattingEditProvider('typescript', {
+      async provideDocumentFormattingEdits(model, options, token) {
+        const text = prettier.format(model.getValue(), {
+          parser: 'babel',
+          plugins: [babylon],
+          singleQuote: true,
+          printWidth: 120,
+          trailingComma: 'none',
+          semi: false,
+          bracketSpacing: true,
+          requirePragma: false
+        })
+
+        return [
+          {
+            range: model.getFullModelRange(),
+            text
+          }
+        ]
+      }
+    })
+
     this.editor = monaco.editor.create(this.editorContainer, { theme: 'vs-light', automaticLayout: true })
     this.editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_S, this.props.editor.saveChanges)
     this.editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.KEY_N, this.props.createNewAction)
@@ -52,9 +77,9 @@ class Editor extends React.Component<Props> {
       return
     }
 
-    const { location } = this.props.editor.currentFile
+    const { location, readOnly } = this.props.editor.currentFile
     const fileType = location.endsWith('.json') ? 'json' : 'typescript'
-    const filepath = fileType === 'json' ? location : location.replace('.js', '.ts')
+    const filepath = fileType === 'json' ? location : location.replace(/\.js$/i, '.ts')
 
     const uri = monaco.Uri.parse(`bp://files/${filepath}`)
 
@@ -65,26 +90,39 @@ class Editor extends React.Component<Props> {
 
     const model = monaco.editor.createModel(this.props.editor.fileContentWrapped, fileType, uri)
     this.editor && this.editor.setModel(model)
+
+    this.editor.updateOptions({ readOnly })
+    this.editor.focus()
   }
 
   loadTypings = async () => {
     const typings = await this.props.fetchTypings()
-    if (!typings) {
-      return
-    }
 
-    Object.keys(typings).forEach(name => {
-      const uri = 'bp://types/' + name
-      const content = typings[name]
+    this.setSchemas(typings)
 
-      if (name.endsWith('.json')) {
-        monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
-          schemas: [{ uri, fileMatch: ['bot.config.json'], schema: JSON.parse(content) }],
-          validate: true
-        })
-      } else {
-        monaco.languages.typescript.typescriptDefaults.addExtraLib(content, uri)
+    _.forEach(typings, (content, name) => {
+      if (!name.includes('.schema.')) {
+        monaco.languages.typescript.typescriptDefaults.addExtraLib(content, 'bp://types/' + name)
       }
+    })
+  }
+
+  setSchemas = (typings: any) => {
+    const schemas = _.reduce(
+      _.pickBy(typings, (content, name) => name.includes('.schema.')),
+      (result, content, name) => {
+        result.push({
+          uri: 'bp://types/' + name,
+          schema: JSON.parse(content)
+        })
+        return result
+      },
+      []
+    )
+
+    monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+      schemas,
+      validate: true
     })
   }
 
@@ -101,7 +139,7 @@ class Editor extends React.Component<Props> {
   render() {
     return (
       <React.Fragment>
-        {!this.props.editor.isOpenedFile && <SplashScreen />}
+        {!this.props.editor.isOpenedFile && <SplashScreen rawEditor={this.props.store.useRawEditor} />}
         <div className={style.editorContainer}>
           <div className={style.tabsContainer}>
             <div className={style.tab}>
@@ -114,7 +152,7 @@ class Editor extends React.Component<Props> {
               </div>
             </div>
           </div>
-          <div ref={ref => (this.editorContainer = ref)} className={style.editor} />
+          <div id="monaco-editor" ref={ref => (this.editorContainer = ref)} className={style.editor} />
         </div>
       </React.Fragment>
     )

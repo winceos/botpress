@@ -14,7 +14,7 @@ On this page, you will learn about the Botpress global configuration, individual
 
 This is the main file used to configure the Botpress server. It will be created automatically when it is missing. Default values should be good when discovering Botpress, but in this page you will learn about the most common configuration you may need to change.
 
-To get more informations about each individual options, check out the [comments on the configuration schema](https://github.com/botpress/botpress/blob/master/src/bp/core/config/botpress.config.ts)
+To get more information about each individual options, check out the [comments on the configuration schema](https://github.com/botpress/botpress/blob/master/src/bp/core/config/botpress.config.ts)
 
 ## HTTP Server Configuration
 
@@ -24,7 +24,7 @@ By default, Botpress will start an HTTP server on localhost, listening to port 3
 
 When you are ready to expose your bot externally, you will need to change some of the server settings. The server doesn't support HTTPS connections, so you will need to set up a reverse proxy in front of it (for example: NGINX).
 
-This means that your server will still listen for connexions on port 3000, but your reverse proxy will answer for queries on port 80. It's also the reverse proxy that will handle secure connexions if you want to access your bot using `https`
+This means that your server will still listen for connections on port 3000, but your reverse proxy will answer for queries on port 80. It's also the reverse proxy that will handle secure connections if you want to access your bot using `https`
 
 At this point, Botpress doesn't know how to access the bot from the web. You will need to edit the configuration of `httpServer.externalUrl`. Set the configuration variable to the complete host name, for example `https://bot.botpress.io`
 
@@ -36,7 +36,7 @@ When you start Botpress from the binary (or using the Docker image), the bot is 
 
 There are 4 different levels of logs:
 
-- Debug: display very detailed informations about the bot operations
+- Debug: display very detailed information about the bot operations
 - Info: gives general information or "good to know" stuff
 - Warn: means that something didn't go as expected, but the bot was able to recover
 - Error: there was an error that should be addressed
@@ -100,7 +100,7 @@ The string `MODULE_ROOT` is a special string that is replaced when your configur
 
 Every bot that you create will have its own configuration file. It is located at `data/bots/NAME_OF_BOT/bot.config.json`. Most of the available options can be edited by clicking on the `Config` link next to the bot name on the administration panel.
 
-If you enable additionnal modules that adds other
+If you enable additional modules that adds other
 
 # Module Configuration
 
@@ -121,10 +121,9 @@ Here there are:
 | CLUSTER_ENABLED      | Enables multi-node support using Redis                                                                    | false         |
 | REDIS_URL            | The connection string to connect to your Redis instance                                                   |               |
 
-About `DATABASE_URL` : This variable will determine the type of database you're running (i.e postgres | sqlite). Anything else than a valid postgress url it will be used as a path to sqlite file. If you want to use the default postgres connection, simply use `postgres` as value. Leave this empty if you want to use the default sqlite location.
+About `DATABASE_URL` : This variable will determine the type of database you're running (i.e postgres | sqlite). Anything else than a valid postgres url it will be used as a path to sqlite file. If you want to use the default postgres connection, simply use `postgres` as value. Leave this empty if you want to use the default sqlite location.
 
-## More Informations
+## More Information
 
 - Check out the [database](../tutorials/database) page for details about `DATABASE_URL`
-- Check out the [version](./versions) page for more infromations about `BP_PRODUCTION`
 - Check out the [cluster](../developers/cluster) page for details about `CLUSTER_ENABLED` and `REDIS_URL`

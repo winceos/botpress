@@ -1,4 +1,5 @@
 import { IO } from 'botpress/sdk'
+import { FlowView } from 'common/typings'
 import { createForGlobalHooks } from 'core/api'
 import { TYPES } from 'core/types'
 import { inject, injectable } from 'inversify'
@@ -7,7 +8,6 @@ import _ from 'lodash'
 import { converseApiEvents } from '../converse'
 import { Hooks, HookService } from '../hook/hook-service'
 
-import { FlowView } from '.'
 import { FlowError, ProcessingError, TimeoutNodeNotFound } from './errors'
 import { FlowService } from './flow/service'
 import { InstructionProcessor } from './instruction/processor'
@@ -58,8 +58,7 @@ export class DialogEngine {
     // End session if there are no more instructions in the queue
     if (!instruction) {
       this._debug(event.botId, event.target, 'ending flow')
-      event.state.context = {}
-      event.state.temp = {}
+      this._endFlow(event)
       return event
     }
 
@@ -75,10 +74,29 @@ export class DialogEngine {
         this._debug(event.botId, event.target, 'waiting until next event')
         context.queue = queue
       } else if (result.followUpAction === 'transition') {
+        const destination = result.options!.transitionTo!
+        if (!destination || !destination.length) {
+          this._debug(event.botId, event.target, 'ending flow, because no transition destination defined (red port)')
+          this._endFlow(event)
+          return event
+        }
         // We reset the queue when we transition to another node.
         // This way the queue will be rebuilt from the next node.
         context.queue = undefined
-        return this._transition(sessionId, event, result.options!.transitionTo!)
+
+        return this._transition(sessionId, event, destination).catch(err => {
+          event.state.__error = {
+            type: 'dialog-transition',
+            stacktrace: err.stacktrace || err.stack,
+            destination: destination
+          }
+
+          const { onErrorFlowTo } = event.state.temp
+          const errorFlow =
+            typeof onErrorFlowTo === 'string' && onErrorFlowTo.length ? onErrorFlowTo : 'error.flow.json'
+
+          return this._transition(sessionId, event, errorFlow)
+        })
       }
     } catch (err) {
       this._reportProcessingError(botId, err, event, instruction)
@@ -112,7 +130,7 @@ export class DialogEngine {
 
     await this._loadFlows(botId)
 
-    // This is the only place we dont want to catch node or flow not found errors
+    // This is the only place we don't want to catch node or flow not found errors
     const findNodeWithoutError = (flow, nodeName) => {
       try {
         return this._findNode(botId, flow, nodeName)
@@ -139,7 +157,7 @@ export class DialogEngine {
 
     // Check for a timeout node in the current flow
     if (!timeoutNode) {
-      timeoutNode = findNodeWithoutError(timeoutFlow, 'timeout')
+      timeoutNode = findNodeWithoutError(currentFlow, 'timeout')
     }
 
     // Check for a timeout property in the current flow
@@ -171,6 +189,11 @@ export class DialogEngine {
     return this.processEvent(sessionId, event)
   }
 
+  private _endFlow(event: IO.IncomingEvent) {
+    event.state.context = {}
+    event.state.temp = {}
+  }
+
   private initializeContext(event) {
     const defaultFlow = this._findFlow(event.botId, 'main.flow.json')
     const startNode = this._findNode(event.botId, defaultFlow, defaultFlow.startNode)
@@ -186,6 +209,9 @@ export class DialogEngine {
 
   protected async _transition(sessionId, event, transitionTo) {
     let context: IO.DialogContext = event.state.context
+    if (!event.state.__error) {
+      this._detectInfiniteLoop(event.state.__stacktrace, event.botId)
+    }
 
     if (transitionTo.includes('.flow.json')) {
       // Transition to other flow
@@ -220,16 +246,18 @@ export class DialogEngine {
     } else if (transitionTo.indexOf('#') === 0) {
       // Return to the parent node (coming from a flow)
       const jumpPoints = event.state.context.jumpPoints
-      const prevJumpPoint = jumpPoints && jumpPoints.pop()
+      if (!jumpPoints) {
+        this._debug(
+          event.botId,
+          event.target,
+          'no previous flow found, current node is ' + event.state.context.currentNode
+        )
+        return event
+      }
+      const prevJumpPoint = jumpPoints.pop()
       const parentFlow = this._findFlow(event.botId, prevJumpPoint.flow)
       const specificNode = transitionTo.split('#')[1]
-      let parentNode
-
-      if (specificNode) {
-        parentNode = this._findNode(event.botId, parentFlow, specificNode)
-      } else {
-        parentNode = this._findNode(event.botId, parentFlow, prevJumpPoint.node)
-      }
+      const parentNode = this._findNode(event.botId, parentFlow, specificNode || prevJumpPoint.node)
 
       const builder = new InstructionsQueueBuilder(parentNode, parentFlow)
       const queue = builder.onlyTransitions().build()
@@ -261,12 +289,12 @@ export class DialogEngine {
       // Transition to the target node in the current flow
       this._logTransition(event.botId, event.target, context.currentFlow, context.currentNode, transitionTo)
 
+      event.state.__stacktrace.push({ flow: context.currentFlow, node: transitionTo })
       // When we're in a skill, we must remember the location of the main node for when we will exit
       const isInSkill = context.currentFlow && context.currentFlow.startsWith('skills/')
       if (isInSkill) {
         context = { ...context, currentNode: transitionTo }
       } else {
-        event.state.__stacktrace.push({ flow: context.currentFlow, node: transitionTo })
         context = { ...context, previousNode: context.currentNode, currentNode: transitionTo }
       }
     }
@@ -280,8 +308,8 @@ export class DialogEngine {
     const subflow = this._findFlow(botId, subflowName)
     const subflowStartNode = this._findNode(botId, subflow, subflow.startNode)
 
-    // We only update previousNodeName and previousFlowName when we transition to a subblow.
-    // When the sublow ends, we will transition back to previousNodeName / previousFlowName.
+    // We only update previousNodeName and previousFlowName when we transition to a subflow.
+    // When the subflow ends, we will transition back to previousNodeName / previousFlowName.
 
     event.state.context = {
       currentFlow: subflow.name,
@@ -303,6 +331,34 @@ export class DialogEngine {
   protected async _loadFlows(botId: string) {
     const flows = await this.flowService.loadAll(botId)
     this._flowsByBot.set(botId, flows)
+  }
+
+  private _detectInfiniteLoop(stacktrace: IO.JumpPoint[], botId: string) {
+    // find the first node that gets repeated at least 3 times
+    const loop = _.chain(stacktrace)
+      .groupBy(x => `${x.flow}|${x.node}`)
+      .values()
+      .filter(x => x.length >= 3)
+      .first()
+      .value()
+
+    if (!loop) {
+      return
+    }
+
+    // we build the flow path for showing the loop to the end-user
+    const recurringPath: string[] = []
+    const { node, flow } = loop[0]
+    for (let i = 0, r = 0; i < stacktrace.length && r < 2; i++) {
+      if (stacktrace[i].flow === flow && stacktrace[i].node === node) {
+        r++
+      }
+      if (r > 0) {
+        recurringPath.push(`${stacktrace[i].flow} (${stacktrace[i].node})`)
+      }
+    }
+
+    throw new FlowError(`Infinite loop detected. (${recurringPath.join(' --> ')})`, botId, loop[0].flow, loop[0].node)
   }
 
   private _findFlow(botId: string, flowName: string) {

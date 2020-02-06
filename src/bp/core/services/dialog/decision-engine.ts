@@ -80,6 +80,8 @@ export class DecisionEngine {
           }
         })
         const processedEvent = await this.dialogEngine.processEvent(sessionId, event)
+        // In case there are no unknown errors, remove skills/ flow from the stacktrace
+        processedEvent.state.__stacktrace = processedEvent.state.__stacktrace.filter(x => !x.flow.startsWith('skills/'))
         this.onAfterEventProcessed && (await this.onAfterEventProcessed(processedEvent))
 
         await this.stateManager.persist(processedEvent, false)
@@ -89,12 +91,27 @@ export class DecisionEngine {
           .forBot(event.botId)
           .attachError(err)
           .error('An unexpected error occurred.')
-        await this._sendErrorMessage(event)
+
+        await this._processErrorFlow(sessionId, event)
       }
     }
 
     if (event.hasFlag(WellKnownFlags.FORCE_PERSIST_STATE)) {
       await this.stateManager.persist(event, false)
+    }
+  }
+
+  // Part of processing is duplicated, since we don't want to get in an infinite loop if there's an error in the error handler
+  private async _processErrorFlow(sessionId: string, event) {
+    try {
+      await this.dialogEngine.jumpTo(sessionId, event, 'error', 'entry')
+      const processedEvent = await this.dialogEngine.processEvent(sessionId, event)
+      await this.stateManager.persist(processedEvent, false)
+    } catch (err) {
+      this.logger
+        .forBot(event.botId)
+        .attachError(err)
+        .error('An error occurred in the error handler. Abandoning.')
     }
   }
 
@@ -166,18 +183,5 @@ export class DecisionEngine {
     }
 
     return result
-  }
-
-  private async _sendErrorMessage(event: IO.Event) {
-    const config = await this.configProvider.getBotConfig(event.botId)
-    const element = _.get(config, 'dialog.error.args', {
-      text: "😯 Oops! We've got a problem. Please try something else while we're fixing it 🔨",
-      typing: true
-    })
-    const contentType = _.get(config, 'dialog.error.contentType', 'builtin_text')
-    const eventDestination = _.pick(event, ['channel', 'target', 'botId', 'threadId'])
-    const payloads = await this.cms.renderElement(contentType, element, eventDestination)
-
-    await this.eventEngine.replyToEvent(event, payloads, event.id)
   }
 }

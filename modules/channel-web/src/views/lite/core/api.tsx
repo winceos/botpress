@@ -11,8 +11,10 @@ export default class WebchatApi {
     this.axios = axiosInstance
     this.axios.interceptors.request.use(
       config => {
-        const prefix = config.url.indexOf('?') > 0 ? '&' : '?'
-        config.url += prefix + '__ts=' + new Date().getTime()
+        if (!config.url.includes('/botInfo')) {
+          const prefix = config.url.indexOf('?') > 0 ? '&' : '?'
+          config.url += prefix + '__ts=' + new Date().getTime()
+        }
         return config
       },
       error => {
@@ -30,14 +32,15 @@ export default class WebchatApi {
   updateAxiosConfig({ botId = undefined, externalAuthToken = undefined } = {}) {
     this.botId = botId
     this.axiosConfig = botId
-      ? { baseURL: `${window.location.origin}/api/v1/bots/${botId}/mod/channel-web` }
+      ? { baseURL: `${window.location.origin}${window.BOT_API_PATH}/mod/channel-web` }
       : { baseURL: `${window.BOT_API_PATH}/mod/channel-web` }
 
     if (externalAuthToken) {
       this.axiosConfig = {
         ...this.axiosConfig,
         headers: {
-          ExternalAuth: `Bearer ${externalAuthToken}`
+          ExternalAuth: `Bearer ${externalAuthToken}`,
+          'X-BP-ExternalAuth': `Bearer ${externalAuthToken}`
         }
       }
     }
@@ -49,6 +52,23 @@ export default class WebchatApi {
       return data
     } catch (err) {
       console.log(`Error while loading bot info`, err)
+    }
+  }
+
+  async fetchPreferences() {
+    try {
+      const { data } = await this.axios.get(`/preferences/${this.userId}`, this.axiosConfig)
+      return data
+    } catch (err) {
+      console.log(`Error while fetching preferences`, err)
+    }
+  }
+
+  async updateUserPreferredLanguage(language: string) {
+    try {
+      await this.axios.post(`/preferences/${this.userId}`, { language: language }, this.axiosConfig)
+    } catch (err) {
+      console.log(`Error in updating user preferred language`, err)
     }
   }
 
@@ -117,6 +137,14 @@ export default class WebchatApi {
     try {
       const config = { params: { conversationId: convoId }, ...this.axiosConfig }
       return this.axios.post(`/messages/${this.userId}/files`, data, config)
+    } catch (err) {
+      await this.handleApiError(err)
+    }
+  }
+
+  async setReference(reference: string, convoId: number): Promise<void> {
+    try {
+      return this.axios.post(`/conversations/${this.userId}/${convoId}/reference/${reference}`, {}, this.axiosConfig)
     } catch (err) {
       await this.handleApiError(err)
     }

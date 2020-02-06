@@ -111,7 +111,7 @@ export class SenarioRunner {
        * If QNA has the exact same source, then we don't care about the response (variations)
        * If the source is Dialog Manager, then the answer must be identical (either payload or content element id)
        */
-      if (!sameSource || (source !== 'qna' && (source === 'dialogManager' && !sameResponse))) {
+      if (!sameSource || (source !== 'qna' && source === 'dialogManager' && !sameResponse)) {
         mismatch = { reason: 'The reply was invalid', expected, received, index: idx }
         return false
       }
@@ -148,7 +148,7 @@ export class SenarioRunner {
   }
 
   private _sendMessage = (message: string, eventDestination: sdk.IO.EventDestination) => {
-    setTimeout(() => {
+    setTimeout(async () => {
       const event = this.bp.IO.Event({
         ...eventDestination,
         direction: 'incoming',
@@ -156,7 +156,7 @@ export class SenarioRunner {
         type: 'text'
       })
 
-      this.bp.events.sendEvent(event)
+      await this.bp.events.sendEvent(event)
     }, 1000)
   }
 }

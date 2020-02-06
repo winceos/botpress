@@ -1,23 +1,31 @@
 import classnames from 'classnames'
 import pick from 'lodash/pick'
-
-import React, { Component } from 'react'
 import { inject } from 'mobx-react'
-import { RootStore, StoreDef } from '../../store'
+import React, { Component } from 'react'
 
+import { RootStore, StoreDef } from '../../store'
 import { Renderer } from '../../typings'
 import * as Keyboard from '../Keyboard'
 
 import { Carousel, FileMessage, LoginPrompt, Text } from './renderer'
 
 class Message extends Component<MessageProps> {
+  state = {
+    hasError: false
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true }
+  }
+
   render_text(textMessage?: string) {
     const { text, markdown } = this.props.payload
 
     if (!textMessage && !text) {
       return null
     }
-    return <Text markdown={markdown} text={textMessage || text} />
+
+    return <Text markdown={markdown} text={textMessage || text} escapeHTML={this.props.store.escapeHTML} />
   }
 
   render_quick_reply() {
@@ -49,7 +57,7 @@ class Message extends Component<MessageProps> {
   }
 
   render_file() {
-    return <FileMessage file={this.props.payload} />
+    return <FileMessage file={this.props.payload} escapeTextHTML={this.props.store.escapeHTML} />
   }
 
   render_custom() {
@@ -87,15 +95,11 @@ class Message extends Component<MessageProps> {
   }
 
   render_session_reset() {
-    return this.render_text(this.props.intl.formatMessage({ id: 'store.resetSessionMessage' }))
+    return this.render_text(this.props.store.intl.formatMessage({ id: 'store.resetSessionMessage' }))
   }
 
   render_visit() {
     return null
-  }
-
-  render_postback() {
-    return this.render_text()
   }
 
   render_unsupported() {
@@ -109,7 +113,19 @@ class Message extends Component<MessageProps> {
     }
   }
 
+  renderTimestamp() {
+    return (
+      <span className="bpw-message-timestamp">
+        {this.props.store.intl.formatTime(new Date(this.props.sentOn), { hour: 'numeric', minute: 'numeric' })}
+      </span>
+    )
+  }
+
   render() {
+    if (this.state.hasError) {
+      return '* Cannot display message *'
+    }
+
     const type = this.props.type || (this.props.payload && this.props.payload.type)
     const wrappedType = this.props.payload && this.props.payload.wrapped && this.props.payload.wrapped.type
     const renderer = (this['render_' + type] || this.render_unsupported).bind(this)
@@ -117,7 +133,7 @@ class Message extends Component<MessageProps> {
 
     const rendered = renderer()
     if (rendered === null) {
-      return undefined
+      return null
     }
 
     const additionalStyle = (this.props.payload && this.props.payload['web-style']) || {}
@@ -139,13 +155,12 @@ class Message extends Component<MessageProps> {
         style={additionalStyle}
       >
         {rendered}
+        {this.props.store.config.showTimestamp && this.renderTimestamp()}
       </div>
     )
   }
 }
 
-export default inject(({ store }: { store: RootStore }) => ({
-  intl: store.intl
-}))(Message)
+export default inject(({ store }: { store: RootStore }) => ({ store }))(Message)
 
-type MessageProps = Renderer.Message & Pick<StoreDef, 'intl'>
+type MessageProps = Renderer.Message & StoreDef

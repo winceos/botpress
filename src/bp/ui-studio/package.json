@@ -2,10 +2,36 @@
   "name": "studio-ui",
   "version": "11.0.0",
   "author": "Botpress",
+  "engines": {
+    "node": ">=8.9"
+  },
+  "license": "AGPL-3.0-only",
+  "main": "lib/index.js",
+  "scripts": {
+    "build": " yarn run compile-server && node ./webpack.web.js --compile",
+    "build:prod": "cross-env NODE_ENV=production node ./webpack.web.js --compile",
+    "test": "cross-env BABEL_ENV=tests mocha --compilers js:babel-core/register --require tests/index.js tests/**",
+    "watch": "concurrently -k \"npm run watch-server\" \"node ./webpack.web.js --watch\"",
+    "watch-server": "babel src --source-maps --out-dir public --watch",
+    "compile-server": "babel src --source-maps --out-dir public",
+    "clear-cache": "rimraf node_modules/.cache"
+  },
+  "watch": {
+    "compile": {
+      "patterns": [
+        "src"
+      ],
+      "extensions": "js,jsx,scss,json,html"
+    }
+  },
+  "resolutions": {
+    "fstream": ">=1.0.12",
+    "lodash": ">=4.17.12"
+  },
   "dependencies": {
-    "@blueprintjs/core": "^3.15.1",
+    "@blueprintjs/core": "^3.23.1",
     "anser": "^1.4.8",
-    "axios": "^0.18.1",
+    "axios": "^0.19.0",
     "babel-polyfill": "^6.26.0",
     "bluebird": "^3.5.5",
     "bootstrap": "3.4.1",
@@ -26,29 +52,26 @@
     "progressbar.js": "^1.0.1",
     "prop-types": "^15.6.0",
     "query-string": "^5.1.1",
-    "react": "^16.8.6",
-    "react-bootstrap": "^0.32.1",
+    "react": "16.8.6",
+    "react-bootstrap": "^0.33.1",
     "react-dock": "^0.2.4",
-    "react-dom": "^16.8.6",
-    "react-ga": "^2.1.2",
-    "react-highlight-words": "^0.11.0",
+    "react-dom": "16.8.6",
+    "react-ga": "^2.7.0",
+    "react-highlight-words": "^0.16.0",
     "react-hotkeys": "^1.1.4",
-    "react-icons": "^3.7.0",
+    "react-icons": "^3.8.0",
     "react-json-tree": "^0.11.2",
-    "react-jsonschema-form": "^1.0.3",
+    "react-jsonschema-form": "^1.8.1",
     "react-loaders": "^3.0.1",
-    "react-markdown": "^4.0.8",
+    "react-markdown": "^4.3.1",
     "react-redux": "^5.0.6",
     "react-router": "4.3.1",
     "react-router-dom": "4.3.1",
     "react-select": "^2.4.2",
-    "react-split-pane": "^0.1.66",
-    "react-table": "^6.10.0",
-    "react-toastify": "^3.3.3",
-    "react-treebeard": "^2.1.0",
-    "react-world-flags": "^1.3.0",
-    "reactour": "^1.15.0",
-    "reactstrap": "^8.0.0",
+    "react-split-pane": "^0.1.89",
+    "react-table": "^6.11.5",
+    "reactour": "^1.16.0",
+    "reactstrap": "^8.4.0",
     "reduce-reducers": "^0.1.2",
     "redux": "^3.7.2",
     "redux-actions": "^2.2.1",
@@ -56,8 +79,9 @@
     "socket.io": "^2.2.0",
     "socket.io-client": "^2.2.0",
     "socketio-jwt": "^4.5.0",
-    "storm-react-diagrams": "^4.0.0",
-    "styled-components": "^4.2.0"
+    "storm-react-diagrams": "^5.2.1",
+    "styled-components": "^4.2.0",
+    "yn": "^3.1.0"
   },
   "devDependencies": {
     "@types/lodash": "^4.14.133",
@@ -86,6 +110,7 @@
     "expose-loader": "^0.7.1",
     "file-loader": "^1.1.11",
     "find-with-regex": "^1.1.3",
+    "hard-source-webpack-plugin": "^0.13.1",
     "html-webpack-plugin": "^3.2.0",
     "immutable": "^4.0.0-rc.12",
     "node-sass": "^4.8.3",
@@ -98,29 +123,9 @@
     "stylus-loader": "^3.0.2",
     "thread-loader": "^1.1.5",
     "ts-loader": "^6.0.2",
-    "uglifyjs-webpack-plugin": "^1.2.5",
+    "terser-webpack-plugin": "^2.2.2",
     "webpack": "4.12",
+    "webpack-bundle-analyzer": "^3.5.2",
     "webpack-node-externals": "^1.7.2"
-  },
-  "engines": {
-    "node": ">=8.9"
-  },
-  "license": "AGPL-3.0-only",
-  "main": "lib/index.js",
-  "scripts": {
-    "build": " yarn run compile-server && node ./webpack.web.js --compile",
-    "build:prod": "cross-env NODE_ENV=production node ./webpack.web.js --compile",
-    "test": "cross-env BABEL_ENV=tests mocha --compilers js:babel-core/register --require tests/index.js tests/**",
-    "watch": "concurrently -k \"npm run watch-server\" \"node ./webpack.web.js --watch\"",
-    "watch-server": "babel src --source-maps --out-dir public --watch",
-    "compile-server": "babel src --source-maps --out-dir public"
-  },
-  "watch": {
-    "compile": {
-      "patterns": [
-        "src"
-      ],
-      "extensions": "js,jsx,scss,json,html"
-    }
   }
 }

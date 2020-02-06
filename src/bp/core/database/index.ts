@@ -1,7 +1,6 @@
-import { Logger } from 'botpress/sdk'
-import { KnexExtension } from 'common/knex'
+import { KnexExtended, Logger } from 'botpress/sdk'
 import { TYPES } from 'core/types'
-import fs from 'fs'
+import { mkdirpSync } from 'fs-extra'
 import { inject, injectable, tagged } from 'inversify'
 import Knex from 'knex'
 import _ from 'lodash'
@@ -15,7 +14,7 @@ export type DatabaseType = 'postgres' | 'sqlite'
 
 @injectable()
 export default class Database {
-  knex!: Knex & KnexExtension
+  knex!: KnexExtended
 
   private tables: Table[] = []
 
@@ -53,7 +52,24 @@ export default class Database {
     })
   }
 
-  async initialize(databaseType: DatabaseType, databaseUrl?: string) {
+  async initialize(databaseType?: DatabaseType, databaseUrl?: string) {
+    const { DATABASE_URL, DATABASE_POOL } = process.env
+    let poolOptions = {}
+    try {
+      poolOptions = DATABASE_POOL ? JSON.parse(DATABASE_POOL) : {}
+    } catch (err) {
+      this.logger.warn('Database pool option is not valid json')
+    }
+
+    if (DATABASE_URL) {
+      if (!databaseType) {
+        databaseType = DATABASE_URL.toLowerCase().startsWith('postgres') ? 'postgres' : 'sqlite'
+      }
+      if (!databaseUrl) {
+        databaseUrl = DATABASE_URL
+      }
+    }
+
     const config: Knex.Config = {
       useNullAsDefault: true
     }
@@ -61,10 +77,12 @@ export default class Database {
     if (databaseType === 'postgres') {
       Object.assign(config, {
         client: 'pg',
-        connection: databaseUrl
+        connection: databaseUrl,
+        pool: poolOptions
       })
     } else {
       const dbLocation = databaseUrl ? databaseUrl : `${process.PROJECT_LOCATION}/data/storage/core.sqlite`
+      mkdirpSync(path.dirname(dbLocation))
 
       Object.assign(config, {
         client: 'sqlite3',
@@ -72,12 +90,13 @@ export default class Database {
         pool: {
           afterCreate: (conn, cb) => {
             conn.run('PRAGMA foreign_keys = ON', cb)
-          }
+          },
+          ...poolOptions
         }
       })
     }
 
-    this.knex = patchKnex(await Knex(config))
+    this.knex = patchKnex(Knex(config))
 
     await this.bootstrap()
   }

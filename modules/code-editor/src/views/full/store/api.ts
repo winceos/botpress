@@ -1,7 +1,6 @@
 import _ from 'lodash'
 
-import { EditableFile, FilesDS } from '../../../backend/typings'
-import { Config } from '../typings'
+import { EditableFile, FilePermissions, FilesDS } from '../../../backend/typings'
 import { toastFailure } from '../utils'
 
 export default class CodeEditorApi {
@@ -11,18 +10,18 @@ export default class CodeEditorApi {
     this.axios = axiosInstance
   }
 
-  async fetchConfig(): Promise<Config> {
+  async fetchPermissions(): Promise<FilePermissions> {
     try {
-      const { data } = await this.axios.get('/mod/code-editor/config')
+      const { data } = await this.axios.get('/mod/code-editor/permissions')
       return data
     } catch (err) {
-      console.error(`Error while fetching code editor config`, err)
+      console.error(`Error while fetching code editor permissions`, err)
     }
   }
 
-  async fetchFiles(): Promise<FilesDS> {
+  async fetchFiles(useRawEditor?: boolean): Promise<FilesDS> {
     try {
-      const { data } = await this.axios.get('/mod/code-editor/files')
+      const { data } = await this.axios.get(`/mod/code-editor/files${useRawEditor ? '?rawFiles=true' : ''}`)
       return data
     } catch (err) {
       this.handleApiError(err, 'Could not fetch files from server')
@@ -49,10 +48,41 @@ export default class CodeEditorApi {
 
   async renameFile(file: EditableFile, newName: string): Promise<boolean> {
     try {
-      await this.axios.put('/mod/code-editor/rename', { file, newName })
+      await this.axios.post('/mod/code-editor/rename', { file, newName })
       return true
     } catch (err) {
       this.handleApiError(err, 'Could not rename file')
+    }
+  }
+
+  async fileExists(file: EditableFile): Promise<boolean> {
+    try {
+      const { data } = await this.axios.post('/mod/code-editor/exists', file)
+      return data
+    } catch (err) {
+      this.handleApiError(err, 'Could not check if file already exists')
+    }
+  }
+
+  async readFile(file: EditableFile): Promise<string> {
+    try {
+      const { data } = await this.axios.post('/mod/code-editor/readFile', file)
+      return data.fileContent
+    } catch (err) {
+      this.handleApiError(err, 'Could not check if file already exists')
+    }
+  }
+
+  async downloadFile(file: EditableFile) {
+    try {
+      const { data } = await this.axios.post('/mod/code-editor/download', file, { responseType: 'blob' })
+
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(new Blob([data]))
+      link.download = file.name
+      link.click()
+    } catch (err) {
+      this.handleApiError(err, 'Could not check if file already exists')
     }
   }
 
@@ -66,6 +96,9 @@ export default class CodeEditorApi {
   }
 
   handleApiError = (error, customMessage?: string) => {
+    if (error.response && error.response.status === 403) {
+      return // not enough permissions, nothing to do
+    }
     const data = _.get(error, 'response.data', {})
     const errorInfo = data.full || data.message
     customMessage ? toastFailure(`${customMessage}: ${errorInfo}`) : toastFailure(errorInfo)

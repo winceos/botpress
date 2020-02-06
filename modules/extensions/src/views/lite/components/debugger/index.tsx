@@ -1,4 +1,4 @@
-import { Tab, Tabs } from '@blueprintjs/core'
+import { Icon, Tab, Tabs } from '@blueprintjs/core'
 import '@blueprintjs/core/lib/css/blueprint.css'
 import * as sdk from 'botpress/sdk'
 import _ from 'lodash'
@@ -10,13 +10,14 @@ import { MdBugReport } from 'react-icons/md'
 import Settings from './settings'
 import style from './style.scss'
 import { loadSettings } from './utils'
-import Dialog from './views/Dialog'
+import { Error } from './views/Error'
 import { Inspector } from './views/Inspector'
-import NLU from './views/NLU'
+import Summary from './views/Summary'
 import EventNotFound from './EventNotFound'
 import FetchingEvent from './FetchingEvent'
 import Header from './Header'
 import SplashScreen from './SplashScreen'
+import Unauthorized from './Unauthorized'
 
 export const updater = { callback: undefined }
 
@@ -26,6 +27,20 @@ const RETRY_PERIOD = 500 // Delay (ms) between each call to the backend to fetch
 const RETRY_SECURITY_FACTOR = 3
 const DEBOUNCE_DELAY = 100
 
+interface Props {
+  store: any
+}
+
+interface State {
+  event: any
+  selectedTabId: string
+  visible: boolean
+  showSettings: boolean
+  showEventNotFound: boolean
+  fetching: boolean
+  unauthorized: boolean
+}
+
 export class Debugger extends React.Component<Props, State> {
   state = {
     event: undefined,
@@ -33,7 +48,8 @@ export class Debugger extends React.Component<Props, State> {
     visible: false,
     selectedTabId: 'basic',
     showSettings: false,
-    fetching: false
+    fetching: false,
+    unauthorized: false
   }
   allowedRetryCount = 0
   currentRetryCount = 0
@@ -61,18 +77,26 @@ export class Debugger extends React.Component<Props, State> {
 
     window.addEventListener('keydown', this.hotkeyListener)
 
-    const { data } = await this.props.store.bp.axios.get('/mod/extensions/events/update-frequency')
-    const { collectionInterval } = data
-    const maxDelai = ms(collectionInterval as string) * RETRY_SECURITY_FACTOR
-    this.allowedRetryCount = Math.ceil(maxDelai / RETRY_PERIOD)
+    try {
+      const { data } = await this.props.store.bp.axios.get('/mod/extensions/events/update-frequency')
+      const { collectionInterval } = data
+      const maxDelai = ms(collectionInterval as string) * RETRY_SECURITY_FACTOR
+      this.allowedRetryCount = Math.ceil(maxDelai / RETRY_PERIOD)
 
-    const settings = loadSettings()
-    if (settings.autoOpenDebugger) {
-      this.toggleDebugger()
-    }
+      // Only open debugger & open on new messages if user is authorized
+      const settings = loadSettings()
+      if (settings.autoOpenDebugger) {
+        this.toggleDebugger()
+      }
 
-    if (settings.updateToLastMessage) {
-      this.props.store.bp.events.on('guest.webchat.message', this.handleNewMessage)
+      if (settings.updateToLastMessage) {
+        this.props.store.bp.events.on('guest.webchat.message', this.handleNewMessage)
+      }
+    } catch (err) {
+      const errorCode = _.get(err, 'response.status')
+      if (errorCode === 403) {
+        this.setState({ unauthorized: true })
+      }
     }
   }
 
@@ -129,6 +153,10 @@ export class Debugger extends React.Component<Props, State> {
   }
 
   loadEvent = async eventId => {
+    if (this.state.unauthorized) {
+      return
+    }
+
     clearInterval(this.retryTimer)
     const event = await this.fetchEvent(eventId)
     if (!event) {
@@ -177,22 +205,12 @@ export class Debugger extends React.Component<Props, State> {
   toggleSettings = e => this.setState({ showSettings: !this.state.showSettings })
   handleTabChange = selectedTabId => this.setState({ selectedTabId })
 
-  renderSummary() {
-    return (
-      <div>
-        <Dialog
-          suggestions={this.state.event.suggestions}
-          decision={this.state.event.decision}
-          stacktrace={this.state.event.state.__stacktrace}
-        />
-        <NLU session={this.state.event.state.session} nluData={this.state.event.nlu} />
-      </div>
-    )
-  }
-
   // check rendering
 
   renderWhenNoEvent() {
+    if (this.state.unauthorized) {
+      return <Unauthorized />
+    }
     if (this.state.fetching) {
       return <FetchingEvent />
     }
@@ -200,6 +218,30 @@ export class Debugger extends React.Component<Props, State> {
       return <EventNotFound />
     }
     return <SplashScreen />
+  }
+
+  renderEvent() {
+    const eventError = _.get(this.state, 'event.state.__error')
+
+    return (
+      <div className={style.content}>
+        <Tabs id="tabs" onChange={this.handleTabChange} selectedTabId={this.state.selectedTabId}>
+          <Tab id="basic" title="Summary" panel={<Summary event={this.state.event} />} />
+          <Tab id="advanced" title="Raw JSON" panel={<Inspector data={this.state.event} />} />
+          {eventError && (
+            <Tab
+              id="errors"
+              title={
+                <span>
+                  <Icon icon="error" color="red" /> Error
+                </span>
+              }
+              panel={<Error error={eventError} />}
+            />
+          )}
+        </Tabs>
+      </div>
+    )
   }
 
   render() {
@@ -212,28 +254,8 @@ export class Debugger extends React.Component<Props, State> {
         <Settings store={this.props.store} isOpen={this.state.showSettings} toggle={this.toggleSettings} />
         <Header newSession={this.handleNewSession} toggleSettings={this.toggleSettings} />
         {!this.state.event && this.renderWhenNoEvent()}
-        {this.state.event && (
-          <div className={style.content}>
-            <Tabs id="tabs" onChange={this.handleTabChange} selectedTabId={this.state.selectedTabId}>
-              <Tab id="basic" title="Summary" panel={this.renderSummary()} />
-              <Tab id="advanced" title="Raw JSON" panel={<Inspector data={this.state.event} />} />
-            </Tabs>
-          </div>
-        )}
+        {this.state.event && this.renderEvent()}
       </div>
     )
   }
-}
-
-interface Props {
-  store: any
-}
-
-interface State {
-  event: any
-  selectedTabId: string
-  visible: boolean
-  showSettings: boolean
-  showEventNotFound: boolean
-  fetching: boolean
 }

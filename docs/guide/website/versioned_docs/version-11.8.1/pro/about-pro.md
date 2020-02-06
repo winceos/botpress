@@ -4,7 +4,7 @@ title: About
 original_id: about-pro
 ---
 
-## Additionnal Features
+## Additional Features
 
 | Feature                    | Community | Pro |
 | -------------------------- | --------- | --- |
@@ -20,7 +20,7 @@ original_id: about-pro
 | Increased Performances     |           | ✔️  |
 | Standard Support           |           | ✔️  |
 
-For more details, visit our [pricing page](https://botpress.io/pricing/).
+For more details, visit our [pricing page](https://botpress.com/pricing/).
 
 ## Activation
 

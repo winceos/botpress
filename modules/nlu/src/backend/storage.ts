@@ -3,14 +3,21 @@ import { ScopedGhostService } from 'botpress/sdk'
 import _ from 'lodash'
 import path from 'path'
 
-import { Config } from '../config'
-import { sanitizeFilenameNoExt } from '../util'
-
+import { DucklingEntityExtractor } from './pipelines/entities/duckling_extractor'
 import { Result } from './tools/five-fold'
 import { Model, ModelMeta } from './typings'
 
 const N_KEEP_MODELS = 25
 
+export const ID_REGEX = /[\t\s]/gi
+
+export const sanitizeFilenameNoExt = (name: string) =>
+  name
+    .toLowerCase()
+    .replace(/\.json$/i, '')
+    .replace(ID_REGEX, '-')
+
+// DEPRECATED
 export default class Storage {
   static ghostProvider: (botId?: string) => sdk.ScopedGhostService
 
@@ -19,15 +26,13 @@ export default class Storage {
   private readonly intentsDir: string = './intents'
   private readonly entitiesDir: string = './entities'
   private readonly modelsDir: string = './models'
-  private readonly config: Config
 
   constructor(
-    config: Config,
     private readonly botId: string,
     private readonly defaultLanguage: string,
-    private readonly languages: string[]
+    private readonly languages: string[],
+    private readonly logger: sdk.Logger
   ) {
-    this.config = config
     this.botGhost = Storage.ghostProvider(this.botId)
     this.globalGhost = Storage.ghostProvider()
   }
@@ -38,7 +43,7 @@ export default class Storage {
 
     if (content.slots) {
       for (const slot of content.slots) {
-        // @deprecated > 11 gracefull migration
+        // @deprecated > 11 graceful migration
         if (!slot.entities && slot.entity) {
           slot.entities = [slot.entity]
         }
@@ -65,7 +70,10 @@ export default class Storage {
   async updateIntent(intentName: string, content: Partial<sdk.NLU.IntentDefinition>) {
     const intentDef = await this.getIntent(intentName)
     const merged = _.merge(intentDef, content)
-
+    if (content.name && content.name !== intentName) {
+      await this.botGhost.deleteFile(this.intentsDir, `${intentName}.json`)
+      intentName = content.name
+    }
     return this.saveIntent(intentName, merged)
   }
 
@@ -99,11 +107,13 @@ export default class Storage {
       })
     )
 
-  async getConfusionMatrix(modelHash: string, buildVersion: string, lang: string): Promise<Result> {
-    return await this.botGhost.readFileAsObject<Result>(
-      `${this.modelsDir}/${lang}`,
-      `confusion__${modelHash}__${buildVersion}.json`
-    )
+  async getConfusionMatrix(modelHash: string, buildVersion: string, lang: string): Promise<Result | undefined> {
+    const rootFolder = `${this.modelsDir}/${lang}`
+    const filename = `confusion__${modelHash}__${buildVersion}.json`
+
+    if (await this.botGhost.fileExists(rootFolder, filename)) {
+      return this.botGhost.readFileAsObject<Result>(rootFolder, filename)
+    }
   }
 
   async deleteIntent(intent) {
@@ -124,7 +134,13 @@ export default class Storage {
 
   async getIntents(): Promise<sdk.NLU.IntentDefinition[]> {
     const intentsName = await this.botGhost.directoryListing(this.intentsDir, '*.json')
-    const intents = await Promise.mapSeries(intentsName, name => this.getIntent(name).catch(x => undefined))
+
+    const intents = await Promise.mapSeries(intentsName, name =>
+      this.getIntent(name).catch(err => {
+        this.logger.attachError(err).error(`An error occurred while loading ${name}`)
+      })
+    )
+
     return _.reject(intents, _.isEmpty)
   }
 
@@ -136,13 +152,19 @@ export default class Storage {
     }
 
     const filename = `${intent}.json`
-    const jsonContent = await this.botGhost.readFileAsString(this.intentsDir, filename)
+    const jsonContent = await this.botGhost.readFileAsString(this.intentsDir, filename).catch(err => {
+      this.logger.attachError(err).error(`An error occurred while loading ${intent}`)
+    })
 
     try {
-      const content = JSON.parse(jsonContent)
-      return this._migrate_intentDef_11_12(intent, filename, content)
+      if (jsonContent) {
+        const content = JSON.parse(jsonContent)
+        return this._migrate_intentDef_11_12(intent, filename, content)
+      }
     } catch (err) {
-      throw new Error(`Could not parse intent properties (invalid JSON). JSON = "${jsonContent}" in file "${filename}"`)
+      throw new Error(
+        `Could not parse intent properties (invalid JSON, enable NLU errors for more information). JSON = "${jsonContent}" in file "${filename}"`
+      )
     }
   }
 
@@ -198,31 +220,8 @@ export default class Storage {
   }
 
   getSystemEntities(): sdk.NLU.EntityDefinition[] {
-    // TODO move this array as static method in DucklingExtractor
-    const sysEntNames = !this.config.ducklingEnabled
-      ? []
-      : [
-          'amountOfMoney',
-          'distance',
-          'duration',
-          'email',
-          'number',
-          'ordinal',
-          'phoneNumber',
-          'quantity',
-          'temperature',
-          'time',
-          'url',
-          'volume'
-        ]
-    sysEntNames.unshift('any')
-
-    return sysEntNames.map(
-      e =>
-        ({
-          name: e,
-          type: 'system'
-        } as sdk.NLU.EntityDefinition)
+    return [...DucklingEntityExtractor.entityTypes, 'any'].map(
+      e => ({ name: e, type: 'system' } as sdk.NLU.EntityDefinition)
     )
   }
 
@@ -234,9 +233,40 @@ export default class Storage {
     })
   }
 
+  async getCustomEntity(name: string): Promise<sdk.NLU.EntityDefinition> {
+    const entities = await this.getCustomEntities()
+    return entities.find(e => e.name === name)
+  }
+
   async saveEntity(entity: sdk.NLU.EntityDefinition): Promise<void> {
     const obj = _.omit(entity, ['id'])
     return this.botGhost.upsertFile(this.entitiesDir, `${entity.id}.json`, JSON.stringify(obj, undefined, 2))
+  }
+
+  async updateEntity(targetEntityId: string, entity: sdk.NLU.EntityDefinition) {
+    const entities = await this.getCustomEntities()
+    const oldEntity = entities.find(e => e.id === targetEntityId)
+    const obj = _.omit(entity, ['id'])
+
+    await this.botGhost.upsertFile(this.entitiesDir, `${entity.id}.json`, JSON.stringify(obj, undefined, 2))
+
+    if (oldEntity && oldEntity.name !== entity.name) {
+      await this.botGhost.deleteFile(this.entitiesDir, `${targetEntityId}.json`)
+      _.each(await this.getIntents(), async intent => {
+        let modified = false
+        _.each(intent.slots, slot => {
+          _.forEach(slot.entities, (e, index, arr) => {
+            if (e === oldEntity.name) {
+              arr[index] = entity.name
+              modified = true
+            }
+          })
+        })
+        if (modified) {
+          await this.updateIntent(intent.name, intent)
+        }
+      })
+    }
   }
 
   async deleteEntity(entityId: string): Promise<void> {
@@ -248,7 +278,7 @@ export default class Storage {
     const modelName = `${model.meta.context}__${model.meta.created_on}__${model.meta.hash}__${model.meta.type}.bin`
     const modelDir = `${this.modelsDir}/${lang}`
 
-    return this.botGhost.upsertFile(modelDir, modelName, model.model)
+    return this.botGhost.upsertFile(modelDir, modelName, model.model, { ignoreLock: true })
   }
 
   private async _cleanupModels(lang: string): Promise<void> {
@@ -304,13 +334,16 @@ export default class Storage {
   async getModelsFromHash(modelHash: string, lang: string): Promise<Model[]> {
     const modelsMeta = await this._getAvailableModels(true, lang)
 
-    return Promise.map(modelsMeta.filter(meta => meta.hash === modelHash || meta.scope === 'global'), async meta => {
-      const ghostDriver = meta.scope === 'global' ? this.globalGhost : this.botGhost
+    return Promise.map(
+      modelsMeta.filter(meta => meta.hash === modelHash || meta.scope === 'global'),
+      async meta => {
+        const ghostDriver = meta.scope === 'global' ? this.globalGhost : this.botGhost
 
-      return {
-        meta,
-        model: await ghostDriver.readFileAsBuffer(`${this.modelsDir}/${lang}`, meta.fileName!)
+        return {
+          meta,
+          model: await ghostDriver.readFileAsBuffer(`${this.modelsDir}/${lang}`, meta.fileName!)
+        }
       }
-    })
+    )
   }
 }

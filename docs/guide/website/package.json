@@ -5,11 +5,11 @@
     "build": "docusaurus-build",
     "publish-gh-pages": "docusaurus-publish",
     "write-translations": "docusaurus-write-translations",
-    "version": "docusaurus-version",
+    "version": "yarn run docusaurus-version",
     "rename-version": "docusaurus-rename-version"
   },
   "devDependencies": {
-    "docusaurus": "^1.7.2"
+    "docusaurus": "^1.14.0"
   },
   "version": "11.0.0"
 }

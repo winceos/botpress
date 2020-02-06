@@ -1,9 +1,11 @@
 import { Logger, RealTimePayload } from 'botpress/sdk'
+import { BotpressConfig } from 'core/config/botpress.config'
+import { ConfigProvider } from 'core/config/config-loader'
 import { EventEmitter2 } from 'eventemitter2'
 import { Server } from 'http'
 import { inject, injectable, tagged } from 'inversify'
 import _ from 'lodash'
-import socketio from 'socket.io'
+import socketio, { Adapter } from 'socket.io'
 import redisAdapter from 'socket.io-redis'
 import socketioJwt from 'socketio-jwt'
 
@@ -11,6 +13,16 @@ import { TYPES } from '../../types'
 import { MonitoringService } from '../monitoring'
 
 const debug = DEBUG('realtime')
+
+export const getSocketTransports = (config: BotpressConfig): string[] => {
+  // Just to be sure there is at least one valid transport configured
+  const transports = _.filter(config.httpServer.socketTransports, t => ['websocket', 'polling'].includes(t))
+  return transports && transports.length ? transports : ['websocket', 'polling']
+}
+
+interface RedisAdapter extends Adapter {
+  remoteJoin: (socketId: string, roomId: string, callback: (err: any) => void) => void
+}
 
 @injectable()
 export default class RealtimeService {
@@ -20,15 +32,16 @@ export default class RealtimeService {
   constructor(
     @inject(TYPES.Logger)
     @tagged('name', 'Realtime')
-    private logger: Logger /* TODO Add security / auth service here */,
-    @inject(TYPES.MonitoringService) private monitoringService: MonitoringService
+    private logger: Logger,
+    @inject(TYPES.MonitoringService) private monitoringService: MonitoringService,
+    @inject(TYPES.ConfigProvider) private configProvider: ConfigProvider
   ) {
     this.ee = new EventEmitter2({
       wildcard: true,
       maxListeners: 100
     })
 
-    this.useRedis = process.CLUSTER_ENABLED && Boolean(process.env.REDIS_URL)
+    this.useRedis = process.CLUSTER_ENABLED && Boolean(process.env.REDIS_URL) && process.IS_PRO_ENABLED
   }
 
   private isEventTargeted(eventName: string | string[]): boolean {
@@ -44,9 +57,12 @@ export default class RealtimeService {
     this.ee.emit(payload.eventName, payload.payload, 'server')
   }
 
-  installOnHttpServer(server: Server) {
-    const io = socketio(server, {
-      transports: ['websocket', 'polling'],
+  async installOnHttpServer(server: Server) {
+    const transports = getSocketTransports(await this.configProvider.getBotpressConfig())
+
+    const io: socketio.Server = socketio(server, {
+      transports,
+      path: `${process.ROOT_PATH}/socket.io`,
       origins: '*:*',
       serveClient: false
     })
@@ -60,58 +76,10 @@ export default class RealtimeService {
     }
 
     const admin = io.of('/admin')
+    this.setupAdminSocket(admin)
+
     const guest = io.of('/guest')
-
-    // TODO Implement that
-    // Only admin UI users requests are authenticated
-    admin.use(
-      socketioJwt.authorize({
-        secret: process.APP_SECRET,
-        handshake: true
-      })
-    )
-
-    admin.on('connection', socket => {
-      const visitorId = _.get(socket, 'handshake.query.visitorId')
-      // bp.stats.track('socket', 'connected') // TODO/FIXME Add tracking
-
-      socket.on('event', event => {
-        this.ee.emit(event.name, event.data, 'client', {
-          visitorId: visitorId,
-          socketId: socket.id,
-          guest: false,
-          admin: true
-        })
-      })
-    })
-
-    guest.on('connection', socket => {
-      const visitorId = _.get(socket, 'handshake.query.visitorId')
-      // bp.stats.track('socket', 'connected') // TODO/FIXME Add tracking
-
-      if (visitorId && visitorId.length > 0) {
-        if (this.useRedis) {
-          guest.adapter.remoteJoin(socket.id, 'visitor:' + visitorId, err => {
-            if (err) {
-              return this.logger
-                .attachError(err)
-                .error(`socket "${socket.id}" for visitor "${visitorId}" can't join the socket.io redis room`)
-            }
-          })
-        } else {
-          socket.join('visitor:' + visitorId)
-        }
-      }
-
-      socket.on('event', event => {
-        this.ee.emit(event.name, event.data, 'client', {
-          socketId: socket.id,
-          visitorId: visitorId,
-          guest: true,
-          admin: false
-        })
-      })
-    })
+    this.setupGuestSocket(guest)
 
     this.ee.onAny((event, payload, from) => {
       if (from === 'client') {
@@ -128,12 +96,69 @@ export default class RealtimeService {
         })
       }
 
-      // TODO FIXME There's a flaw here, guests can send admin events (!)
-
       // broadcast event to the front-end clients
-      connection.emit('event', {
-        name: event,
-        data: payload
+      connection.emit('event', { name: event, data: payload })
+    })
+  }
+
+  setupAdminSocket(admin: socketio.Namespace): void {
+    admin.use(socketioJwt.authorize({ secret: process.APP_SECRET, handshake: true }))
+    admin.on('connection', socket => {
+      const visitorId = _.get(socket, 'handshake.query.visitorId')
+
+      socket.on('event', event => {
+        try {
+          if (!event || !event.name) {
+            return
+          }
+
+          this.ee.emit(event.name, event.data, 'client', {
+            visitorId: visitorId,
+            socketId: socket.id,
+            guest: false,
+            admin: true
+          })
+        } catch (err) {
+          this.logger.attachError(err).error(`Error processing incoming admin event`)
+        }
+      })
+    })
+  }
+
+  setupGuestSocket(guest: socketio.Namespace): void {
+    guest.on('connection', socket => {
+      const visitorId = _.get(socket, 'handshake.query.visitorId')
+
+      if (visitorId && visitorId.length > 0) {
+        if (this.useRedis) {
+          const adapter = guest.adapter as RedisAdapter
+          adapter.remoteJoin(socket.id, 'visitor:' + visitorId, err => {
+            if (err) {
+              return this.logger
+                .attachError(err)
+                .error(`socket "${socket.id}" for visitor "${visitorId}" can't join the socket.io redis room`)
+            }
+          })
+        } else {
+          socket.join('visitor:' + visitorId)
+        }
+      }
+
+      socket.on('event', event => {
+        try {
+          if (!event || !event.name) {
+            return
+          }
+
+          this.ee.emit(event.name, event.data, 'client', {
+            socketId: socket.id,
+            visitorId: visitorId,
+            guest: true,
+            admin: false
+          })
+        } catch (err) {
+          this.logger.attachError(err).error(`Error processing incoming guest event`)
+        }
       })
     })
   }

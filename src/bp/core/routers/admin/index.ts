@@ -1,3 +1,4 @@
+import axios from 'axios'
 import { Logger } from 'botpress/sdk'
 import { checkRule } from 'common/auth'
 import LicensingService from 'common/licensing-service'
@@ -7,9 +8,11 @@ import { GhostService } from 'core/services'
 import { AlertingService } from 'core/services/alerting-service'
 import AuthService, { TOKEN_AUDIENCE } from 'core/services/auth/auth-service'
 import { BotService } from 'core/services/bot-service'
+import { JobService } from 'core/services/job-service'
 import { MonitoringService } from 'core/services/monitoring'
 import { WorkspaceService } from 'core/services/workspace-service'
 import { RequestHandler, Router } from 'express'
+import httpsProxyAgent from 'https-proxy-agent'
 import _ from 'lodash'
 
 import { CustomRouter } from '../customRouter'
@@ -22,6 +25,7 @@ import { RolesRouter } from './roles'
 import { ServerRouter } from './server'
 import { UsersRouter } from './users'
 import { VersioningRouter } from './versioning'
+import { WorkspacesRouter } from './workspaces'
 
 export class AdminRouter extends CustomRouter {
   private checkTokenHeader!: RequestHandler
@@ -32,6 +36,7 @@ export class AdminRouter extends CustomRouter {
   private rolesRouter!: RolesRouter
   private serverRouter!: ServerRouter
   private languagesRouter!: LanguagesRouter
+  private workspacesRouter!: WorkspacesRouter
   private loadUser!: RequestHandler
 
   constructor(
@@ -44,17 +49,27 @@ export class AdminRouter extends CustomRouter {
     configProvider: ConfigProvider,
     monitoringService: MonitoringService,
     alertingService: AlertingService,
-    moduleLoader: ModuleLoader
+    moduleLoader: ModuleLoader,
+    jobService: JobService
   ) {
     super('Admin', logger, Router({ mergeParams: true }))
     this.checkTokenHeader = checkTokenHeader(this.authService, TOKEN_AUDIENCE)
     this.botsRouter = new BotsRouter(logger, this.workspaceService, this.botService, configProvider)
+    this.workspacesRouter = new WorkspacesRouter(logger, workspaceService, botService, configProvider)
     this.usersRouter = new UsersRouter(logger, this.authService, this.workspaceService)
     this.licenseRouter = new LicenseRouter(logger, this.licenseService, configProvider)
     this.versioningRouter = new VersioningRouter(logger, this.ghostService, this.botService)
     this.rolesRouter = new RolesRouter(logger, this.workspaceService)
-    this.serverRouter = new ServerRouter(logger, monitoringService, alertingService, configProvider, ghostService)
-    this.languagesRouter = new LanguagesRouter(logger, moduleLoader, this.workspaceService)
+    this.serverRouter = new ServerRouter(
+      logger,
+      monitoringService,
+      workspaceService,
+      alertingService,
+      configProvider,
+      ghostService,
+      jobService
+    )
+    this.languagesRouter = new LanguagesRouter(logger, moduleLoader, this.workspaceService, configProvider)
     this.loadUser = loadUser(this.authService)
 
     this.setupRoutes()
@@ -93,12 +108,26 @@ export class AdminRouter extends CustomRouter {
       })
     )
 
+    router.get('/docker_images', async (req, res) => {
+      const { data } = await axios.get(
+        'https://hub.docker.com/v2/repositories/botpress/server/tags/?page_size=125&page=1&name=v',
+        process.PROXY ? { httpsAgent: new httpsProxyAgent(process.PROXY) } : {}
+      )
+
+      res.send(data)
+    })
+
     router.use('/bots', this.checkTokenHeader, this.botsRouter.router)
     router.use('/roles', this.checkTokenHeader, this.rolesRouter.router)
     router.use('/users', this.checkTokenHeader, this.loadUser, this.usersRouter.router)
     router.use('/license', this.checkTokenHeader, this.licenseRouter.router)
     router.use('/languages', this.checkTokenHeader, this.languagesRouter.router)
-    router.use('/versioning', this.checkTokenHeader, assertSuperAdmin, this.versioningRouter.router)
     router.use('/server', this.checkTokenHeader, assertSuperAdmin, this.serverRouter.router)
+    router.use('/workspaces', this.checkTokenHeader, assertSuperAdmin, this.workspacesRouter.router)
+
+    // TODO: Add versioning per workspace.
+    // This way admins could use these routes to push / pull independently of other workspaces.
+    // For now we're restricting to super-admin.
+    router.use('/versioning', this.checkTokenHeader, assertSuperAdmin, this.versioningRouter.router)
   }
 }

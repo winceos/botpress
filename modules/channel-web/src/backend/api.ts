@@ -1,11 +1,11 @@
 import aws from 'aws-sdk'
 import * as sdk from 'botpress/sdk'
-import crypto from 'crypto'
 import _ from 'lodash'
 import moment from 'moment'
 import multer from 'multer'
 import multers3 from 'multer-s3'
 import path from 'path'
+import apicache from 'apicache'
 
 import { Config } from '../config'
 
@@ -14,6 +14,7 @@ import Database from './db'
 const ERR_USER_ID_REQ = '`userId` is required and must be valid'
 const ERR_MSG_TYPE = '`type` is required and must be valid'
 const ERR_CONV_ID_REQ = '`conversationId` is required and must be valid'
+const ERR_BAD_LANGUAGE = '`language` is required and must be valid'
 
 export default async (bp: typeof sdk, db: Database) => {
   const globalConfig = (await bp.config.getModuleConfig('channel-web')) as Config
@@ -74,6 +75,10 @@ export default async (bp: typeof sdk, db: Database) => {
   }
 
   const router = bp.http.createRouterForBot('channel-web', { checkAuthentication: false, enableJsonBodyParser: true })
+  const perBotCache = apicache.options({
+    appendKey: req => req.method + ' for bot ' + req.params && req.params.botId,
+    statusCodes: { include: [200] }
+  }).middleware
 
   const asyncApi = fn => async (req, res, next) => {
     try {
@@ -86,8 +91,10 @@ export default async (bp: typeof sdk, db: Database) => {
 
   router.get(
     '/botInfo',
+    perBotCache('1 minute'),
     asyncApi(async (req, res) => {
       const { botId } = req.params
+      const security = ((await bp.config.getModuleConfig('channel-web')) as Config).security // usage of global because a user could overwrite bot scoped configs
       const config = (await bp.config.getModuleConfigForBot('channel-web', botId)) as Config
       const botInfo = await bp.bots.getBotById(botId)
 
@@ -99,7 +106,9 @@ export default async (bp: typeof sdk, db: Database) => {
         showBotInfoPage: (config.infoPage && config.infoPage.enabled) || config.showBotInfoPage,
         name: botInfo.name,
         description: (config.infoPage && config.infoPage.description) || botInfo.description,
-        details: botInfo.details
+        details: botInfo.details,
+        languages: botInfo.languages,
+        security
       })
     })
   )
@@ -236,7 +245,7 @@ export default async (bp: typeof sdk, db: Database) => {
       (!payload.text || !_.isString(payload.text) || payload.text.length > config.maxMessageLength) &&
       payload.type != 'postback'
     ) {
-      throw new Error('Text must be a valid string of less than 360 chars')
+      throw new Error(`Text must be a valid string of less than ${config.maxMessageLength} chars`)
     }
 
     let sanitizedPayload = payload
@@ -282,7 +291,7 @@ export default async (bp: typeof sdk, db: Database) => {
         credentials: req.credentials
       })
 
-      bp.events.sendEvent(event)
+      await bp.events.sendEvent(event)
       res.sendStatus(200)
     })
   )
@@ -360,16 +369,39 @@ export default async (bp: typeof sdk, db: Database) => {
     }
   })
 
+  router.get('/preferences/:userId', async (req, res) => {
+    const { userId } = req.params
+    const { result } = await bp.users.getOrCreateUser('web', userId)
+
+    return res.send({ language: result.attributes.language })
+  })
+
+  router.post('/preferences/:userId', async (req, res) => {
+    const { userId, botId } = req.params
+    const payload = req.body || {}
+    const preferredLanguage = payload.language
+    const bot = await bp.bots.getBotById(botId)
+    const validLanguage = bot.languages.includes(preferredLanguage)
+    if (!validLanguage) {
+      return res.status(400).send(ERR_BAD_LANGUAGE)
+    }
+
+    await bp.users.updateAttributes('web', userId, {
+      language: preferredLanguage
+    })
+
+    return res.sendStatus(200)
+  })
+
   const getMessageContent = (message, type) => {
     const { payload } = message
 
     if (type === 'file') {
       return (payload && payload.url) || message.message_data.url
-    } else if (type === 'text' || type === 'quick_reply') {
-      return (payload && payload.text) || message.message_text
-    } else {
-      return `Event (${type})`
     }
+
+    const wrappedText = _.get(payload, 'wrapped.text')
+    return (payload && payload.text) || message.message_text || wrappedText || `Event (${type})`
   }
 
   const convertToTxtFile = async conversation => {

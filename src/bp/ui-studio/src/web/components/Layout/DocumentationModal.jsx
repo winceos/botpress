@@ -2,7 +2,7 @@ import React from 'react'
 import { connect } from 'react-redux'
 import _ from 'lodash'
 import { Modal, Button } from 'react-bootstrap'
-import ReactMarkdown from 'react-markdown'
+import Markdown from 'react-markdown'
 import classnames from 'classnames'
 
 import { updateDocumentationModal } from '~/actions'
@@ -22,11 +22,10 @@ class DocumentationModal extends React.Component {
   handleClose = () => this.props.updateDocumentationModal(null)
 
   renderPage = src => {
-    const transformImg = url =>
-      window.origin + '/assets/ui-studio/public/external/docs/' + url.replace(/^assets\//i, '')
+    const transformImg = url => 'assets/ui-studio/public/external/docs/' + url.replace(/^assets\//i, '')
 
     return (
-      <ReactMarkdown
+      <Markdown
         source={this.removeFileHeader(src)}
         linkTarget="_blank"
         disallowedTypes={['link', 'linkReference']}

@@ -38,19 +38,21 @@ gulp.task('build:modules', gulp.series([modules.build()]))
 gulp.task('build:sdk', gulp.series([modules.buildSdk()]))
 
 gulp.task('start:guide', docs.startDevServer)
-gulp.task('build:guide', docs.buildGuide)
+gulp.task('build:guide', docs.buildGuide())
 gulp.task('build:reference', docs.buildReference())
 
 gulp.task('package:core', package.packageCore())
 gulp.task('package', gulp.series([package.packageApp, modules.packageModules(), package.copyNativeExtensions]))
 
-gulp.task('watch', gulp.parallel([core.watch, ui.watchAll()]))
+gulp.task('watch', gulp.parallel([core.watch, ui.watchAll]))
 gulp.task('watch:core', core.watch)
-gulp.task('watch:studio', gulp.series([ui.cleanStudioAssets, ui.createStudioSymlink, ui.watchStudio]))
+gulp.task('watch:studio', ui.watchStudio)
 gulp.task('watch:admin', ui.watchAdmin)
+gulp.task('watch:ui', ui.watchAll)
 
 gulp.task('clean:node', cb => rimraf('**/node_modules/**', cb))
 gulp.task('clean:out', cb => rimraf('out', cb))
+gulp.task('clean:data', cb => rimraf('out/bp/data', cb))
 gulp.task('clean:db', cb => rimraf('out/bp/data/storage/core.sqlite', cb))
 
 // Example: yarn cmd dev:module --public nlu or yarn cmd dev:module --private bank

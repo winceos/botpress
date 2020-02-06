@@ -3,10 +3,12 @@ import find from 'lodash/find'
 
 import { EditableFile } from '../../../backend/typings'
 
-const FOLDER_ICON = 'folder-close'
-const DOCUMENT_ICON = 'document'
+export const EXAMPLE_FOLDER_LABEL = 'Examples'
+export const FOLDER_ICON = 'folder-close'
+export const DOCUMENT_ICON = 'document'
+export const FOLDER_EXAMPLE = 'lightbulb'
 
-const addNode = (tree: ITreeNode, folders: ITreeNode[], file, data: any) => {
+const addNode = (tree: ITreeNode, folders: ITreeNode[], file, data: any, secondaryLabel?: any) => {
   for (const folderDesc of folders) {
     let folder = find(tree.childNodes, folderDesc) as ITreeNode | undefined
     if (!folder) {
@@ -16,11 +18,11 @@ const addNode = (tree: ITreeNode, folders: ITreeNode[], file, data: any) => {
     tree = folder
   }
 
-  tree.childNodes.push({ ...file, ...data })
+  tree.childNodes.push({ ...file, ...data, secondaryLabel })
 }
 
-export const splitPath = (location: string, expandedNodeIds: object) => {
-  const paths = location.split('/')
+export const splitPath = (fileData: EditableFile, expandedNodeIds: object) => {
+  const paths = fileData.location.split('/')
   const filename = paths[paths.length - 1]
   const fileFolders = paths.slice(0, paths.length - 1)
   const folders: ITreeNode[] = []
@@ -44,13 +46,18 @@ export const splitPath = (location: string, expandedNodeIds: object) => {
   }
 }
 
-export const buildTree = (files: EditableFile[], expandedNodeIds: object, filterFileName: string | undefined) => {
+export const buildTree = (
+  files: EditableFile[],
+  expandedNodeIds: object,
+  filterFileName: string | undefined,
+  readonlyIcon: any
+) => {
   const tree: ITreeNode = { id: 'root', label: '<root>', childNodes: [] }
 
   files.forEach(fileData => {
-    const { folders, file } = splitPath(fileData.location, expandedNodeIds)
+    const { folders, file } = splitPath(fileData, expandedNodeIds)
     if (!filterFileName || !filterFileName.length || file.label.includes(filterFileName)) {
-      addNode(tree, folders, file, { nodeData: fileData })
+      addNode(tree, folders, file, { nodeData: fileData }, fileData.readOnly ? readonlyIcon : undefined)
     }
   })
 

@@ -1,6 +1,5 @@
-import { Logger, LoggerEntry } from 'botpress/sdk'
+import { KnexExtended, Logger, LoggerEntry } from 'botpress/sdk'
 import { injectable } from 'inversify'
-import Knex from 'knex'
 import _ from 'lodash'
 import ms from 'ms'
 
@@ -12,7 +11,7 @@ export class LoggerDbPersister {
   private readonly TABLE_NAME = 'srv_logs'
   private readonly INTERVAL = ms('2s')
 
-  private knex!: Knex
+  private knex!: KnexExtended
   private batch: LoggerEntry[] = []
   private intervalRef
   private currentPromise
@@ -56,28 +55,29 @@ export class LoggerDbPersister {
 
   private runTask = async () => {
     if (process.env.DEBUG_LOGGER) {
-      this.logger.debug(`Saving ${this.batch.length} logs`)
+      this.logger.debug(`Saving ${this.batch.length} log${this.batch.length === 1 ? '' : 's'}`)
     }
 
     if (this.currentPromise || this.batch.length === 0) {
       return
     }
 
+    const batchCount = this.batch.length >= this.BATCH_SIZE ? this.BATCH_SIZE : this.batch.length
+    const elements = this.batch.splice(0, batchCount)
+    const formatedRows = elements.map(log => ({
+      ...log,
+      timestamp: this.knex.date.format(log.timestamp)
+    }))
+
     this.currentPromise = this.knex
-      .batchInsert(this.TABLE_NAME, this.batch, this.BATCH_SIZE)
-      .then(() => {
-        if (this.batch.length >= this.BATCH_SIZE) {
-          this.batch.splice(0, this.BATCH_SIZE)
-        } else {
-          this.batch.splice(0, this.batch.length)
-        }
-      })
-      .catch(err =>
+      .batchInsert(this.TABLE_NAME, formatedRows, this.BATCH_SIZE)
+      .catch(err => {
         this.logger
           .attachError(err)
           .persist(false)
           .error('Error persisting messages')
-      )
+        this.batch.push(...elements)
+      })
       .finally(() => {
         this.currentPromise = undefined
       })

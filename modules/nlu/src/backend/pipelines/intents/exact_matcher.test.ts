@@ -3,7 +3,7 @@ import * as sdk from 'botpress/sdk'
 import { makeTokens } from '../../tools/token-utils'
 import { KnownSlot, TrainingSequence } from '../../typings'
 
-import ExactMatcher from './exact_matcher'
+import ExactMatcher, { ExactMatchStructure } from './exact_matcher'
 
 const I_LIKE_ANIMALS_INTENT = 'I_LIKE_ANIMALS_INTENT'
 const ANIMAL_I_LIKE_SLOT = 'ANIMAL_I_LIKE_SLOT'
@@ -15,12 +15,15 @@ const NUMBER_ENTITY = 'NUMBER_ENTITY'
 const SPACE = '\u2581'
 
 function makeSequence(text: string, intent: string, knownSlots?: KnownSlot[], contexts?: string[]): TrainingSequence {
-  const tokens = makeTokens(text.split(' ').map(t => SPACE + t), text)
+  const tokens = makeTokens(
+    text.split(' ').map(t => SPACE + t),
+    text
+  )
 
   contexts = contexts || []
   knownSlots = knownSlots || []
   return {
-    cannonical: text,
+    canonical: text,
     contexts,
     intent,
     knownSlots,
@@ -34,6 +37,7 @@ const I_like_dogs = makeSequence('I like dogs', I_LIKE_ANIMALS_INTENT, [
   {
     name: ANIMAL_I_LIKE_SLOT,
     entities: [ANIMAL_ENTITY],
+    color: 1,
     start: 7,
     end: 11,
     source: 'dogs'
@@ -44,6 +48,7 @@ const I_like_69_pretty_dogs = makeSequence('I like 69 pretty dogs', I_LIKE_ANIMA
   {
     name: 'number_of_animals',
     entities: [NUMBER_ENTITY],
+    color: 1,
     start: 7,
     end: 9,
     source: '69'
@@ -51,6 +56,7 @@ const I_like_69_pretty_dogs = makeSequence('I like 69 pretty dogs', I_LIKE_ANIMA
   {
     name: ANIMAL_I_LIKE_SLOT,
     entities: [ANIMAL_ENTITY],
+    color: 2,
     start: 17,
     end: 21,
     source: 'dogs'
@@ -65,8 +71,8 @@ describe('Exact Match', () => {
 
     const exactMatcher = new ExactMatcher(trainingSet)
 
-    const ds = {
-      sanitizedText: 'I like animals',
+    const ds: ExactMatchStructure = {
+      sanitizedLowerText: 'i like animals',
       includedContexts: [],
       entities: []
     }
@@ -88,8 +94,8 @@ describe('Exact Match', () => {
 
     const exactMatcher = new ExactMatcher(trainingSet)
 
-    const ds = {
-      sanitizedText: 'I like dogs',
+    const ds: ExactMatchStructure = {
+      sanitizedLowerText: 'i like dogs',
       includedContexts: [],
       entities: [
         {
@@ -121,8 +127,8 @@ describe('Exact Match', () => {
 
     const exactMatcher = new ExactMatcher(trainingSet)
 
-    const ds = {
-      sanitizedText: 'I like tomatos',
+    const ds: ExactMatchStructure = {
+      sanitizedLowerText: 'i like tomatos',
       includedContexts: [],
       entities: [
         {
@@ -153,8 +159,8 @@ describe('Exact Match', () => {
 
     const exactMatcher = new ExactMatcher(trainingSet)
 
-    const ds = {
-      sanitizedText: 'I like 42 stupid dogs',
+    const ds: ExactMatchStructure = {
+      sanitizedLowerText: 'i like 42 stupid dogs',
       includedContexts: [],
       entities: [
         {

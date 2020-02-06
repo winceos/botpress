@@ -14,7 +14,7 @@ export default {
   /** The default configuration when starting the chat */
   DEFAULT_CONFIG: {
     userId: undefined,
-    stylesheet: '/assets/modules/channel-web/default.css',
+    stylesheet: 'assets/modules/channel-web/default.css',
     extraStylesheet: '',
     botName: undefined,
     botConvoDescription: undefined,
@@ -23,8 +23,10 @@ export default {
     enableTranscriptDownload: true,
     enableArrowNavigation: false,
     showConversationsButton: true,
+    useSessionStorage: false,
     showUserName: false,
     showUserAvatar: false,
+    showTimestamp: false,
     disableAnimations: false,
     hideWidget: false,
     externalAuthToken: undefined,

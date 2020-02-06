@@ -1,8 +1,7 @@
 import React, { Component } from 'react'
-import { connect } from 'react-redux'
 
 import { Button, FormGroup, InputGroup, FormControl, HelpBlock } from 'react-bootstrap'
-import PermissionsChecker from '~/components/Layout/PermissionsChecker'
+import { AccessControl } from '~/components/Shared/Utils'
 import Loading from '~/components/Util/Loading'
 import axios from 'axios'
 
@@ -17,7 +16,7 @@ class UploadWidget extends Component {
     }
   }
 
-  componentWillReceiveProps(newProps) {
+  UNSAFE_componentWillReceiveProps(newProps) {
     if (!newProps.value && !this.state.expanded) {
       this.setState({ expanded: true })
     }
@@ -65,11 +64,10 @@ class UploadWidget extends Component {
     const { expanded, uploading, error } = this.state
 
     return (
-      <PermissionsChecker
-        user={this.props.user}
-        op="write"
-        res="bot.media"
-        fallback={<em>Youd don&apos;t have permission to upload files for this bot. Talk to your team owner.</em>}
+      <AccessControl
+        operation="write"
+        resource="bot.media"
+        fallback={<em>You don&apos;t have permission to upload files for this bot. Talk to your team owner.</em>}
       >
         <FormGroup>
           {!expanded ? (
@@ -91,38 +89,32 @@ class UploadWidget extends Component {
             <HelpBlock>No file picked yet.</HelpBlock>
           )}
         </FormGroup>
-        {expanded &&
-          !uploading && (
-            <FormGroup>
-              <InputGroup>
-                <FormControl
-                  type="file"
-                  accept={filter || '*'}
-                  placeholder={this.props.placeholder || 'Pick file to upload'}
-                  onChange={this.startUpload}
-                />
-                <InputGroup.Button>
-                  <Button bsStyle="link" onClick={this.collapse}>
-                    Cancel
-                  </Button>
-                </InputGroup.Button>
-              </InputGroup>
-            </FormGroup>
-          )}
-        {expanded &&
-          error && (
-            <FormGroup validationState="error">
-              <HelpBlock>{error}</HelpBlock>
-            </FormGroup>
-          )}
+        {expanded && !uploading && (
+          <FormGroup>
+            <InputGroup>
+              <FormControl
+                type="file"
+                accept={filter || '*'}
+                placeholder={this.props.placeholder || 'Pick file to upload'}
+                onChange={this.startUpload}
+              />
+              <InputGroup.Button>
+                <Button bsStyle="link" onClick={this.collapse}>
+                  Cancel
+                </Button>
+              </InputGroup.Button>
+            </InputGroup>
+          </FormGroup>
+        )}
+        {expanded && error && (
+          <FormGroup validationState="error">
+            <HelpBlock>{error}</HelpBlock>
+          </FormGroup>
+        )}
         {expanded && uploading && <Loading />}
-      </PermissionsChecker>
+      </AccessControl>
     )
   }
 }
 
-const mapStateToProps = state => ({
-  user: state.user
-})
-
-export default connect(mapStateToProps)(UploadWidget)
+export default UploadWidget

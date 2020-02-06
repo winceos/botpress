@@ -4,23 +4,28 @@ import { UntrustedSandbox } from 'core/misc/code-sandbox'
 import { printObject } from 'core/misc/print'
 import { inject, injectable, tagged } from 'inversify'
 import _ from 'lodash'
+import ms from 'ms'
 import path from 'path'
 import { NodeVM } from 'vm2'
+import yn from 'yn'
 
 import { GhostService } from '..'
 import { createForAction } from '../../api'
-import { requireAtPaths } from '../../modules/require'
+import { clearRequireCache, requireFromString } from '../../modules/require'
 import { TYPES } from '../../types'
-import { BPError } from '../dialog/errors'
+import { ActionExecutionError } from '../dialog/errors'
 
 import { ActionMetadata, extractMetadata } from './metadata'
+import { extractRequiredFiles, getBaseLookupPaths, prepareRequire, prepareRequireTester } from './utils'
 import { VmRunner } from './vm'
 
 const debug = DEBUG('actions')
+const DEBOUNCE_DELAY = ms('2s')
 
 @injectable()
 export default class ActionService {
   private _scopedActions: Map<string, ScopedActionService> = new Map()
+  private _invalidateDebounce
 
   constructor(
     @inject(TYPES.GhostService) private ghost: GhostService,
@@ -28,7 +33,27 @@ export default class ActionService {
     @inject(TYPES.Logger)
     @tagged('name', 'ActionService')
     private logger: Logger
-  ) {}
+  ) {
+    this._listenForCacheInvalidation()
+    this._invalidateDebounce = _.debounce(this._invalidateRequire, DEBOUNCE_DELAY, { leading: true, trailing: false })
+  }
+
+  private _listenForCacheInvalidation() {
+    this.cache.events.on('invalidation', key => {
+      if (key.toLowerCase().indexOf(`/actions`) > -1) {
+        this._invalidateDebounce(key)
+      }
+    })
+  }
+
+  // Debouncing invalidate since we get a lot of events when it happens
+  private _invalidateRequire() {
+    Object.keys(require.cache)
+      .filter(r => r.match(/(\\|\/)actions(\\|\/)/g))
+      .map(file => delete require.cache[file])
+
+    clearRequireCache()
+  }
 
   forBot(botId: string): ScopedActionService {
     if (this._scopedActions.has(botId)) {
@@ -53,18 +78,27 @@ export type ActionDefinition = {
 export class ScopedActionService {
   private _actionsCache: ActionDefinition[] | undefined
   private _scriptsCache: Map<string, string> = new Map()
+  // Keeps a quick index of files which have already been required
+  private _validScripts: { [filename: string]: boolean } = {}
 
   constructor(private ghost: GhostService, private logger: Logger, private botId: string, private cache: ObjectCache) {
     this._listenForCacheInvalidation()
   }
 
   private _listenForCacheInvalidation() {
+    const clearDebounce = _.debounce(this._clearCache.bind(this), DEBOUNCE_DELAY, { leading: true, trailing: false })
+
     this.cache.events.on('invalidation', key => {
       if (key.toLowerCase().indexOf(`/actions`) > -1) {
-        this._scriptsCache.clear()
-        this._actionsCache = undefined
+        clearDebounce()
       }
     })
+  }
+
+  private _clearCache() {
+    this._scriptsCache.clear()
+    this._actionsCache = undefined
+    this._validScripts = {}
   }
 
   async listActions(): Promise<ActionDefinition[]> {
@@ -81,9 +115,9 @@ export class ScopedActionService {
       await this.ghost.forBot(this.botId).directoryListing('actions', '*.js', exclude)
     )
 
-    const actions: ActionDefinition[] = (await Promise.map(globalActionsFiles, async file =>
-      this.getActionDefinition(file, 'global', true)
-    )).concat(await Promise.map(localActionsFiles, async file => this.getActionDefinition(file, 'local', true)))
+    const actions: ActionDefinition[] = (
+      await Promise.map(globalActionsFiles, async file => this.getActionDefinition(file, 'global', true))
+    ).concat(await Promise.map(localActionsFiles, async file => this.getActionDefinition(file, 'local', true)))
 
     this._actionsCache = actions
     return actions
@@ -95,7 +129,7 @@ export class ScopedActionService {
     includeMetadata: boolean
   ): Promise<ActionDefinition> {
     let action: ActionDefinition = {
-      name: file.replace(/.js$/i, ''),
+      name: file.replace(/\.js$/i, ''),
       isRemote: false,
       location: location
     }
@@ -129,34 +163,109 @@ export class ScopedActionService {
     return !!actions.find(x => x.name === actionName)
   }
 
-  private _prepareRequire(actionLocation: string) {
-    let parts = path.relative(process.PROJECT_LOCATION, actionLocation).split(path.sep)
-    parts = parts.slice(parts.indexOf('actions') + 1) // We only keep the parts after /actions/...
+  async getActionDetails(actionName: string) {
+    const action = await this.findAction(actionName)
+    const code = await this.getActionScript(action)
 
-    const lookups: string[] = [actionLocation]
+    const botFolder = action.location === 'global' ? 'global' : 'bots/' + this.botId
+    const dirPath = path.resolve(path.join(process.PROJECT_LOCATION, `/data/${botFolder}/actions/${actionName}.js`))
+    const lookups = getBaseLookupPaths(dirPath)
 
-    if (parts[0] in process.LOADED_MODULES) {
-      // the action is in a directory by the same name as a module
-      lookups.unshift(process.LOADED_MODULES[parts[0]])
+    return { code, dirPath, lookups, action }
+  }
+
+  // This method tries to load require() files from the FS and fallback on BPFS
+  async checkActionRequires(actionName: string): Promise<boolean> {
+    if (this._validScripts[actionName]) {
+      return true
     }
 
-    return module => requireAtPaths(module, lookups)
+    const { code, dirPath: parentScript, lookups } = await this.getActionDetails(actionName)
+
+    const isRequireValid = prepareRequireTester(parentScript, lookups)
+    const files = extractRequiredFiles(code)
+
+    for (const file of files) {
+      if (isRequireValid(file)) {
+        continue
+      }
+
+      try {
+        // Ensures the required files are available before compiling the action
+        await this.checkActionRequires(file)
+
+        const { code, dirPath, lookups } = await this.getActionDetails(file)
+        const exports = requireFromString(code, file, parentScript, prepareRequire(dirPath, lookups))
+
+        if (_.isEmpty(exports)) {
+          this.logger.warn(`Your required file (${file}) looks empty. Missing module.exports ? `)
+        }
+      } catch (err) {
+        this.logger.attachError(err).error(`There is an issue with required file ${file}.js in action ${actionName}.js`)
+        return false
+      }
+    }
+
+    this._validScripts[actionName] = true
+    return true
   }
 
   async runAction(actionName: string, incomingEvent: any, actionArgs: any): Promise<any> {
     process.ASSERT_LICENSED()
 
+    if (yn(process.core_env.BP_EXPERIMENTAL_REQUIRE_BPFS)) {
+      await this.checkActionRequires(actionName)
+    }
+
     debug.forBot(incomingEvent.botId, 'run action', { actionName, incomingEvent, actionArgs })
 
-    const action = await this.findAction(actionName)
-    const code = await this.getActionScript(action)
+    const { action, code, dirPath, lookups } = await this.getActionDetails(actionName)
+    const _require = prepareRequire(dirPath, lookups)
+
     const api = await createForAction()
 
-    const botFolder = action.location === 'global' ? 'global' : 'bots/' + this.botId
-    const dirPath = path.resolve(path.join(process.PROJECT_LOCATION, `/data/${botFolder}/actions/${actionName}.js`))
+    const args = {
+      bp: api,
+      event: incomingEvent,
+      user: incomingEvent.state.user,
+      temp: incomingEvent.state.temp,
+      session: incomingEvent.state.session,
+      args: actionArgs,
+      printObject: printObject,
+      process: UntrustedSandbox.getSandboxProcessArgs()
+    }
 
-    const _require = this._prepareRequire(path.dirname(dirPath))
+    try {
+      let result
+      if (action.location === 'global' && process.DISABLE_GLOBAL_SANDBOX) {
+        result = await this.runWithoutVm(code, args, _require)
+      } else {
+        result = await this.runInVm(code, dirPath, args, _require)
+      }
 
+      debug.forBot(incomingEvent.botId, 'done running', { result, actionName, actionArgs })
+
+      return result
+    } catch (err) {
+      this.logger
+        .forBot(this.botId)
+        .attachError(err)
+        .error(`An error occurred while executing the action "${actionName}`)
+      throw new ActionExecutionError(err.message, actionName, err.stack)
+    }
+  }
+
+  private async runWithoutVm(code: string, args: any, _require: Function) {
+    args = {
+      ...args,
+      require: _require
+    }
+
+    const fn = new Function(...Object.keys(args), code)
+    return fn(...Object.values(args))
+  }
+
+  private async runInVm(code: string, dirPath: string, args: any, _require: Function) {
     const modRequire = new Proxy(
       {},
       {
@@ -166,16 +275,7 @@ export class ScopedActionService {
 
     const vm = new NodeVM({
       wrapper: 'none',
-      sandbox: {
-        bp: api,
-        event: incomingEvent,
-        user: incomingEvent.state.user,
-        temp: incomingEvent.state.temp,
-        session: incomingEvent.state.session,
-        args: actionArgs,
-        printObject: printObject,
-        process: UntrustedSandbox.getSandboxProcessArgs()
-      },
+      sandbox: args,
       require: {
         external: true,
         mock: modRequire
@@ -184,19 +284,7 @@ export class ScopedActionService {
     })
 
     const runner = new VmRunner()
-
-    try {
-      const result = await runner.runInVm(vm, code, dirPath)
-      debug.forBot(incomingEvent.botId, 'done running', { result, actionName, actionArgs })
-
-      return result
-    } catch (err) {
-      this.logger
-        .forBot(this.botId)
-        .attachError(err)
-        .error(`An error occurred while executing the action "${actionName}`)
-      throw new BPError(`An error occurred while executing the action "${actionName}"`, 'BP_451')
-    }
+    return runner.runInVm(vm, code, dirPath)
   }
 
   private async findAction(actionName: string): Promise<ActionDefinition> {

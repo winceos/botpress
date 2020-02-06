@@ -1,11 +1,11 @@
 ---
 id: pipelines
-title: Pipelines
+title: Bot Pipelines
 ---
 
 ## Overview
 
-Pipelines are built on top of the multi-bot capability of Botpress. They allow teams to work on bots with multiple **stages** the same way others would work on software products. Different versions of a bot can run and co-exist on different stages. In software development, each team has its own way of working with pipelines and reacting to events along the pipeline, Botpress pipelines let you do the same.
+**Bot Pipelines** (not to be confused with Development Pipelines) are built on top of the multi-bot capability of Botpress. They allow teams to work on bots with multiple **stages** the same way others would work on software products. Different versions of a bot can run and co-exist on different stages. In software development, each team has its own way of working with pipelines and reacting to events along the pipeline, Botpress pipelines let you do the same.
 
 Although a typical pipeline would have 3 stages (e.g: _Development_, _Staging_ and _Production_) where a bot goes through all of them. Botpress lets you define your own stages and customize how they interact.
 
@@ -31,7 +31,7 @@ Properties are self explanatory except action which is defined. In a pipeline de
 
 ### Stage Actions
 
-A stage action defines how the pipeline system behaves when a bot is set for promotion (i.e go from one stage to another). Currently 2 actions are available `promote_move` which simply moves the bot from current to next stage and `promote_copy` which creates an exact copy of the bot before being promoted to next stage. The latter is usefull when you want keep a work in progress (i.e Dev stage) version of your bot and send versions along the pipeline.
+A stage action defines how the pipeline system behaves when a bot is set for promotion (i.e go from one stage to another). Currently 2 actions are available `promote_move` which simply moves the bot from current to next stage and `promote_copy` which creates an exact copy of the bot before being promoted to next stage. The latter is useful when you want keep a work in progress (i.e Dev stage) version of your bot and send versions along the pipeline.
 
 ### Bot Pipeline Status
 

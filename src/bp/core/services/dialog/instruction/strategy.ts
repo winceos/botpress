@@ -104,7 +104,7 @@ export class ActionStrategy implements InstructionStrategy {
     return ProcessingResult.none()
   }
 
-  private async invokeAction(botId, instruction, event): Promise<ProcessingResult> {
+  private async invokeAction(botId, instruction, event: IO.IncomingEvent): Promise<ProcessingResult> {
     const chunks: string[] = instruction.fn.split(' ')
     const argsStr = _.tail(chunks).join(' ')
     const actionName = _.first(chunks)!
@@ -130,11 +130,26 @@ export class ActionStrategy implements InstructionStrategy {
 
     debug.forBot(botId, `[${event.target}] execute action "${actionName}"`)
     const hasAction = await this.actionService.forBot(botId).hasAction(actionName)
-    if (!hasAction) {
-      throw new Error(`Action "${actionName}" not found, `)
+
+    try {
+      if (!hasAction) {
+        throw new Error(`Action "${actionName}" not found, `)
+      }
+      await this.actionService.forBot(botId).runAction(actionName, event, args)
+    } catch (err) {
+      event.state.__error = {
+        type: 'action-execution',
+        stacktrace: err.stacktrace || err.stack,
+        actionName: actionName,
+        actionArgs: _.omit(args, ['event'])
+      }
+
+      const { onErrorFlowTo } = event.state.temp
+      const errorFlow = typeof onErrorFlowTo === 'string' && onErrorFlowTo.length ? onErrorFlowTo : 'error.flow.json'
+
+      return ProcessingResult.transition(errorFlow)
     }
 
-    await this.actionService.forBot(botId).runAction(actionName, event, args)
     return ProcessingResult.none()
   }
 }
@@ -168,7 +183,14 @@ export class TransitionStrategy implements InstructionStrategy {
     }
   }
 
-  private async runCode(instruction, sandbox): Promise<any> {
+  private async runCode(instruction: Instruction, sandbox): Promise<any> {
+    if (instruction.fn === 'true') {
+      return true
+    } else if (instruction.fn && instruction.fn.match(/^event\.nlu\.intent\.name === '([a-zA-Z0-9_-]+)'$/)) {
+      const fn = new Function(...Object.keys(sandbox), `return ${instruction.fn}`)
+      return fn(...Object.values(sandbox))
+    }
+
     const vm = new NodeVM({
       wrapper: 'none',
       sandbox: sandbox,

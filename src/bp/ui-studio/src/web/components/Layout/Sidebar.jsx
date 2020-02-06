@@ -4,11 +4,9 @@ import { connect } from 'react-redux'
 import { NavLink, withRouter } from 'react-router-dom'
 import classnames from 'classnames'
 import { Tooltip, OverlayTrigger } from 'react-bootstrap'
-import { Collapse } from 'react-bootstrap'
 import { GoBeaker } from 'react-icons/go'
 import _ from 'lodash'
-
-import PermissionsChecker from './PermissionsChecker'
+import { AccessControl } from '../Shared/Utils'
 
 const style = require('./Sidebar.scss')
 
@@ -49,7 +47,7 @@ class Sidebar extends React.Component {
   renderModuleItem = module => {
     const rule = { res: `module.${module.name}`, op: 'write' }
     const path = `/modules/${module.name}`
-    const iconPath = `/assets/modules/${module.name}/icon.png`
+    const iconPath = `assets/modules/${module.name}/icon.png`
     const moduleIcon =
       module.menuIcon === 'custom' ? (
         <img className={classnames(style.customIcon, 'bp-custom-icon')} src={iconPath} />
@@ -66,7 +64,7 @@ class Sidebar extends React.Component {
     )
 
     return (
-      <PermissionsChecker key={`menu_module_${module.name}`} user={this.props.user} res={rule.res} op={rule.op}>
+      <AccessControl key={`menu_module_${module.name}`} resource={rule.res} operation={rule.op}>
         <li id={`bp-menu_${module.name}`}>
           <NavLink
             to={path}
@@ -83,12 +81,12 @@ class Sidebar extends React.Component {
             )}
           </NavLink>
         </li>
-      </PermissionsChecker>
+      </AccessControl>
     )
   }
 
   renderBasicItem = ({ name, path, rule, icon, renderSuffix }) => (
-    <PermissionsChecker user={this.props.user} res={rule.res} op={rule.op} key={name}>
+    <AccessControl resource={rule.res} operation={rule.op} key={name}>
       <li id={`bp-menu_${name}`} key={path}>
         <NavLink to={path} title={name} activeClassName={style.active} onClick={this.handleMenuItemClicked}>
           <i className="icon material-icons" style={{ marginRight: '5px' }}>
@@ -98,7 +96,7 @@ class Sidebar extends React.Component {
           {renderSuffix && renderSuffix()}
         </NavLink>
       </li>
-    </PermissionsChecker>
+    </AccessControl>
   )
 
   render() {
@@ -106,13 +104,21 @@ class Sidebar extends React.Component {
       <aside style={{ zIndex: '1000' }}>
         <div className={classnames(style.sidebar, 'bp-sidebar')}>
           <div style={{ padding: '8px 13px', overflowX: 'hidden' }}>
-            <a href="/" className={classnames(style.logo, 'bp-logo')}>
-              <img width="125" src="/assets/ui-studio/public/img/logo_white.png" alt="Botpress Logo" />
+            <a href="admin/" className={classnames(style.logo, 'bp-logo')}>
+              <img width="125" src="assets/ui-studio/public/img/logo_white.png" alt="Botpress Logo" />
             </a>
           </div>
           <ul className={classnames('nav', style.mainMenu)}>
-            {BASIC_MENU_ITEMS.map(this.renderBasicItem)}
-            {this.props.modules.filter(m => !m.noInterface).map(this.renderModuleItem)}
+            {window.IS_BOT_MOUNTED ? (
+              <React.Fragment>
+                {BASIC_MENU_ITEMS.map(this.renderBasicItem)}
+                {this.props.modules.filter(m => !m.noInterface).map(this.renderModuleItem)}
+              </React.Fragment>
+            ) : (
+              <React.Fragment>
+                {this.props.modules.filter(m => m.name === 'code-editor').map(this.renderModuleItem)}
+              </React.Fragment>
+            )}
             <li className={classnames(style.empty, 'bp-empty')} />
           </ul>
         </div>
@@ -123,7 +129,6 @@ class Sidebar extends React.Component {
 }
 
 const mapStateToProps = state => ({
-  user: state.user,
   viewMode: state.ui.viewMode,
   modules: state.modules
 })

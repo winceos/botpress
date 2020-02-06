@@ -1,9 +1,9 @@
-import { KnexExtension } from 'common/knex'
+import { KnexExtended, KnexExtension } from 'botpress/sdk'
 import Knex from 'knex'
 import moment from 'moment'
 import { VError } from 'verror'
 
-export const patchKnex = (knex: Knex): Knex & KnexExtension => {
+export const patchKnex = (knex: Knex): KnexExtended => {
   const isLite = knex.client.config.client === 'sqlite3'
   const location = isLite ? knex.client.connectionSettings.filename : undefined
 
@@ -39,12 +39,13 @@ export const patchKnex = (knex: Knex): Knex & KnexExtension => {
     })
   }
 
-  // only works for single insert beause of SQLite
+  // only works for single insert because of SQLite
   const insertAndRetrieve = async <T>(
     tableName: string,
     data: any,
     returnColumns: string | string[] = 'id',
-    idColumnName: string = 'id'
+    idColumnName: string = 'id',
+    trx?: Knex.Transaction
   ): Promise<T> => {
     const handleResult = res => {
       if (!res || res.length !== 1) {
@@ -60,7 +61,8 @@ export const patchKnex = (knex: Knex): Knex & KnexExtension => {
         .returning(returnColumns)
         .then(handleResult)
     }
-    return knex.transaction(trx =>
+
+    const getQuery = trx =>
       knex(tableName)
         .insert(data)
         .transacting(trx)
@@ -81,6 +83,14 @@ export const patchKnex = (knex: Knex): Knex & KnexExtension => {
                 .then(handleResult)
             })
         )
+
+    // transactions inside another transaction may lead to a deadlock
+    if (trx) {
+      return getQuery(trx)
+    }
+
+    return knex.transaction(trx =>
+      getQuery(trx)
         .then(trx.commit)
         .catch(trx.rollback)
     )

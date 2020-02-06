@@ -1,6 +1,7 @@
 import { Logger } from 'botpress/sdk'
 import { checkRule } from 'common/auth'
 import { StrategyUser } from 'core/repositories/strategy_users'
+import { InvalidOperationError } from 'core/services/auth/errors'
 import { WorkspaceService } from 'core/services/workspace-service'
 import { NextFunction, Request, Response } from 'express'
 import Joi from 'joi'
@@ -158,6 +159,13 @@ export const assertSuperAdmin = (req: Request, res: Response, next: Function) =>
   next()
 }
 
+export const assertWorkspace = async (req: RequestWithUser, _res: Response, next: NextFunction) => {
+  if (!req.workspace) {
+    return next(new InvalidOperationError(`Workspace is missing. Set header X-BP-Workspace`))
+  }
+  next()
+}
+
 export const assertBotpressPro = (workspaceService: WorkspaceService) => async (
   _req: RequestWithUser,
   _res: Response,
@@ -182,23 +190,84 @@ export const needPermissions = (workspaceService: WorkspaceService) => (operatio
   _res: Response,
   next: NextFunction
 ) => {
+  const err = await checkPermissions(workspaceService)(operation, resource)(req)
+  return next(err)
+}
+
+/**
+ * This method checks if the user has read access if method is get, and write access otherwise
+ */
+export const checkMethodPermissions = (workspaceService: WorkspaceService) => (resource: string) => async (
+  req: RequestWithUser,
+  _res: Response,
+  next: NextFunction
+) => {
+  const method = req.method.toLowerCase()
+  const operation = method === 'get' || method === 'options' ? 'read' : 'write'
+  const err = await checkPermissions(workspaceService)(operation, resource)(req)
+  return next(err)
+}
+
+/**
+ * Just like needPermissions but returns a boolean and can be used inside an express middleware
+ */
+export const hasPermissions = (workspaceService: WorkspaceService) => async (
+  req: RequestWithUser,
+  operation: string,
+  resource: string
+) => {
+  const err = await checkPermissions(workspaceService)(operation, resource)(req)
+  return !err
+}
+
+const checkPermissions = (workspaceService: WorkspaceService) => (operation: string, resource: string) => async (
+  req: RequestWithUser
+) => {
   if (!req.tokenUser) {
-    return next(new ForbiddenError(`Unauthorized`))
+    debugFailure(`${req.originalUrl} %o`, {
+      method: req.method,
+      email: 'n/a',
+      operation,
+      resource,
+      ip: req.ip,
+      reason: 'unauthenticated'
+    })
+    return new ForbiddenError(`Unauthorized`)
   }
 
   if (!req.workspace && req.params.botId) {
     req.workspace = await workspaceService.getBotWorkspaceId(req.params.botId)
   }
 
+  if (!req.workspace) {
+    throw new InvalidOperationError(`Workspace is missing. Set header X-BP-Workspace`)
+  }
+
   const { email, strategy, isSuperAdmin } = req.tokenUser
 
   // The server user is used internally, and has all the permissions
   if (email === SERVER_USER || isSuperAdmin) {
-    return next()
+    debugSuccess(`${req.originalUrl} %o`, {
+      method: req.method,
+      email,
+      operation,
+      resource,
+      userRole: 'superAdmin',
+      ip: req.ip
+    })
+    return
   }
 
-  if (!email || !strategy || !req.workspace) {
-    return next(new NotFoundError(`Missing one of the required parameters: email, strategy or workspace`))
+  if (!email || !strategy) {
+    debugFailure(`${req.originalUrl} %o`, {
+      method: req.method,
+      email,
+      operation,
+      resource,
+      ip: req.ip,
+      reason: 'missing auth parameter'
+    })
+    return new NotFoundError(`Missing one of the required parameters: email or strategy`)
   }
 
   const user = await workspaceService.findUser(email, strategy, req.workspace)
@@ -211,7 +280,7 @@ export const needPermissions = (workspaceService: WorkspaceService) => (operatio
       resource,
       ip: req.ip
     })
-    return next(new ForbiddenError(`User "${email}" doesn't have access to workspace "${req.workspace}"`))
+    return new ForbiddenError(`User "${email}" doesn't have access to workspace "${req.workspace}"`)
   }
 
   const role = await workspaceService.getRoleForUser(email, strategy, req.workspace)
@@ -225,9 +294,7 @@ export const needPermissions = (workspaceService: WorkspaceService) => (operatio
       userRole: role && role.id,
       ip: req.ip
     })
-    return next(
-      new ForbiddenError(`user does not have sufficient permissions to "${operation}" on ressource "${resource}"`)
-    )
+    return new ForbiddenError(`user does not have sufficient permissions to "${operation}" on resource "${resource}"`)
   }
 
   debugSuccess(`${req.originalUrl} %o`, {
@@ -238,6 +305,4 @@ export const needPermissions = (workspaceService: WorkspaceService) => (operatio
     userRole: role && role.id,
     ip: req.ip
   })
-
-  next()
 }

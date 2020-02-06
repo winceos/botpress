@@ -1,5 +1,7 @@
 import { EventEmitter } from 'events'
 
+global['NativePromise'] = global.Promise
+
 const yn = require('yn')
 const path = require('path')
 const fs = require('fs')
@@ -42,6 +44,7 @@ if (process.env.APP_DATA_PATH) {
   process.APP_DATA_PATH = getAppDataPath()
 }
 
+process.IS_FAILSAFE = yn(process.env.BP_FAILSAFE)
 process.BOTPRESS_EVENTS = new EventEmitter()
 process.BOTPRESS_EVENTS.setMaxListeners(1000)
 
@@ -58,12 +61,14 @@ process.on('unhandledRejection', err => {
 
 process.on('uncaughtException', err => {
   global.printErrorDefault(err)
-  process.exit(1)
+  if (!process.IS_FAILSAFE) {
+    process.exit(1)
+  }
 })
 
 try {
   require('dotenv').config({ path: path.resolve(process.PROJECT_LOCATION, '.env') })
-  process.core_env = process.env as BotpressEnvironementVariables
+  process.core_env = process.env as BotpressEnvironmentVariables
 
   const argv = require('yargs')
     .command(
@@ -84,7 +89,8 @@ try {
         }
       },
       argv => {
-        process.IS_PRODUCTION = argv.production || yn(process.env.BP_PRODUCTION)
+        process.IS_PRODUCTION = argv.production || yn(process.env.BP_PRODUCTION) || yn(process.env.CLUSTER_ENABLED)
+        process.BPFS_STORAGE = process.core_env.BPFS_STORAGE || 'disk'
 
         let defaultVerbosity = process.IS_PRODUCTION ? 0 : 2
         if (!isNaN(Number(process.env.VERBOSITY_LEVEL))) {
@@ -95,6 +101,7 @@ try {
           process.env.AUTO_MIGRATE === undefined ? yn(argv.autoMigrate) : yn(process.env.AUTO_MIGRATE)
 
         process.VERBOSITY_LEVEL = argv.verbose ? Number(argv.verbose) : defaultVerbosity
+        process.DISABLE_GLOBAL_SANDBOX = yn(process.env.DISABLE_GLOBAL_SANDBOX)
         process.IS_LICENSED = true
         process.ASSERT_LICENSED = () => {}
         process.BOTPRESS_VERSION = metadataContent.version
@@ -123,34 +130,94 @@ try {
     )
     .command(
       'pull',
-      'Sync pending changes from an external server running botpress to local files',
+      'Pull data from a remote server to your local file system',
       {
         url: {
-          description: 'url of the botpress server from which you want to pull changes',
+          description: 'Base URL of the botpress server from which you want to pull changes',
           default: 'http://localhost:3000',
           type: 'string'
         },
         authToken: {
           alias: 'token',
-          description: 'your authorization token on the remote botpress server',
-          // tslint:disable-next-line:no-null-keyword
-          default: null,
+          description: 'Authorization token on the remote botpress server',
           type: 'string'
         },
         targetDir: {
           alias: 'dir',
-          description: 'target directory in which you want sync the changes. will be created if doesnt exist',
-          default: path.join(__dirname, 'data'),
+          description: 'Target directory where the remote data will be stored',
           type: 'string'
         }
       },
-      argv => require('./pull').default(argv)
+      argv => require('./bpfs').default(argv, 'pull')
+    )
+    .command(
+      'push',
+      'Push local files to a remote botpress server',
+      {
+        url: {
+          description: 'URL of the botpress server to which to push changes',
+          default: 'http://localhost:3000',
+          type: 'string'
+        },
+        authToken: {
+          alias: 'token',
+          description: 'Authorization token on the remote botpress server',
+          type: 'string'
+        },
+        sourceDir: {
+          alias: 'dir',
+          description: 'The local directory containing the data you want to push on the remote server',
+          type: 'string'
+        }
+      },
+      argv => require('./bpfs').default(argv, 'push')
+    )
+    .command(
+      'pullfile',
+      'Pull a single file from the database',
+      {
+        file: {
+          description: 'Complete path of the remote file (ex: global/botpress.config.json)',
+          type: 'string'
+        },
+        dest: {
+          description: 'Path where the file will be copied locally (if not set, it uses the same path as "file")',
+          type: 'string'
+        }
+      },
+      argv => {
+        getos.default().then(distro => {
+          process.distro = distro
+          require('./bpfs_recovery').default(argv, 'pullfile')
+        })
+      }
+    )
+    .command(
+      'pushfile',
+      'Push a local file to a remote database directly',
+      {
+        file: {
+          description: 'Path of the local file (eg: botpress.config.json)',
+          type: 'string'
+        },
+        dest: {
+          description: 'Complete path of the destination file (ex: global/botpress.config.json)',
+          type: 'string'
+        }
+      },
+      argv => {
+        getos.default().then(distro => {
+          process.distro = distro
+          require('./bpfs_recovery').default(argv, 'pushfile')
+        })
+      }
     )
     .command(
       'bench',
       'Run a benchmark on your bot',
       {
         url: {
+          description: 'Base URL of the botpress server you want to benchmark',
           default: 'http://localhost:3000'
         },
         botId: {
@@ -226,7 +293,11 @@ try {
         },
         metadataLocation: {
           description: 'URL of metadata file which lists available languages',
-          default: 'http://botpress-public.nyc3.digitaloceanspaces.com/embeddings/index.json'
+          default: 'https://nyc3.digitaloceanspaces.com/botpress-public/embeddings/index.json'
+        },
+        offline: {
+          description: 'Whether or not the language server has internet access',
+          default: false
         },
         dim: {
           default: 100,

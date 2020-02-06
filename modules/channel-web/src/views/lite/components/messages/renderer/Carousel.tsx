@@ -75,16 +75,20 @@ export const Card = props => {
           {buttons.map((btn: Renderer.CardButton) => {
             if (btn.url) {
               return (
-                <a href={btn.url} key={`1-${btn.title}`} target={'_blank'} className={'bpw-card-action'}>
+                <a
+                  href={btn.url}
+                  key={`1-${btn.title}`}
+                  target={/^javascript:/.test(btn.url) ? '_self' : '_blank'}
+                  className={'bpw-card-action'}
+                >
                   {btn.title || btn}
-                  <i className={'bpw-card-external-icon'} />
+                  {/^javascript:/.test(btn.url) ? null : <i className={'bpw-card-external-icon'} />}
                 </a>
               )
             } else if (btn.type == 'postback' || btn.payload) {
               return (
                 <a
-                  href={'#'}
-                  onClick={props.onSendData.bind(this, { type: 'postback', payload: btn.payload })}
+                  onClick={props.onSendData && props.onSendData.bind(this, { type: 'postback', payload: btn.payload })}
                   key={`2-${btn.title}`}
                   className={'bpw-card-action'}
                 >
@@ -94,8 +98,7 @@ export const Card = props => {
             } else if (btn.type == 'say_something' || btn.text) {
               return (
                 <a
-                  href={'#'}
-                  onClick={props.onSendData.bind(this, { type: 'say_something', text: btn.text })}
+                  onClick={props.onSendData && props.onSendData.bind(this, { type: 'say_something', text: btn.text })}
                   key={`2-${btn.title}`}
                   className={'bpw-card-action'}
                 >

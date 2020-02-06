@@ -26,13 +26,13 @@ export class LogsJanitor extends Janitor {
     super(logger)
   }
 
-  @Memoize
-  private async getBotpresConfig(): Promise<BotpressConfig> {
+  @Memoize()
+  private async getBotpressConfig(): Promise<BotpressConfig> {
     return this.configProvider.getBotpressConfig()
   }
 
   protected async getInterval(): Promise<string> {
-    const config = await this.getBotpresConfig()
+    const config = await this.getBotpressConfig()
     return _.get(config, 'logs.dbOutput.janitorInterval', '30s')
   }
 
@@ -41,7 +41,7 @@ export class LogsJanitor extends Janitor {
       this.logger.debug('Cleaning up logs')
     }
 
-    const botpressConfig = await this.getBotpresConfig()
+    const botpressConfig = await this.getBotpressConfig()
     const botsConfigs = await this.botService.getBots()
     const botsIds = Array.from(botsConfigs.keys())
     const globalLogsExpiryTime = ms(_.get(botpressConfig, 'logs.dbOutput.expiration', '2 weeks'))

@@ -30,17 +30,6 @@ export interface DialogConfig {
   sessionTimeoutInterval: string
 }
 
-/**
- * Configuration file definition for the Converse API
- */
-export type ConverseConfig = {
-  /**
-   * The timeout of the converse API requests
-   * @default 5s
-   */
-  timeout: string
-}
-
 export interface LogsConfig {
   /**
    * The database output will not record Debug logs.
@@ -96,8 +85,8 @@ export type BotpressConfig = {
      */
     port: number
     /**
-     * There are two external URL that Botpress calls: https://license.botpress.io and https://duckling.botpress.io
-     * If you are behind a corporare proxy, you can configure it below.
+     * There are three external URLs that Botpress calls: https://license.botpress.io, https://duckling.botpress.io and https://lang-01.botpress.io
+     * If you are behind a corporate proxy, you can configure it below.
      * It is also possible to self-host Duckling, please check the documentation
      *
      * @example http://username:password@hostname:port
@@ -108,7 +97,7 @@ export type BotpressConfig = {
      */
     backlog: number
     /**
-     * @default 100kb
+     * @default 10mb
      */
     bodyLimit: string | number
     cors: {
@@ -122,9 +111,10 @@ export type BotpressConfig = {
      * Represents the complete base URL exposed externally by your bot. This is useful if you configure the bot
      * locally and use NGINX as a reverse proxy to handle HTTPS. It should include the protocol and no trailing slash.
      * If unset, it will be constructed from the real host/port
-     * @example https://botpress.io
+     * @example https://botpress.com
+     * @default
      */
-    externalUrl?: string
+    externalUrl: string
     session: {
       /**
        * @default false
@@ -137,6 +127,18 @@ export type BotpressConfig = {
        */
       maxAge: string
     }
+    /**
+     * Configure the priority for establishing socket connections for webchat and studio users.
+     * If the first method is not supported, it will fallback on the second.
+     * If the first is supported but it fails with an error, it will not fallback.
+     * @default ["websocket","polling"]
+     */
+    socketTransports: string[]
+    /**
+     * Adds default headers to the server's responses
+     * @default {"X-Powered-By":"Botpress"}
+     */
+    headers: { [name: string]: string }
   }
   converse: ConverseConfig
   dialog: DialogConfig
@@ -156,7 +158,7 @@ export type BotpressConfig = {
     enabled: boolean
     /**
      * The license key for the server.  Optionally you can use the BP_LICENSE_KEY env variable.
-     * You can purchase a license on https://botpress.io
+     * You can purchase a license on https://botpress.com
      * For usage with Botpress Pro/Enterprise.
      * @default paste your license key here
      */
@@ -168,7 +170,7 @@ export type BotpressConfig = {
      */
     alerting: AlertingConfig
     /**
-     * External Authentication makes it possible to authenticate end-users (chat users) from an other system
+     * External Authentication makes it possible to authenticate end-users (chat users) from another system
      * by using JWT tokens.
      *
      * In addition to authenticate the users, the JWT token can also contain arbitrary additional
@@ -249,10 +251,17 @@ export type BotpressConfig = {
    * @default true
    */
   showPoweredBy: boolean
+  /**
+   * By adding this, you'll make possible to translate a bot in more languages than those supported by your botpress language server
+   * Warning: This means that Botpress NLU won't be working properly and you'll need to handle NLU on your own with a **beforeIncoming** Hook.
+   * @example [{name: 'Swedish', code: 'sv'}]
+   * @default []
+   */
+  additionalLanguages?: { name: string; code: string }[]
 }
 
 export interface ExternalAuthConfig {
-  /** Set to true to enable external authentification
+  /** Set to true to enable external authentication
    * @default false
    */
   enabled: boolean
@@ -296,19 +305,23 @@ export type RetentionPolicy = {
   [key: string]: string
 }
 
-export type AuthStrategyType = 'basic' | 'saml' | 'ldap'
+export type AuthStrategyType = 'basic' | 'saml' | 'ldap' | 'oauth2'
 
 export interface AuthStrategy {
-  readonly id: string
+  readonly id?: string
   /**
    * Defines which authentication strategy to use. When the strategy is changed, accounts created before may no longer log in.
    * @default basic
    */
   type: AuthStrategyType
   /**
-   * Defines custom options based on the chosen authentication strategy
+   * Set a label to display to users instead of the ID (ex: Botpress SSO)
    */
-  options: AuthStrategySaml | AuthStrategyLdap | AuthStrategyBasic | undefined
+  label?: string
+  /**
+   * Defines custom options based on the chosen authentication strategy.
+   */
+  options: AuthStrategySaml | AuthStrategyLdap | AuthStrategyBasic | AuthStrategyOauth2 | undefined
   /**
    * Maps the values returned by your provider to Botpress user parameters.
    * @example fieldMapping: { email: 'emailAddress', fullName: 'givenName' }
@@ -392,6 +405,46 @@ export interface AuthStrategySaml {
   acceptedClockSkewMs: number
 }
 
+export interface AuthStrategyOauth2 {
+  authorizationURL: string
+  tokenURL: string
+  clientID: string
+  clientSecret: string
+  /**
+   * Scopes that should be requested from the service provider. Don't forget to map them in the fieldMapping property
+   * @default openid profile email
+   */
+  scope: string | string[]
+  /**
+   * The Callback URL on this server where the service provider will return the user. Replace the last part with the strategy ID
+   * @default http://localhost:3000/api/v1/auth/login-callback/oauth2/myauth
+   */
+  callbackURL: string
+  /*
+   * Set this URL if your access token doesn't include user data. Botpress will query that URL to fetch user information
+   * @example https://botpress.com/userinfo
+   */
+  userInfoURL?: string
+  /** If the access token is a JWT token, set the parameters below to decode it. */
+  jwtToken?: {
+    /** If provided, the audience of the token will be checked against the provided value(s). */
+    audience?: string | string[]
+    /** If provided, the issuer of the token will be checked against the provided value(s). */
+    issuer?: string | string[]
+    /**
+     * The algorithms allowed to validate the JWT tokens.
+     * @default ["HS256"]
+     */
+    algorithms: string[]
+    /**
+     * The public certificate starting with "-----BEGIN CERTIFICATE-----"
+     * The string should be provided as one line (use \n for new lines)
+     * If the key is not set, it will try to read the file `data/global/oauth2_YOUR_STRATEGY_ID.pub`
+     */
+    publicKey?: string
+  }
+}
+
 export interface AuthStrategyLdap {
   serverUrl: string
   /**
@@ -473,7 +526,7 @@ export interface AlertingConfig {
 export interface EventCollectorConfig {
   /**
    * When enabled, incoming and outgoing events will be saved on the database.
-   * It is required for some modules to work proprely (eg: history, testing, developer tools on channel web)
+   * It is required for some modules to work properly (eg: history, testing, developer tools on channel web)
    * @default true
    */
   enabled: boolean
@@ -489,7 +542,7 @@ export interface EventCollectorConfig {
   retentionPeriod: string
   /**
    * Specify an array of event types that won't be persisted to the database. For example, typing events and visits
-   * may not provide you with useful informations
+   * may not provide you with useful information
    * @default ["visit","typing"]
    */
   ignoredEventTypes: string[]

@@ -19,13 +19,17 @@ export default class WebchatDb {
   async getUserInfo(userId) {
     const { result: user } = await this.users.getOrCreateUser('web', userId)
 
-    const fullName = `${user.attributes['first_name']} ${user.attributes['last_name']}`
-    const avatar = (user && user.attributes['picture_url']) || undefined
+    let fullName = 'User'
 
-    return {
-      fullName,
-      avatar_url: avatar
+    if (user && user.attributes) {
+      const { first_name, last_name } = user.attributes
+
+      if (first_name || last_name) {
+        fullName = `${first_name || ''} ${last_name || ''}`.trim()
+      }
     }
+
+    return { fullName, avatar_url: _.get(user, 'attributes.picture_url') }
   }
 
   async initialize() {
@@ -58,17 +62,6 @@ export default class WebchatDb {
           table.timestamp('sent_on')
         })
       })
-      .then(() =>
-        this.knex('web_messages')
-          .columnInfo()
-          .then(info => {
-            if (info.payload === undefined) {
-              return this.knex.schema.alterTable('web_messages', table => {
-                table.jsonb('payload')
-              })
-            }
-          })
-      )
   }
 
   async appendUserMessage(botId, userId, conversationId, payload, incomingEventId) {

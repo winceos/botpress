@@ -1,5 +1,4 @@
 import * as sdk from 'botpress/sdk'
-import { KnexExtension } from 'common/knex'
 import { ConfigProvider } from 'core/config/config-loader'
 import Database from 'core/database'
 import { EventRepository } from 'core/repositories'
@@ -12,18 +11,23 @@ import ms from 'ms'
 
 import { SessionIdFactory } from '../dialog/session/id-factory'
 
+type BatchEvent = sdk.IO.StoredEvent & { retry?: number }
+
 @injectable()
 export class EventCollector {
+  private readonly MAX_RETRY_ATTEMPTS = 3
   private readonly BATCH_SIZE = 100
+  private readonly PRUNE_INTERVAL = ms('30s')
   private readonly TABLE_NAME = 'events'
-  private knex!: Knex & KnexExtension
+  private knex!: Knex & sdk.KnexExtension
   private intervalRef
   private currentPromise
+  private lastPruneTs: number = 0
 
   private enabled = false
   private interval!: number
   private retentionPeriod!: number
-  private batch: sdk.IO.StoredEvent[] = []
+  private batch: BatchEvent[] = []
   private ignoredTypes: string[] = []
   private ignoredProperties: string[] = []
 
@@ -52,6 +56,10 @@ export class EventCollector {
   public storeEvent(event: sdk.IO.OutgoingEvent | sdk.IO.IncomingEvent) {
     if (!this.enabled || this.ignoredTypes.includes(event.type)) {
       return
+    }
+
+    if (!event.botId || !event.channel || !event.direction) {
+      throw new Error(`Can't store event missing required fields (botId, channel, direction)`)
     }
 
     const { id, botId, channel, threadId, target, direction } = event
@@ -94,13 +102,25 @@ export class EventCollector {
     const elements = this.batch.splice(0, batchCount)
 
     this.currentPromise = this.knex
-      .batchInsert(this.TABLE_NAME, elements, this.BATCH_SIZE)
-      .then(async () => {
-        await this.runCleanup()
+      .batchInsert(
+        this.TABLE_NAME,
+        elements.map(x => _.omit(x, 'retry')),
+        this.BATCH_SIZE
+      )
+      .then(() => {
+        if (Date.now() - this.lastPruneTs >= this.PRUNE_INTERVAL) {
+          this.lastPruneTs = Date.now()
+          return this.runCleanup().catch(err => {
+            /* swallow errors */
+          })
+        }
       })
       .catch(err => {
         this.logger.attachError(err).error(`Couldn't store events to the database. Re-queuing elements`)
-        this.batch.push(...elements)
+        const elementsToRetry = elements
+          .map(x => ({ ...x, retry: x.retry ? x.retry + 1 : 1 }))
+          .filter(x => x.retry < this.MAX_RETRY_ATTEMPTS)
+        this.batch.push(...elementsToRetry)
       })
       .finally(() => {
         this.currentPromise = undefined

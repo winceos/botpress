@@ -2,9 +2,9 @@ import { AxiosInstance } from 'axios'
 import sdk from 'botpress/sdk'
 
 export const BIO = {
-  INSIDE: 'I',
-  BEGINNING: 'B',
-  OUT: 'o'
+  INSIDE: 'I' as Tag,
+  BEGINNING: 'B' as Tag,
+  OUT: 'o' as Tag
 }
 
 export type Tag = 'o' | 'B' | 'I'
@@ -12,16 +12,17 @@ export type Tag = 'o' | 'B' | 'I'
 export interface Token {
   tag?: Tag
   value: string
-  cannonical: string
+  canonical: string
   slot?: string
   start: number
   end: number
   matchedEntities: string[]
 }
 
+// TODO get rid of this and use upcoming Utterance
 export interface Sequence {
   intent: string
-  cannonical: string
+  canonical: string
   tokens: Token[]
   contexts?: string[]
 }
@@ -44,10 +45,6 @@ export interface Engine {
   extract(text: string, lastMessages: string[], includedContexts: string[]): Promise<sdk.IO.EventUnderstanding>
 }
 
-export interface EntityExtractor {
-  extract(input: string, lang: string): Promise<sdk.NLU.Entity[]>
-}
-
 export interface SlotExtractor {
   load(trainingSet: Sequence[], language: Buffer, crf: Buffer): Promise<void>
   train(trainingSet: Sequence[]): Promise<{ language: Buffer | undefined; crf: Buffer | undefined }>
@@ -68,9 +65,7 @@ export interface LanguageIdentifier {
 
 export const MODEL_TYPES = {
   INTENT: ['intent-l0', 'intent-l1', 'intent-tfidf', 'vocab'],
-  SLOT_LANG: 'slot-language-model',
-  SLOT_CRF: 'slot-crf',
-  INTENT_LM: 'intent-lm'
+  SLOT_CRF: 'slot-crf'
 }
 
 export interface ModelMeta {
@@ -101,6 +96,7 @@ export interface NLUStructure {
   intents: sdk.NLU.Intent[]
   intent: sdk.NLU.Intent
   tokens: Token[]
+  errored: boolean
 }
 
 export type Token2Vec = { [token: string]: number[] }
@@ -111,23 +107,17 @@ export interface Gateway {
   errors: number
   disabledUntil?: Date
 }
-;[]
 
 export interface LangsGateway {
   [lang: string]: Gateway[]
 }
 
 export interface LanguageProvider {
+  languages: string[]
   vectorize(tokens: string[], lang: string): Promise<Float32Array[]>
-  tokenize(utterances: string[], lang: string): Promise<string[][]>
+  tokenize(utterances: string[], lang: string, vocab?: Token2Vec): Promise<string[][]>
   generateSimilarJunkWords(subsetVocab: string[], lang: string): Promise<string[]>
   getHealth(): Partial<NLUHealth>
-}
-
-export interface FastTextOverrides {
-  learningRate?: number
-  epoch?: number
-  wordNgrams?: number
 }
 
 export interface LanguageSource {
@@ -147,3 +137,95 @@ export interface NluMlRecommendations {
   minUtterancesForML: number
   goodUtterancesForML: number
 }
+
+// TODOs adjust typings
+export interface Engine2 {
+  loadModel: (m: any) => Promise<void>
+  train: (...args) => Promise<any>
+  predict: (t: string, ctx: string[]) => Promise<sdk.IO.EventUnderstanding>
+}
+
+export interface NLUState {
+  nluByBot: _.Dictionary<BotState>
+  languageProvider?: LanguageProvider
+  health?: NLUHealth
+  broadcastLoadModel?: (botId: string, hash: string, language: string) => Promise<void>
+  broadcastCancelTraining?: (botId: string, language: string) => Promise<void>
+}
+
+export interface BotState {
+  botId: string
+  engine1: Engine
+  engine: Engine2
+  trainWatcher: sdk.ListenHandle
+  trainSessions: _.Dictionary<TrainingSession>
+}
+
+export type TFIDF = _.Dictionary<number>
+
+export type PatternEntity = Readonly<{
+  name: string
+  pattern: string
+  examples: string[]
+  matchCase: boolean
+  sensitive: boolean
+}>
+
+export type ListEntity = Readonly<{
+  name: string
+  synonyms: { [canonical: string]: string[] }
+  fuzzyTolerance: number
+  sensitive: boolean
+}>
+
+export type ListEntityModel = Readonly<{
+  type: 'custom.list'
+  id: string
+  languageCode: string
+  entityName: string
+  fuzzyTolerance: number
+  sensitive: boolean
+  /** @example { 'Air Canada': [ ['Air', '_Canada'], ['air', 'can'] ] } */
+  mappingsTokens: _.Dictionary<string[][]>
+}>
+
+export type ExtractedSlot = { confidence: number; name: string; source: string; value: any }
+export type ExtractedEntity = { confidence: number; type: string; metadata: any; value: string }
+export type EntityExtractionResult = ExtractedEntity & { start: number; end: number }
+export type SlotExtractionResult = { slot: ExtractedSlot; start: number; end: number }
+
+export interface TrainingSession {
+  status: 'training' | 'canceled' | 'done' | 'idle'
+  language: string
+  progress: number
+  lock?: sdk.RedisLock
+}
+
+export interface Tools {
+  tokenize_utterances(utterances: string[], languageCode: string, vocab?: Token2Vec): Promise<string[][]>
+  vectorize_tokens(tokens: string[], languageCode: string): Promise<number[][]>
+  partOfSpeechUtterances(utterances: string[][], languageCode: string): string[][]
+  generateSimilarJunkWords(vocabulary: string[], languageCode: string): Promise<string[]>
+  reportTrainingProgress(botId: string, message: string, trainSession: TrainingSession): void
+  duckling: SystemEntityExtractor
+  mlToolkit: typeof sdk.MLToolkit
+}
+
+export interface SystemEntityExtractor {
+  extractMultiple(input: string[], lang: string, useCache?: Boolean): Promise<sdk.NLU.Entity[][]>
+  extract(input: string, lang: string): Promise<sdk.NLU.Entity[]>
+}
+
+export type Intent<T> = Readonly<{
+  name: string
+  contexts: string[]
+  slot_definitions: SlotDefinition[]
+  utterances: T[]
+  vocab?: _.Dictionary<boolean>
+  slot_entities?: string[]
+}>
+
+type SlotDefinition = Readonly<{
+  name: string
+  entities: string[]
+}>

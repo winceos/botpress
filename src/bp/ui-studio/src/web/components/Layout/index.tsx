@@ -3,7 +3,6 @@ import { HotKeys } from 'react-hotkeys'
 import { connect } from 'react-redux'
 import { Redirect, Route, Switch } from 'react-router-dom'
 import SplitPane from 'react-split-pane'
-import { style, ToastContainer } from 'react-toastify'
 import { bindActionCreators } from 'redux'
 import { toggleBottomPanel, updateDocumentationModal, viewModeChanged } from '~/actions'
 import SelectContentManager from '~/components/Content/Select/Manager'
@@ -18,6 +17,7 @@ import Module from '~/views/Module'
 import Notifications from '~/views/Notifications'
 
 import GuidedTour from './GuidedTour'
+import LanguageServerHealth from './LangServerHealthWarning'
 import layout from './Layout.styl'
 import Sidebar from './Sidebar'
 import StatusBar from './StatusBar'
@@ -36,7 +36,6 @@ interface ILayoutProps {
 }
 
 class Layout extends React.Component<ILayoutProps> {
-  private botpressVersion: string
   private botName: string
   private botId: string
   private mainEl: HTMLElement
@@ -49,7 +48,6 @@ class Layout extends React.Component<ILayoutProps> {
   }
 
   componentDidMount() {
-    this.botpressVersion = window.BOTPRESS_VERSION
     this.botName = window.BOT_NAME
     this.botId = window.BOT_ID
 
@@ -121,7 +119,7 @@ class Layout extends React.Component<ILayoutProps> {
 
   goHome = () => {
     if (!isInputFocused()) {
-      window.location.href = '/admin'
+      window.location.href = `${window.ROOT_PATH}/admin`
     }
   }
 
@@ -148,7 +146,7 @@ class Layout extends React.Component<ILayoutProps> {
 
     const splitPanelLastSizeKey = `bp::${window.BOT_ID}::bottom-panel-size`
     const lastSize = parseInt(localStorage.getItem(splitPanelLastSizeKey) || '175', 10)
-    const bottomBarSize = this.props.bottomPanel ? lastSize : 0
+    const bottomBarSize = this.props.bottomPanel ? lastSize : '100%'
 
     return (
       <HotKeys handlers={keyHandlers} id="mainLayout">
@@ -158,14 +156,27 @@ class Layout extends React.Component<ILayoutProps> {
           <SplitPane
             split={'horizontal'}
             defaultSize={lastSize}
-            onChange={size => localStorage.setItem(splitPanelLastSizeKey, size.toString())}
+            onChange={size => size > 100 && localStorage.setItem(splitPanelLastSizeKey, size.toString())}
             size={bottomBarSize}
-            primary="second"
+            maxSize={-100}
+            pane1Style={
+              this.props.bottomPanel
+                ? {
+                    maxHeight: 'calc(100% - 100px)'
+                  }
+                : null
+            }
           >
             <div>
               <main ref={el => (this.mainEl = el)} className={layout.main} id="main" tabIndex={9999}>
                 <Switch>
-                  <Route exact path="/" render={() => <Redirect to="/flows" />} />
+                  <Route
+                    exact
+                    path="/"
+                    render={() =>
+                      window.IS_BOT_MOUNTED ? <Redirect to="/flows" /> : <Redirect to="/modules/code-editor" />
+                    }
+                  />
                   <Route exact path="/content" component={Content} />
                   <Route exact path="/flows/:flow*" component={FlowBuilder} />
                   <Route exact path="/modules/:moduleName/:componentName?" render={props => <Module {...props} />} />
@@ -177,7 +188,6 @@ class Layout extends React.Component<ILayoutProps> {
             <BottomPanel />
           </SplitPane>
 
-          <ToastContainer position="bottom-right" />
           <PluginInjectionSite site="overlay" />
           <BackendToast />
           <SelectContentManager />
@@ -185,7 +195,6 @@ class Layout extends React.Component<ILayoutProps> {
           <StatusBar
             botName={this.botName || this.botId}
             onToggleEmulator={this.toggleEmulator}
-            botpressVersion={this.botpressVersion}
             emitter={this.statusBarEmitter}
             langSwitcherOpen={this.state.langSwitcherOpen}
             toggleLangSwitcher={this.toggleLangSwitcher}
@@ -193,6 +202,7 @@ class Layout extends React.Component<ILayoutProps> {
             toggleBottomPanel={this.props.toggleBottomPanel}
           />
           <GuidedTour isDisplayed={this.state.guidedTourOpen} onToggle={this.toggleGuidedTour} />
+          <LanguageServerHealth />
         </div>
       </HotKeys>
     )
@@ -208,7 +218,4 @@ const mapStateToProps = state => ({
 const mapDispatchToProps = dispatch =>
   bindActionCreators({ viewModeChanged, updateDocumentationModal, toggleBottomPanel }, dispatch)
 
-export default connect(
-  mapStateToProps,
-  mapDispatchToProps
-)(Layout)
+export default connect(mapStateToProps, mapDispatchToProps)(Layout)

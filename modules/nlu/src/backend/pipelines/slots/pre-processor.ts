@@ -1,53 +1,59 @@
 import * as sdk from 'botpress/sdk'
 import _ from 'lodash'
 
-import { makeTokens, mergeSpecialCharactersTokens } from '../../tools/token-utils'
 import { allInRange } from '../../tools/math'
-import { LanguageProvider, KnownSlot, TrainingSequence } from '../../typings'
+import { makeTokens, mergeSpecialCharactersTokens, SPACE } from '../../tools/token-utils'
+import { KnownSlot, LanguageProvider, TrainingSequence } from '../../typings'
 import { BIO, Sequence, Token } from '../../typings'
 
 const ALL_SLOTS_REGEX = /\[(.+?)\]\(([\w_\.-]+)\)/gi
-const ITTERATIVE_SLOTS_REGEX = /\[(.+?)\]\(([\w_\.-]+)\)/i
 
+// DEPRECATED
 export function keepEntityTypes(text: string): string {
   return text.replace(ALL_SLOTS_REGEX, '$2')
 }
 
+// DEPRECATED
 export function keepEntityValues(text: string): string {
   return text.replace(ALL_SLOTS_REGEX, '$1')
 }
 
-export function getKnownSlots(text: string, slotDefinitions: sdk.NLU.SlotDefinition[]): KnownSlot[] {
+// DEPRECATED
+export function keepNothing(text: string): string {
+  return text.replace(ALL_SLOTS_REGEX, '').trim()
+}
+
+// DEPRECATED
+export function getKnownSlots(
+  text: string,
+  slotDefinitions: sdk.NLU.SlotDefinition[],
+  logger: sdk.Logger
+): KnownSlot[] {
   const slots = [] as KnownSlot[]
+  const localSlotsRegex = /\[(.+?)\]\(([\w_\.-]+)\)/gi // local because it is stateful
 
+  let removedChars = 0
   let regResult: RegExpExecArray | null
-  let cursor = 0
-  do {
-    const textCpy = text.substring(cursor)
-    regResult = ITTERATIVE_SLOTS_REGEX.exec(textCpy)
-    if (regResult) {
-      const rawMatch = regResult[0]
-      const source = regResult[1] as string
-      const slotName = regResult[2] as string
+  while ((regResult = localSlotsRegex.exec(text))) {
+    const rawMatch = regResult[0]
+    const source = regResult[1] as string
+    const slotName = regResult[2] as string
 
-      const previousSlot = _.last(slots)
-      const start = (previousSlot ? previousSlot.end : 0) + regResult.index
-      const end = start + source.length
+    const slotDef = slotDefinitions.find(sd => sd.name === slotName)
 
-      cursor = start + rawMatch.length
-
-      const slotDef = slotDefinitions.find(sd => sd.name === slotName)
-
-      if (slotDef) {
-        slots.push({ ...slotDef, start, end, source })
-      }
+    if (slotDef) {
+      const start = regResult.index - removedChars
+      removedChars += rawMatch.length - source.length
+      slots.push({ ...slotDef, start, end: start + source.length, source })
+    } else {
+      logger.warn(`A slot was found for utterance: ${text} but was not found in slot definitions.`)
     }
-  } while (regResult)
+  }
 
   return slots
 }
 
-// TODO use the same algorithm as in the prediction sequence
+// DEPRECATED
 const _generateTrainingTokens = languageProvider => async (
   input: string,
   lang: string,
@@ -62,7 +68,7 @@ const _generateTrainingTokens = languageProvider => async (
   const tagToken = index => (!slot ? BIO.OUT : index === 0 ? BIO.BEGINNING : BIO.INSIDE)
 
   const [rawToks] = await languageProvider.tokenize([input.toLowerCase()], lang)
-  return makeTokens(rawToks, input).map((t, idx) => {
+  const toks = makeTokens(rawToks, input).map((t, idx) => {
     const tok = {
       ...t,
       start: start + t.start,
@@ -74,35 +80,46 @@ const _generateTrainingTokens = languageProvider => async (
 
     return tok
   })
+
+  return mergeSpecialCharactersTokens(toks)
 }
 
-const charactersToMerge: string[] = '"+è-_!@#$%?&*()1234567890~`/\\[]{}:;<>='.split('')
-
-export const generatePredictionSequence = async (
-  input: string,
-  intentName: string,
-  entities: sdk.NLU.Entity[],
-  toks: Token[]
-): Promise<Sequence> => {
-  const tokens = mergeSpecialCharactersTokens(toks, charactersToMerge).map(tok => {
+// DEPRECATED
+export const assignMatchedEntitiesToTokens = (toks: Token[], entities: sdk.NLU.Entity[]): Token[] => {
+  return toks.map(tok => {
     const matchedEntities = entities
       .filter(e => allInRange([tok.start, tok.end], e.meta.start, e.meta.end + 1))
       .map(e => e.name)
-
     return {
       ...tok,
       matchedEntities
     }
   })
-
-  return {
-    intent: intentName,
-    cannonical: input,
-    tokens
-  }
 }
 
-export const generateTrainingSequence = (langProvider: LanguageProvider) => async (
+// DEPRECATED
+export const generatePredictionSequence = async (
+  input: string,
+  intent: sdk.NLU.IntentDefinition,
+  entities: sdk.NLU.Entity[],
+  toks: Token[]
+): Promise<Sequence> => {
+  // we might want to perform this filtering only in the vectorize function in the
+  const allowedEntitiesInIntent = _.chain(intent.slots)
+    .flatMap(s => s.entities)
+    .uniq()
+    .value()
+
+  entities = _.intersectionWith(entities, allowedEntitiesInIntent, (entity, entName) => entity.name === entName)
+
+  return {
+    intent: intent.name,
+    canonical: input,
+    tokens: assignMatchedEntitiesToTokens(toks, entities)
+  }
+}
+// DEPRECATED
+export const generateTrainingSequence = (langProvider: LanguageProvider, logger: sdk.Logger) => async (
   input: string,
   lang: string,
   slotDefinitions: sdk.NLU.SlotDefinition[],
@@ -111,13 +128,13 @@ export const generateTrainingSequence = (langProvider: LanguageProvider) => asyn
 ): Promise<TrainingSequence> => {
   let tokens: Token[] = []
   const genToken = _generateTrainingTokens(langProvider)
-  const cannonical = keepEntityValues(input)
-  const knownSlots = getKnownSlots(input, slotDefinitions)
+  const canonical = keepEntityValues(input).toLowerCase() // TODO: Use DS as input instead
+  const knownSlots = getKnownSlots(input, slotDefinitions, logger)
 
   // TODO: this logic belongs near makeTokens and we should let makeTokens fill the matched entities
   for (const slot of knownSlots) {
     const start = _.isEmpty(tokens) ? 0 : _.last(tokens)!.end
-    const sub = cannonical.substring(start, slot.start - 1)
+    const sub = canonical.substring(start, slot.start - 1)
     const tokensBeforeSlot = await genToken(sub, lang, start)
 
     const slotTokens = await genToken(slot.source, lang, slot.start, slot.name, slotDefinitions)
@@ -126,16 +143,20 @@ export const generateTrainingSequence = (langProvider: LanguageProvider) => asyn
   }
 
   const lastSlot = _.maxBy(knownSlots, ks => ks.end)
-  if (lastSlot && lastSlot!.end < cannonical.length) {
-    const textLeftAfterLastSlot: string = cannonical.substring(lastSlot!.end)
+  if (lastSlot) {
+    const textLeftAfterLastSlot: string = canonical.substring(lastSlot!.end)
     const start = _.isEmpty(tokens) ? 0 : _.last(tokens)!.end
     const tokensLeft = await genToken(textLeftAfterLastSlot, lang, start)
+    tokens = [...tokens, ...tokensLeft]
+  } else {
+    const start = _.isEmpty(tokens) ? 0 : _.last(tokens)!.end
+    const tokensLeft = await genToken(canonical, lang, start)
     tokens = [...tokens, ...tokensLeft]
   }
 
   return {
     intent: intentName,
-    cannonical,
+    canonical,
     tokens,
     contexts,
     knownSlots

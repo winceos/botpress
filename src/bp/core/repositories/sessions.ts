@@ -1,5 +1,6 @@
 import * as sdk from 'botpress/sdk'
 import { inject, injectable } from 'inversify'
+import Knex from 'knex'
 import _ from 'lodash'
 
 import Database from '../database'
@@ -14,7 +15,7 @@ export class DialogSession {
     public session_data?: sdk.IO.CurrentSession
   ) {}
 
-  // Timestamps are optionnal because they have default values in the database
+  // Timestamps are optional because they have default values in the database
   created_on?: Date
   modified_on?: Date
   context_expiry?: Date
@@ -23,12 +24,12 @@ export class DialogSession {
 
 export interface SessionRepository {
   insert(session: DialogSession): Promise<DialogSession>
-  getOrCreateSession(sessionId: string, botId: string): Promise<DialogSession>
+  getOrCreateSession(sessionId: string, botId: string, trx?: Knex.Transaction): Promise<DialogSession>
   get(id: string): Promise<DialogSession>
   getExpiredContextSessionIds(botId: string): Promise<string[]>
   deleteExpiredSessions(botId: string)
   delete(id: string)
-  update(session: DialogSession)
+  update(session: DialogSession, trx?: Knex.Transaction)
 }
 
 @injectable()
@@ -37,20 +38,27 @@ export class KnexSessionRepository implements SessionRepository {
 
   constructor(@inject(TYPES.Database) private database: Database) {}
 
-  async getOrCreateSession(sessionId: string, botId: string): Promise<DialogSession> {
+  async getOrCreateSession(sessionId: string, botId: string, trx?: Knex.Transaction): Promise<DialogSession> {
     const session = await this.get(sessionId)
     if (!session) {
-      return this.createSession(sessionId, botId, {}, {}, {})
+      return this.createSession(sessionId, botId, {}, {}, {}, trx)
     }
     return session
   }
 
-  async createSession(sessionId, botId, context, temp_data, session_data): Promise<DialogSession> {
+  async createSession(
+    sessionId,
+    botId,
+    context,
+    temp_data,
+    session_data,
+    trx?: Knex.Transaction
+  ): Promise<DialogSession> {
     const session = new DialogSession(sessionId, botId, context, temp_data, session_data)
-    return this.insert(session)
+    return this.insert(session, trx)
   }
 
-  async insert(session: DialogSession): Promise<DialogSession> {
+  async insert(session: DialogSession, trx?: Knex.Transaction): Promise<DialogSession> {
     const newSession = await this.database.knex.insertAndRetrieve<DialogSession>(
       this.tableName,
       {
@@ -64,7 +72,9 @@ export class KnexSessionRepository implements SessionRepository {
         context_expiry: session.context_expiry ? this.database.knex.date.format(session.context_expiry) : eval('null'),
         session_expiry: session.session_expiry ? this.database.knex.date.format(session.session_expiry) : eval('null')
       },
-      ['id', 'botId', 'context', 'temp_data', 'session_data', 'modified_on', 'created_on']
+      ['id', 'botId', 'context', 'temp_data', 'session_data', 'modified_on', 'created_on'],
+      undefined,
+      trx
     )
 
     if (newSession) {
@@ -77,10 +87,10 @@ export class KnexSessionRepository implements SessionRepository {
 
   async get(id: string): Promise<DialogSession> {
     const session = <DialogSession>await this.database
-      .knex(this.tableName)
+      .knex<DialogSession>(this.tableName)
       .where({ id })
       .select('*')
-      .get(0)
+      .first()
       .then()
 
     if (session) {
@@ -111,8 +121,8 @@ export class KnexSessionRepository implements SessionRepository {
       .del()
   }
 
-  async update(session: DialogSession): Promise<void> {
-    await this.database
+  async update(session: DialogSession, trx?: Knex.Transaction): Promise<void> {
+    const req = this.database
       .knex(this.tableName)
       .where('id', session.id)
       .update({
@@ -123,6 +133,12 @@ export class KnexSessionRepository implements SessionRepository {
         session_expiry: session.session_expiry ? this.database.knex.date.format(session.session_expiry) : eval('null'),
         modified_on: this.database.knex.date.now()
       })
+
+    if (trx) {
+      req.transacting(trx)
+    }
+
+    await req
   }
 
   async delete(id: string) {

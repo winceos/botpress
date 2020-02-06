@@ -5,16 +5,16 @@ title: Licensing
 
 ## Obtaining a License
 
-Please contact sales@botpress.io to obtain a license.
+Please contact us through our [webform](https://botpress.typeform.com/to/QaznSq).
 
 ## Activate your License
 
-When starting Botpress, use the `BP_LICENSE_KEY=<license_key>` environment variable.
+When starting Botpress, use the `BP_LICENSE_KEY=<license_key>` environment variable as well as the `EXTERNAL_URL=<public_url>` environment variable.
 
 **Binary**
 
 ```bash
-BP_LICENSE_KEY=<license_key> ./bp
+BP_LICENSE_KEY=<license_key> EXTERNAL_URL=<public_url> ./bp
 ```
 
 **Docker**
@@ -24,7 +24,8 @@ docker run -d \
 --name botpress \
 -p 3000:3000 \
 -v botpress_data:/botpress/data \
--e BP_LICENSE_KEY=<license_key>
+-e BP_LICENSE_KEY=<license_key> \
+-e EXTERNAL_URL=<public_url> \
 botpress/server:$TAG
 ```
 

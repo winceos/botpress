@@ -30,8 +30,8 @@ describe('Ghost Service', () => {
   })
 
   describe(`Using Disk Driver`, () => {
-    beforeEach(() => {
-      ghost.initialize(false)
+    beforeEach(async () => {
+      await ghost.initialize(false, true)
     })
 
     it('DB Driver is never ever called', async () => {
@@ -99,6 +99,9 @@ describe('Ghost Service', () => {
 
     it('Never has any pending revisions', async () => {
       dbDriver.listRevisions.mockReturnValue([{ file_path: 'abc', revision: 'rev' }]) // Even if DB driver says there are some revisions
+      diskDriver.readFile.mockImplementation(fileName => {
+        return fileName === `data/bots/${BOT_ID}/bot.config.json` && '{}'
+      })
       await ghost.forBot(BOT_ID).upsertFile('test', 'a.json', 'Hello') // And that we modify a file
 
       const revisions = await ghost.global().getPendingChanges()
@@ -113,8 +116,8 @@ describe('Ghost Service', () => {
         revision: n
       }
 
-    beforeEach(() => {
-      ghost.initialize(true)
+    beforeEach(async () => {
+      await ghost.initialize(true, true)
     })
 
     describe('read/write/delete', () => {
@@ -124,7 +127,7 @@ describe('Ghost Service', () => {
 
         expect(diskDriver.readFile).not.toHaveBeenCalled()
         expect(dbDriver.readFile).toHaveBeenCalled()
-        expect(content).toContain(`test${path.sep}my${path.sep}test.json`)
+        expect(content).toContain(`test/my/test.json`)
       })
       it('write uses DB', async () => {
         await ghost.global().upsertFile('test', 'test.json', 'my content')
@@ -169,19 +172,6 @@ describe('Ghost Service', () => {
     })
 
     describe('sync', () => {
-      it('if disk is not up to date, mark as dirty and dont sync disk files', async () => {
-        dbDriver.listRevisions.mockReturnValue(['1', '2', '3'].map(buildRev))
-        diskDriver.listRevisions.mockReturnValue(['1', '2'].map(buildRev)) // missing revision "3"
-
-        await ghost.global().sync()
-
-        // We make sure the user is warned of the dirty state
-        expect(logger.warn).toHaveBeenCalled()
-
-        // Make sure we haven't synced anything
-        expect(diskDriver.readFile).not.toHaveBeenCalled()
-        expect(dbDriver.upsertFile).not.toHaveBeenCalled()
-      })
       it('if disk is up to date, sync disk files', async () => {
         dbDriver.listRevisions.mockReturnValue(['1', '2', '3'].map(buildRev))
         diskDriver.listRevisions.mockReturnValue(['1', '2', '3'].map(buildRev)) // All synced!

@@ -23,12 +23,13 @@ import { ModuleResourceLoader } from './services/module/resources-loader'
 import { TYPES } from './types'
 
 const MODULE_SCHEMA = joi.object().keys({
-  onServerStarted: joi.func().required(),
-  onServerReady: joi.func().required(),
+  onServerStarted: joi.func().optional(),
+  onServerReady: joi.func().optional(),
   onBotMount: joi.func().optional(),
   onBotUnmount: joi.func().optional(),
   onModuleUnmount: joi.func().optional(),
   onFlowChanged: joi.func().optional(),
+  onFlowRenamed: joi.func().optional(),
   onElementChanged: joi.func().optional(),
   skills: joi.array().optional(),
   botTemplates: joi.array().optional(),
@@ -203,6 +204,15 @@ export class ModuleLoader {
     }
   }
 
+  public async onFlowRenamed(botId: string, previousFlowName: string, newFlowName: string) {
+    const modules = this.getLoadedModules()
+    for (const module of modules) {
+      const entryPoint = this.getModule(module.name)
+      const api = await createForModule(module.name)
+      await (entryPoint.onFlowRenamed && entryPoint.onFlowRenamed(api, botId, previousFlowName, newFlowName))
+    }
+  }
+
   public async onElementChanged(
     botId: string,
     action: ElementChangedAction,
@@ -241,19 +251,25 @@ export class ModuleLoader {
   public async loadModulesForBot(botId: string) {
     const modules = this.getLoadedModules()
     for (const module of modules) {
-      const entryPoint = this.getModule(module.name)
-      const api = await createForModule(module.name)
-      await (entryPoint.onBotMount && entryPoint.onBotMount(api, botId))
+      try {
+        const entryPoint = this.getModule(module.name)
+        const api = await createForModule(module.name)
+        await (entryPoint.onBotMount && entryPoint.onBotMount(api, botId))
+      } catch (err) {
+        throw new Error(`while mounting bot in module ${module.name}: ${err}`)
+      }
     }
   }
 
   public getBotTemplates(): BotTemplate[] {
     const modules = Array.from(this.entryPoints.values())
-    const templates = modules.filter(module => module.botTemplates).map(module => {
-      return module.botTemplates!.map(template => {
-        return { ...template, moduleId: module.definition.name, moduleName: module.definition.fullName }
+    const templates = modules
+      .filter(module => module.botTemplates)
+      .map(module => {
+        return module.botTemplates!.map(template => {
+          return { ...template, moduleId: module.definition.name, moduleName: module.definition.fullName }
+        })
       })
-    })
 
     return _.flatten(templates)
   }
@@ -271,11 +287,14 @@ export class ModuleLoader {
   public async getAllSkills(): Promise<Partial<Skill>[]> {
     const skills = Array.from(this.entryPoints.values())
       .filter(module => module.skills)
-      .map(module => {
-        return module.skills!.map(skill => {
-          return { id: skill.id, name: skill.name, moduleName: module.definition.name }
-        })
-      })
+      .map(module =>
+        module.skills!.map(skill => ({
+          id: skill.id,
+          name: skill.name,
+          icon: skill.icon,
+          moduleName: module.definition.name
+        }))
+      )
 
     return _.flatten(skills)
   }

@@ -1,5 +1,6 @@
 import * as sdk from 'botpress/sdk'
 import _ from 'lodash'
+import yn from 'yn'
 
 const setup = async bp => {
   const router = bp.http.createRouterForBot('basic-skills')
@@ -32,8 +33,27 @@ const setup = async bp => {
 }
 
 const generateFlow = async (data: any, metadata: sdk.FlowGeneratorMetadata): Promise<sdk.FlowGenerationResult> => {
+  const { randomId } = data
   const hardRetryLimit = 10
-  const nbMaxRetries = Number(Math.min(data.config.nbMaxRetries, hardRetryLimit))
+  const nbMaxRetries = Math.min(Number(data.config.nbMaxRetries), hardRetryLimit)
+  const repeatQuestion = yn(data.config.repeatChoicesOnInvalid)
+
+  const sorrySteps = []
+
+  if (data.invalidContentId && data.invalidContentId.length >= 3) {
+    sorrySteps.push({
+      type: sdk.NodeActionType.RenderElement,
+      name: `#!${data.invalidContentId}`
+    })
+  }
+
+  if (repeatQuestion) {
+    sorrySteps.push({
+      type: sdk.NodeActionType.RenderElement,
+      name: `#!${data.contentId}`,
+      args: { skill: 'choice' }
+    })
+  }
 
   const nodes: sdk.SkillFlowNode[] = [
     {
@@ -53,22 +73,26 @@ const generateFlow = async (data: any, metadata: sdk.FlowGeneratorMetadata): Pro
         {
           type: sdk.NodeActionType.RunAction,
           name: 'basic-skills/choice_parse_answer',
-          args: data
+          args: { ...data, randomId }
         }
       ],
-      next: [{ condition: `temp['skill-choice-valid'] === true`, node: '#' }, { condition: 'true', node: 'invalid' }]
+      next: [
+        { condition: `temp['skill-choice-valid-${randomId}'] === true`, node: '#' },
+        { condition: 'true', node: 'invalid' }
+      ]
     },
     {
       name: 'invalid',
       onEnter: [
         {
           type: sdk.NodeActionType.RunAction,
-          name: 'basic-skills/choice_invalid_answer'
+          name: 'basic-skills/choice_invalid_answer',
+          args: { randomId }
         }
       ],
       next: [
         {
-          condition: `temp['skill-choice-invalid-count'] == ${nbMaxRetries}`,
+          condition: `Number(temp['skill-choice-invalid-count-${randomId}']) > Number(${nbMaxRetries})`,
           node: '#'
         },
         { condition: 'true', node: 'sorry' }
@@ -76,18 +100,13 @@ const generateFlow = async (data: any, metadata: sdk.FlowGeneratorMetadata): Pro
     },
     {
       name: 'sorry',
-      onEnter: data.invalidContentId && [
-        {
-          type: sdk.NodeActionType.RenderElement,
-          name: `#!${data.invalidContentId}`
-        }
-      ],
-      next: [{ condition: 'true', node: 'entry' }]
+      onEnter: sorrySteps,
+      next: [{ condition: 'true', node: 'parse' }]
     }
   ]
 
   return {
-    transitions: createTransitions(data),
+    transitions: createTransitions(data, randomId),
     flow: {
       nodes: nodes,
       catchAll: {
@@ -97,13 +116,13 @@ const generateFlow = async (data: any, metadata: sdk.FlowGeneratorMetadata): Pro
   }
 }
 
-const createTransitions = data => {
+const createTransitions = (data, randomId) => {
   const transitions: sdk.NodeTransition[] = Object.keys(data.keywords).map(choice => {
     const choiceShort = choice.length > 8 ? choice.substr(0, 7) + '...' : choice
 
     return {
       caption: `User picked [${choiceShort}]`,
-      condition: `temp['skill-choice-ret'] == "${choice}"`,
+      condition: `temp['skill-choice-ret-${randomId}'] == "${choice}"`,
       node: ''
     }
   })

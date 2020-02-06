@@ -11,8 +11,11 @@ const style = require('./style.scss')
 
 export default class StandardNodePropertiesPanel extends Component {
   renameNode = text => {
-    if (text && text !== this.props.node.name) {
-      this.props.updateNode({ name: text })
+    if (text) {
+      const alreadyExists = this.props.flow.nodes.find(x => x.name === text)
+      if (!alreadyExists) {
+        this.props.updateNode({ name: text })
+      }
     }
   }
 
@@ -23,19 +26,11 @@ export default class StandardNodePropertiesPanel extends Component {
   render() {
     const { node, readOnly } = this.props
 
-    const onNameMounted = input => {
-      if (input.value.startsWith('node-')) {
-        input.focus()
-        input.setSelectionRange(0, 1000)
-      }
-    }
-
     return (
       <div className={style.node}>
         <Panel>
           <EditableInput
             readOnly={readOnly}
-            onMount={onNameMounted}
             value={node.name}
             className={style.name}
             onChanged={this.renameNode}
@@ -43,43 +38,47 @@ export default class StandardNodePropertiesPanel extends Component {
           />
         </Panel>
         <Tabs animation={false} id="node-props-modal-standard-node-tabs">
-          <Tab
-            eventKey="on_enter"
-            title={
-              <Fragment>
-                <Badge>{(node.onEnter && node.onEnter.length) || 0}</Badge> On Enter
-              </Fragment>
-            }
-          >
-            <ActionSection
-              readOnly={readOnly}
-              items={node.onEnter}
-              header="On Enter"
-              onItemsUpdated={items => this.props.updateNode({ onEnter: items })}
-              copyItem={item => this.props.copyFlowNodeElement({ action: item })}
-              pasteItem={() => this.props.pasteFlowNodeElement('onEnter')}
-              canPaste={Boolean(this.props.buffer.action)}
-            />
-          </Tab>
-          <Tab
-            eventKey="on_receive"
-            title={
-              <Fragment>
-                <Badge>{(node.onReceive && node.onReceive.length) || 0}</Badge> On Receive
-              </Fragment>
-            }
-          >
-            <ActionSection
-              readOnly={readOnly}
-              items={node.onReceive}
-              header="On Receive"
-              waitable={true}
-              onItemsUpdated={items => this.props.updateNode({ onReceive: items })}
-              copyItem={item => this.props.copyFlowNodeElement({ action: item })}
-              pasteItem={() => this.props.pasteFlowNodeElement('onReceive')}
-              canPaste={Boolean(this.props.buffer.action)}
-            />
-          </Tab>
+          {!this.props.transitionOnly && (
+            <Tab
+              eventKey="on_enter"
+              title={
+                <Fragment>
+                  <Badge>{(node.onEnter && node.onEnter.length) || 0}</Badge> On Enter
+                </Fragment>
+              }
+            >
+              <ActionSection
+                readOnly={readOnly}
+                items={node.onEnter}
+                header="On Enter"
+                onItemsUpdated={items => this.props.updateNode({ onEnter: items })}
+                copyItem={item => this.props.copyFlowNodeElement({ action: item })}
+                pasteItem={() => this.props.pasteFlowNodeElement('onEnter')}
+                canPaste={Boolean(this.props.buffer.action)}
+              />
+            </Tab>
+          )}
+          {!this.props.transitionOnly && (
+            <Tab
+              eventKey="on_receive"
+              title={
+                <Fragment>
+                  <Badge>{(node.onReceive && node.onReceive.length) || 0}</Badge> On Receive
+                </Fragment>
+              }
+            >
+              <ActionSection
+                readOnly={readOnly}
+                items={node.onReceive}
+                header="On Receive"
+                waitable={true}
+                onItemsUpdated={items => this.props.updateNode({ onReceive: items })}
+                copyItem={item => this.props.copyFlowNodeElement({ action: item })}
+                pasteItem={() => this.props.pasteFlowNodeElement('onReceive')}
+                canPaste={Boolean(this.props.buffer.action)}
+              />
+            </Tab>
+          )}
           <Tab
             eventKey="transitions"
             title={

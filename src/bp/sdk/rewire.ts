@@ -9,7 +9,7 @@ const platformFolders: string[] = []
 const nativeBindingsPaths: string[] = []
 
 const nativeExBaseFolder =
-  (process.core_env.NATIVE_EXTENSIONS_DIR && syspath.resolve(process.core_env.NATIVE_EXTENSIONS_DIR)) ||
+  (process.core_env.NATIVE_EXTENSIONS_DIR && syspath.resolve(process.env.NATIVE_EXTENSIONS_DIR!)) ||
   (process.pkg
     ? syspath.resolve(syspath.dirname(process.execPath), 'bindings')
     : syspath.resolve(process.PROJECT_LOCATION, '../../build/native-extensions'))
@@ -27,8 +27,13 @@ if (process.distro.os === 'linux') {
       .sort()
       .reverse()
 
-    const nearestDistro = _.find(folders, f => f <= fullDist) || _.first(folders)
-    nearestDistro && platformFolders.unshift('linux/' + nearestDistro)
+    let nearestDistro = _.filter(folders, f => f <= fullDist) // we're trying to find versions earlier
+
+    if (!nearestDistro.length) {
+      nearestDistro = folders
+    }
+
+    platformFolders.unshift(..._.take(nearestDistro, 3).map(x => 'linux/' + x))
   } finally {
   }
 } else if (os.platform() === 'win32') {

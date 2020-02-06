@@ -61,7 +61,7 @@ export class IOEvent implements sdk.IO.Event {
     this.id = args.id || (Date.now() * 100000 + ((Math.random() * 100000) | 0)).toString()
     this.preview = args.preview || this.constructPreview()
     this.flags = {}
-    this.state = {}
+    this.state = { __stacktrace: [] }
     args.nlu = args.nlu || {}
 
     if (this.direction === 'incoming') {
@@ -83,6 +83,7 @@ export class IOEvent implements sdk.IO.Event {
       intents: [],
       errored: false,
       includedContexts: ['global'],
+      ms: 0,
       ...args.nlu
     }
   }

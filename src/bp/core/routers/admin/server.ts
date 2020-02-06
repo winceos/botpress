@@ -1,28 +1,36 @@
 import { Logger } from 'botpress/sdk'
-import { spawn } from 'child_process'
 import { ConfigProvider } from 'core/config/config-loader'
 import { GhostService } from 'core/services'
 import { AlertingService } from 'core/services/alerting-service'
+import { JobService } from 'core/services/job-service'
 import { MonitoringService } from 'core/services/monitoring'
+import { WorkspaceService } from 'core/services/workspace-service'
 import { Router } from 'express'
 import _ from 'lodash'
+import os from 'os'
+import yn from 'yn'
 
 import { getDebugScopes, setDebugScopes } from '../../../debug'
 import { CustomRouter } from '../customRouter'
 
 export class ServerRouter extends CustomRouter {
+  private _rebootServer!: Function
+
   constructor(
     private logger: Logger,
     private monitoringService: MonitoringService,
+    private workspaceService: WorkspaceService,
     private alertingService: AlertingService,
     private configProvider: ConfigProvider,
-    private ghostService: GhostService
+    private ghostService: GhostService,
+    private jobService: JobService
   ) {
     super('Server', logger, Router({ mergeParams: true }))
+    // tslint:disable-next-line: no-floating-promises
     this.setupRoutes()
   }
 
-  setupRoutes() {
+  async setupRoutes() {
     const router = this.router
 
     router.post(
@@ -82,19 +90,20 @@ export class ServerRouter extends CustomRouter {
           return res.status(400).send(`Rebooting the server is disabled in the botpress.config.json file`)
         }
 
-        this.logger.info(`User ${user} requested a server reboot`)
+        this.logger.info(`User ${user} requested a server reboot for ${req.query.hostname}`)
 
+        await this._rebootServer(req.query.hostname)
         res.sendStatus(200)
+      })
+    )
 
-        // Timeout is only to allow the response to reach the asking user
-        setTimeout(() => {
-          spawn(process.argv[0], process.argv.slice(1), {
-            detached: true,
-            stdio: 'inherit'
-          }).unref()
-
-          process.exit()
-        }, 100)
+    router.get(
+      '/configHash',
+      this.asyncMiddleware(async (req, res) => {
+        res.send({
+          initialHash: this.configProvider.initialConfigHash,
+          currentHash: this.configProvider.currentConfigHash
+        })
       })
     )
 
@@ -120,5 +129,56 @@ export class ServerRouter extends CustomRouter {
         res.sendStatus(200)
       })
     )
+
+    router.get(
+      '/serverConfig',
+      this.asyncMiddleware(async (req, res) => {
+        if (yn(process.core_env.BP_DISABLE_SERVER_CONFIG)) {
+          return res.send(undefined)
+        }
+
+        const serverConfig = {
+          config: await this.configProvider.getBotpressConfig(),
+          live: _.pick(process, ['EXTERNAL_URL', 'ROOT_PATH', 'PROXY', 'APP_DATA_PATH', 'IS_LICENSED']),
+          env: _.pick(process.core_env, [
+            'BPFS_STORAGE',
+            'PRO_ENABLED',
+            'REDIS_URL',
+            'EXTERNAL_URL',
+            'DATABASE_URL',
+            'BP_PRODUCTION',
+            'CLUSTER_ENABLED',
+            'AUTO_MIGRATE',
+            'BP_LICENSE_KEY'
+          ])
+        }
+        res.send(serverConfig)
+      })
+    )
+
+    router.post(
+      '/features/enable/:featureId',
+      this.asyncMiddleware(async (req, res) => {
+        const { featureId } = req.params
+
+        if (featureId === 'pro') {
+          await this.configProvider.mergeBotpressConfig({ pro: { enabled: true } })
+        } else if (featureId === 'monitoring') {
+          await this.configProvider.mergeBotpressConfig({ pro: { monitoring: { enabled: true } } })
+        } else if (featureId === 'alerting') {
+          await this.configProvider.mergeBotpressConfig({ pro: { alerting: { enabled: true } } })
+        }
+
+        res.sendStatus(200)
+      })
+    )
+
+    this._rebootServer = await this.jobService.broadcast<void>(this.__local_rebootServer.bind(this))
+  }
+
+  private __local_rebootServer(hostname?: string) {
+    if (!hostname || hostname === os.hostname()) {
+      process.send!({ type: 'reboot_server' })
+    }
   }
 }

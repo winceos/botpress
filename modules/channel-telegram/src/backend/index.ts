@@ -40,13 +40,23 @@ const onServerStarted = async (bp: typeof sdk) => {
 }
 
 const onBotMount = async (bp: typeof sdk, botId: string) => {
-  const config = (await bp.config.getModuleConfigForBot('channel-telegram', botId)) as Config
+  const config = (await bp.config.getModuleConfigForBot('channel-telegram', botId, true)) as Config
 
   if (config.enabled) {
     const bot = new Telegraf(config.botToken)
 
     if (useWebhooks) {
-      await bot.telegram.setWebhook(whPath.replace('BOT_ID', botId))
+      // There's a strict limit on the number of calls of the API, so we let only one node register it
+      const lock = await bp.distributed.acquireLock(`lock_telegram_${botId}`, 4000)
+      if (lock) {
+        await bot.telegram.setWebhook(whPath.replace('BOT_ID', botId)).catch(err => {
+          // Ignore too many request errors
+          if (err.code !== 429) {
+            throw err
+          }
+        })
+      }
+
       whMiddleware[botId] = bot.webhookCallback('/')
     } else {
       await bot.telegram.deleteWebhook()
@@ -83,7 +93,7 @@ const entryPoint: sdk.ModuleEntryPoint = {
     name: 'channel-telegram',
     menuIcon: 'none', // no interface = true
     fullName: 'Telegram',
-    homepage: 'https://botpress.io',
+    homepage: 'https://botpress.com',
     noInterface: true,
     plugins: []
   }

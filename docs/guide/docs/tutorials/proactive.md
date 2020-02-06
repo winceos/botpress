@@ -11,7 +11,7 @@ You may wish to make your bot act proactively on your website in response to som
 
 ### Send an event from the webpage
 
-First you need to open the webchat (either manually or programatically) and then send an event from the webpage.
+First you need to open the webchat (either manually or programmatically) and then send an event from the webpage.
 
 > 📖 How do I open the webchat? Please refer to the [channel-web](../channels/web#embedding) section.
 
@@ -44,7 +44,7 @@ if (event.type === 'proactive-trigger') {
 
 ## Webchat events
 
-There's currently 3 events that can be catched in your page :
+There's currently 3 events that can be caught in your page :
 
 | name            | Description                                                 |
 | --------------- | ----------------------------------------------------------- |
@@ -58,7 +58,7 @@ Here are some examples of how can you use webchat events in your page.
 
 ### Send message on page load
 
-This will send an event everytime the page is loaded.
+This will send an event every time the page is loaded.
 
 Use this code in your `index.html`:
 
@@ -196,7 +196,7 @@ if (event.type === 'proactive-trigger') {
 }
 ```
 
-Here we're using the [replyToEvent](https://botpress.io/reference/modules/_botpress_sdk_.events.html#replytoevent) function from the SDK to reply to the current event and [renderElement](https://botpress.io/reference/modules/_botpress_sdk_.cms.html#renderelement) to render our custom content.
+Here we're using the [replyToEvent](https://botpress.com/reference/modules/_botpress_sdk_.events.html#replytoevent) function from the SDK to reply to the current event and [renderElement](https://botpress.com/reference/modules/_botpress_sdk_.cms.html#renderelement) to render our custom content.
 
 ### Send proactive only to new users
 
@@ -208,7 +208,7 @@ When you want to respond only to new users, you have to check if their session i
 ```js
 if (event.type === 'proactive-trigger') {
   // We only want to trigger a proactive message when the session is new,
-  // otherwise the conversation will progress everytime the page is refreshed.
+  // otherwise the conversation will progress every time the page is refreshed.
   if (event.state.session.lastMessages.length) {
     // This will tell the dialog engine to skip the processing of this event.
     event.setFlag(bp.IO.WellKnownFlags.SKIP_DIALOG_ENGINE, true)

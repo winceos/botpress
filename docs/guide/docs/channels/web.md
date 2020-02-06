@@ -33,29 +33,20 @@ There is an example included in the default botpress installation at `http://loc
 
 ## Bot Information page
 
-The information page displays informations like the website url, a phone number, an e-mail contact address, and links to terms of services and privacy policies. You can also include a cover picture and an avatar for your bot.
+The information page displays information like the website url, a phone number, an e-mail contact address, and links to terms of services and privacy policies. You can also include a cover picture and an avatar for your bot.
 
 ![Bot Info Page](assets/webchat-bot-info.png)
 
 How to set up the information page:
 
 1. On the Admin UI, click on the link `Config` next to the name of the bot you want to change.
-2. Edit your bot informations in the `More details` and `Pictures` sections.
+2. Edit your bot information in the `More details` and `Pictures` sections.
 3. Edit the file `data/global/config/channel-web.json` and set `showBotInfoPage` to `true` **\*\***
 4. Refresh your browser.
 
 You will see the page when starting a new conversation. The page is always accessible by clicking on the information icon in the top right corner of the chat window.
 
 > **\*\*** We edited the `global` configuration file for the sake of simplicity. To enable the bot information page on a single bot, you will need to copy the file `data/global/config/channel-web.json` to your bot folder `data/bots/BOT_NAME/config/channel-web.json` and edit that file.
-
-## Custom look and feel
-
-You can customize the look and feel of the Botpress Webchat with a custom stylesheet. Armed with the [list of all overridable classes](https://github.com/botpress/botpress/blob/master/modules/channel-web/assets/default.css) and your browser inspector, you can customize every element of the Webchat.
-
-![WebChat Customization](assets/webchat-customization.png)
-
-1. Add the `extraStylesheet: "path/to/custom-style.css"` property to your `window.botpressWebChat.init()` script.
-1. Create your `custom-style.css` file and override the classes of your choice.
 
 ## Show and hide automatically
 
@@ -114,7 +105,7 @@ The method `window.botpressWebChat.configure` allows you to change the configura
 
 ## Advanced Customization
 
-Every message sent by the bot to a user consist of a `payload`. That payload has a `type` property, that tells the webchat how the other informations included on that payload should be rendered on screen.
+Every message sent by the bot to a user consist of a `payload`. That payload has a `type` property, that tells the webchat how the other information included on that payload should be rendered on screen.
 
 There are different ways to send that payload to the user:
 
@@ -123,11 +114,11 @@ There are different ways to send that payload to the user:
 
 There are multiple types already built in Botpress (they are listed at the bottom of this page), but if you require more advanced components, you can create them easily.
 
-### Prevent storing sensitive informations
+### Prevent storing sensitive information
 
 By default, the complete payload is stored in the database, so the information is not lost when the user refreshes the page. On some occasion, however, we may want to hide some properties deemed "sensitive" (ex: password, credit card, etc..).
 
-To remove those informations, there is a special property that you need to set: `sensitive`. Here's an example:
+To remove this information, there is a special property that you need to set: `sensitive`. Here's an example:
 
 ```js
 const payload = {
@@ -140,9 +131,21 @@ const payload = {
 // This is the information that will be persisted: { type: 'login_prompt', username: 'someuser' }
 ```
 
+### Changing avatar for messages
+
+If you need to display different bot's avatar for some of the messages (like imitating changing author) you can achieve that by setting `botAvatarUrl` like this:
+
+```js
+const payload = {
+  type: 'text',
+  botAvatarUrl: 'http://some.url'
+  text: 'Lorem ipsum'
+}
+```
+
 ## Creating a Custom Component
 
-We already have an [example module](https://github.com/botpress/botpress/tree/master/examples/custom-component) showing how to create them, so we will just make a quick recap here. The Debugger is also implemented entirely as a custom component in the [extensions module](https://github.com/botpress/botpress/tree/next/modules/extensions/src/views/lite/components/debugger), so don't hesitate to take a look on how it was implemented.
+We already have an [example module](https://github.com/botpress/botpress/tree/master/examples/custom-component) showing how to create them, so we will just make a quick recap here. The Debugger is also implemented entirely as a custom component in the [extensions module](https://github.com/botpress/botpress/tree/master/modules/extensions/src/views/lite/components/debugger), so don't hesitate to take a look on how it was implemented.
 
 Custom components leverages the `custom` payload type, which allows you to inject any valid React component exported from a custom module.
 
@@ -164,7 +167,7 @@ payload: {
 
 ### What can I do in my component ?
 
-There are a couple of properties that are passed down to your custom component. These can be used to customize the displayed informations, and/or to pursue interactions.
+There are a couple of properties that are passed down to your custom component. These can be used to customize the displayed information, and/or to pursue interactions.
 
 | Property        | Description                                                                    |
 | --------------- | ------------------------------------------------------------------------------ |
@@ -279,4 +282,126 @@ const payload = {
 }
 ```
 
-[security sdk]: https://botpress.io/reference/modules/_botpress_sdk_.security.html#getmessagesignature
+[security sdk]: https://botpress.com/reference/modules/_botpress_sdk_.security.html#getmessagesignature
+
+# Customizing Web Chat Style
+
+## Step 1: Styling (CSS)
+
+Paste the following CSS file in the `<botpress_dir>/data/assets/modules/channel-web` folder. Feel free to change the style here. Original Botpress theme [can be found here](https://github.com/botpress/botpress/blob/master/modules/channel-web/assets/default.css).
+
+```css
+.bpw-from-bot .bpw-chat-bubble {
+  background-color: #ececec;
+}
+
+.bpw-chat-bubble:last-of-type {
+  border-bottom-right-radius: 20px;
+  border-bottom-left-radius: 20px;
+}
+
+.bpw-chat-bubble:first-of-type {
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+}
+
+.bpw-from-user .bpw-chat-bubble:last-of-type {
+  border-bottom-right-radius: 0px;
+}
+
+.bpw-from-bot .bpw-chat-bubble:last-of-type {
+  border-bottom-left-radius: 0px;
+}
+
+.bpw-from-user .bpw-chat-bubble {
+  background-color: #4278f3;
+  color: #ffffff;
+}
+
+.bpw-date-container .bpw-small-line {
+  border-bottom: none;
+}
+
+.bpw-date-container {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.bpw-header-container {
+  background-color: #f8f8f8;
+  border-bottom: none;
+}
+
+.bpw-bot-avatar img,
+.bpw-bot-avatar svg {
+  border: none;
+  border-radius: 50%;
+}
+
+.bpw-composer {
+  padding: 10px;
+  background: none;
+  border: none;
+}
+
+.bpw-composer textarea {
+  background: #ececec;
+  border-radius: 20px;
+  font-size: 1.25rem;
+  overflow: hidden;
+}
+
+.send-btn {
+  position: absolute;
+  right: 30px;
+  bottom: 28px;
+  border: none;
+  border-radius: 5px;
+  background: #fff;
+  padding: 5px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.send-btn:hover {
+  background: #d8d8d8;
+}
+```
+
+## Step 2: Loading CSS File
+
+Now, we need to instruct Botpress to use this custom CSS file for theming the webchat. For this, place the following code snippet in the `<botpress_dir>/data/global/hooks/after_bot_mount` folder. In our case, we used `01_create_shortlink.js` as the file name.
+
+```js
+const chatOptions = {
+  hideWidget: true,
+  config: {
+    enableReset: true,
+    enableTranscriptDownload: true,
+    extraStylesheet: '/assets/modules/channel-web/chat.css'
+  }
+}
+
+const params = {
+  m: 'channel-web',
+  v: 'Fullscreen',
+  options: JSON.stringify(chatOptions)
+}
+
+setTimeout(() => {
+  try {
+    bp.http.deleteShortLink(botId)
+  } catch (e) {}
+
+  // Bot will be available at $EXTERNAL_URL/s/$BOT_NAME
+  bp.http.createShortLink(botId, `${process.EXTERNAL_URL}/lite/${botId}/`, params)
+}, 500)
+```
+
+Feel free to change the webchat config there, the important line to keep is the `extraStylesheet` property.
+
+## Result
+
+Restart Botpress Server, and now your bot's default webchat will use your custom CSS theme! Here's our example:
+![WebChat Customization](assets/webchat-customization.png)

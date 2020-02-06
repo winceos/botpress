@@ -49,7 +49,7 @@ describe('Custom entity extraction', () => {
 
     const extractor = new PatternExtractor(Toolkit, languageProvider)
 
-    const entities = await extractor.extractPatterns(userInput, [entityDef])
+    const entities = extractor.extractPatterns(userInput, [entityDef])
 
     expect(entities.length).toEqual(3)
     expect(entities[0].name).toEqual(entityDef.name)
@@ -73,7 +73,7 @@ describe('Custom entity extraction', () => {
         name: 'Cars',
         type: 'list',
         fuzzy: true,
-        occurences: [
+        occurrences: [
           {
             name: 'Mercedes-Benz',
             synonyms: ['Benz', 'Mercedez Benz', 'Mercedez', 'Merc']
@@ -86,13 +86,14 @@ describe('Custom entity extraction', () => {
       } as sdk.NLU.EntityDefinition
 
       const userInput = `
-I'm riding my mercedes-benz to the dealership then I will take my BM to buy an other mercedes because we need merchandise for the shop BMW!` /*
+I'm riding my mercedes-benz to the dealership then I will take my BM to buy another mercedes because we need merchandise for the shop BMW!` /*
               [============]                                      ==                 [======]                                          [=]
 */
 
       const extractor = new PatternExtractor(Toolkit, languageProvider)
 
       const sanitized = userInput.replace('\n', '')
+      // TODO: Extract & expose DS-building logic as helper method
       const ds = initNLUStruct(sanitized, [], ['global'])
       ds.sanitizedText = sanitized
       ds.sanitizedLowerText = sanitized.toLowerCase()
@@ -110,8 +111,8 @@ I'm riding my mercedes-benz to the dealership then I will take my BM to buy an o
       expect(entities[0].data.value).toEqual('Mercedes-Benz')
 
       expect(entities[1].name).toEqual(entityDef.name)
-      expect(entities[1].meta.start).toEqual(85)
-      expect(entities[1].meta.end).toEqual(93)
+      expect(entities[1].meta.start).toEqual(84)
+      expect(entities[1].meta.end).toEqual(92)
       expect(entities[1].meta.source).toEqual('mercedes')
       expect(entities[1].data.value).toEqual('Mercedes-Benz')
 
@@ -122,11 +123,92 @@ I'm riding my mercedes-benz to the dealership then I will take my BM to buy an o
       expect(entities[2].data.value).toEqual('BMW')
 
       expect(entities[3].name).toEqual(entityDef.name)
-      expect(entities[3].meta.start).toEqual(135)
-      expect(entities[3].meta.end).toEqual(139)
+      expect(entities[3].meta.start).toEqual(134)
+      expect(entities[3].meta.end).toEqual(138)
       expect(entities[3].meta.source).toEqual('BMW!')
       expect(entities[3].data.value).toEqual('BMW')
-    })
+    }),
+      test('Extract fuzzier list entities', async () => {
+        const entityDef = {
+          id: '_',
+          name: 'Oeufs',
+          type: 'list',
+          fuzzy: true,
+          occurrences: [
+            {
+              name: 'mirroirs',
+              synonyms: []
+            },
+            {
+              name: 'brouillés',
+              synonyms: []
+            },
+            {
+              name: "dans l'trou",
+              synonyms: []
+            },
+            {
+              name: 'omelette',
+              synonyms: []
+            },
+            {
+              name: 'au fromage',
+              synonyms: []
+            }
+          ]
+        } as sdk.NLU.EntityDefinition
+
+        const userInput =
+          "J'aime les oeufs bourille, les oeufs au miroirr, les oeufs dan ltrou, les omelets et les oeufs au fomage"
+        //                  xxxxxxxxx              xxxxxxxx           xxxxxxxxxx     xxxxxxx              xxxxxxxxx
+        // 01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123
+        // 00        10        20        30        40        50        60        70        80        90        100
+
+        const extractor = new PatternExtractor(Toolkit, languageProvider)
+
+        const sanitized = userInput.replace('\n', '')
+        const ds = initNLUStruct(sanitized, [], ['global'])
+        ds.sanitizedText = sanitized
+        ds.sanitizedLowerText = sanitized.toLowerCase()
+        const [stringTokens] = await languageProvider.tokenize([sanitized], 'en')
+        ds.tokens = makeTokens(stringTokens, sanitized)
+
+        let entities = await extractor.extractLists(ds, [entityDef])
+
+        entities = _.orderBy(entities, ['meta.start'], ['asc'])
+
+        expect(entities.length).toEqual(5)
+
+        expect(entities[0].name).toEqual('Oeufs')
+        expect(entities[0].meta.start).toEqual(17)
+        expect(entities[0].meta.end).toEqual(26)
+        expect(entities[0].meta.source).toEqual('bourille,') // the comma "," is just because this test uses a whitespace tokenizer :S
+        expect(entities[0].data.value).toEqual('brouillés')
+
+        expect(entities[1].name).toEqual('Oeufs')
+        expect(entities[1].meta.start).toEqual(40)
+        expect(entities[1].meta.end).toEqual(48)
+        expect(entities[1].meta.source).toEqual('miroirr,')
+        expect(entities[1].data.value).toEqual('mirroirs')
+
+        expect(entities[2].name).toEqual('Oeufs')
+        expect(entities[2].meta.start).toEqual(59)
+        expect(entities[2].meta.end).toEqual(69)
+        expect(entities[2].meta.source).toEqual('dan ltrou,')
+        expect(entities[2].data.value).toEqual("dans l'trou")
+
+        expect(entities[3].name).toEqual('Oeufs')
+        expect(entities[3].meta.start).toEqual(74)
+        expect(entities[3].meta.end).toEqual(81)
+        expect(entities[3].meta.source).toEqual('omelets')
+        expect(entities[3].data.value).toEqual('omelette')
+
+        expect(entities[4].name).toEqual('Oeufs')
+        expect(entities[4].meta.start).toEqual(95)
+        expect(entities[4].meta.end).toEqual(104)
+        expect(entities[4].meta.source).toEqual('au fomage')
+        expect(entities[4].data.value).toEqual('au fromage')
+      })
 
     test('Extract exact list entities', async () => {
       const entityDef = {
@@ -134,7 +216,7 @@ I'm riding my mercedes-benz to the dealership then I will take my BM to buy an o
         name: 'Artists',
         type: 'list',
         fuzzy: false,
-        occurences: [
+        occurrences: [
           {
             name: 'Kanye West',
             synonyms: ['Ye']
@@ -171,7 +253,7 @@ I'm riding my mercedes-benz to the dealership then I will take my BM to buy an o
         name: 'People',
         type: 'list',
         fuzzy: true,
-        occurences: [
+        occurrences: [
           {
             name: 'Jon Gore',
             synonyms: ['Jon', 'Gore']
@@ -214,7 +296,7 @@ I'm riding my mercedes-benz to the dealership then I will take my BM to buy an o
         name: 'numbers',
         type: 'list',
         fuzzy: true,
-        occurences: [
+        occurrences: [
           {
             name: 'one',
             synonyms: ['two', 'three', 'one two', 'two three', 'one two three']
@@ -261,6 +343,36 @@ I'm riding my mercedes-benz to the dealership then I will take my BM to buy an o
       expect(entities[3].meta.end).toEqual(26)
       expect(entities[3].meta.source).toEqual('one two tree')
       expect(entities[3].data.value).toEqual('one')
+    })
+
+    test('fuzzy match should not be to loose', async () => {
+      const entityDef = {
+        id: '_',
+        name: 'bunchOfChars',
+        type: 'list',
+        fuzzy: true,
+        occurrences: [
+          {
+            name: 'aecsp',
+            synonyms: ['acspe', 'essacc', 'eascsc']
+          }
+        ]
+      } as sdk.NLU.EntityDefinition
+
+      const userInput = `Can I have access to this resource`
+
+      const extractor = new PatternExtractor(Toolkit, languageProvider)
+      const sanitized = userInput.replace('\n', '')
+      const ds = initNLUStruct(sanitized, [], ['global'])
+      ds.sanitizedText = sanitized
+      ds.sanitizedLowerText = sanitized.toLowerCase()
+      ds.language = 'en'
+      const [stringTokens] = await languageProvider.tokenize([sanitized], 'en')
+      ds.tokens = makeTokens(stringTokens, sanitized)
+
+      const entities = await extractor.extractLists(ds, [entityDef])
+
+      expect(entities.length).toEqual(0)
     })
   })
 })

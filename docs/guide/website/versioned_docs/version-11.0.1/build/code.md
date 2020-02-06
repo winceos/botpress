@@ -68,7 +68,7 @@ The action itself must return a new state object.
 
 The only way to register new actions is to add your javascript code in a `.js` file and put them in the folder `data/global/actions`. There is no way to programmatically add new ones during runtime.
 
-There are already a [couple of actions](https://github.com/botpress/botpress/tree/master/modules/builtin/src/actions) that you can use to get some inspiration. We use JavaDoc comments to display meaningful informations (name, description, arguments, default values) on the dialog flow editor.
+There are already a [couple of actions](https://github.com/botpress/botpress/tree/master/modules/builtin/src/actions) that you can use to get some inspiration. We use JavaDoc comments to display meaningful information (name, description, arguments, default values) on the dialog flow editor.
 
 ## Hooks
 
@@ -78,7 +78,7 @@ They are defined globally as javascript files in the folder `data/global/hooks/$
 
 > Note: subfolders are allowed, but they are ignored in the ordering. If you have 02_hook.js and 03/01_hook.js, the order will be 01_hook.js then 02_hook.js
 
-They all have access to the (Botpress SDK)[https://botpress.io/reference/](https://botpress.io/reference/).
+They all have access to the (Botpress SDK)[https://botpress.com/reference/](https://botpress.com/reference/).
 
 ### After Server Starts
 

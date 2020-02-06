@@ -1,18 +1,11 @@
-export enum EditorErrorStatus {
-  INVALID_NAME = 'INVALID_NAME',
-  FILE_ALREADY_EXIST = 'FILE_ALREADY_EXIST'
-}
-
 export class EditorError extends Error {
-  private _status: EditorErrorStatus
+  errorCode: string
+  statusCode: number
 
-  constructor(message: string, status: EditorErrorStatus) {
+  constructor(message: string) {
     super(message)
 
-    this._status = status
-  }
-
-  public get status() {
-    return this._status
+    this.statusCode = 400
+    this.errorCode = message
   }
 }

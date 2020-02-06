@@ -19,18 +19,28 @@
       "advanced/i18n",
       "advanced/custom-module",
       "advanced/analytics",
-      "advanced/architecture",
       "advanced/performances",
       "advanced/hosting",
       "advanced/versions",
       "advanced/pipelines",
+      "advanced/development-pipeline",
       "advanced/cluster",
       "advanced/monitoring"
     ],
-    "Channels": ["channels/web", "channels/messenger", "channels/telegram", "channels/converse", "channels/faq"],
+    "Channels": [
+      "channels/web",
+      "channels/messenger",
+      "channels/telegram",
+      "channels/teams",
+      "channels/converse",
+      "channels/slack",
+      "channels/faq"
+    ],
     "Tutorials": [
+      "tutorials/cluster-digital-ocean",
       "tutorials/intent-matching",
       "tutorials/proactive",
+      "tutorials/carousel-postback",
       "tutorials/skill-slot",
       "tutorials/skill-call-api",
       "tutorials/external-api",
@@ -43,7 +53,9 @@
       "tutorials/interbot",
       "tutorials/contextual-faq",
       "tutorials/chat-3rd-party-OAuth",
-      "tutorials/listen-file-changes"
+      "tutorials/listen-file-changes",
+      "tutorials/3rd-party-NLU",
+      "tutorials/uipath"
     ],
     "Pro Edition": ["pro/about-pro", "pro/licensing", "pro/rbac"]
   }

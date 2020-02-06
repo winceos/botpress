@@ -10,7 +10,7 @@ import { CacheInvalidators } from './cache-invalidators'
 
 @injectable()
 export default class MemoryObjectCache implements ObjectCache {
-  private cache
+  private cache: LRU<string, any>
 
   public readonly events: EventEmitter = new EventEmitter()
 
@@ -56,5 +56,9 @@ export default class MemoryObjectCache implements ObjectCache {
 
     keys.forEach(x => this.cache.del(x))
     this.events.emit('invalidation', prefix)
+  }
+
+  async sync(message: string): Promise<void> {
+    this.events.emit('syncDbFilesToDisk', message)
   }
 }

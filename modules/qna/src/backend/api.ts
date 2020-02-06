@@ -1,21 +1,21 @@
 import * as sdk from 'botpress/sdk'
+import { Request, Response } from 'express'
 import { validate } from 'joi'
 import _ from 'lodash'
 import moment from 'moment'
 import multer from 'multer'
 import nanoid from 'nanoid'
-import yn from 'yn'
 
-import { QnaEntry, QnaItem } from './qna'
+import { QnaEntry } from './qna'
 import Storage from './storage'
-import { importQuestions, prepareExport } from './transfer'
-import { QnaDefSchema, QnaItemArraySchema } from './validation'
+import { importQuestions, prepareExport, prepareImport } from './transfer'
+import { QnaDefSchema } from './validation'
 
 export default async (bp: typeof sdk, botScopedStorage: Map<string, Storage>) => {
   const jsonUploadStatuses = {}
   const router = bp.http.createRouterForBot('qna')
 
-  router.get('/questions', async (req, res) => {
+  router.get('/questions', async (req: Request, res: Response) => {
     try {
       const {
         query: { question = '', categories = [], limit, offset }
@@ -30,7 +30,7 @@ export default async (bp: typeof sdk, botScopedStorage: Map<string, Storage>) =>
     }
   })
 
-  router.post('/questions', async (req, res, next) => {
+  router.post('/questions', async (req: Request, res: Response, next: Function) => {
     try {
       const qnaEntry = (await validate(req.body, QnaDefSchema)) as QnaEntry
       const storage = botScopedStorage.get(req.params.botId)
@@ -41,7 +41,7 @@ export default async (bp: typeof sdk, botScopedStorage: Map<string, Storage>) =>
     }
   })
 
-  router.get('/questions/:id', async (req, res) => {
+  router.get('/questions/:id', async (req: Request, res: Response) => {
     try {
       const storage = botScopedStorage.get(req.params.botId)
       const question = await storage.getQnaItem(req.params.id)
@@ -51,7 +51,7 @@ export default async (bp: typeof sdk, botScopedStorage: Map<string, Storage>) =>
     }
   })
 
-  router.put('/questions/:id', async (req, res, next) => {
+  router.post('/questions/:id', async (req: Request, res: Response, next: Function) => {
     const {
       query: { limit, offset, question, categories }
     } = req
@@ -68,7 +68,7 @@ export default async (bp: typeof sdk, botScopedStorage: Map<string, Storage>) =>
     }
   })
 
-  router.delete('/questions/:id', async (req, res) => {
+  router.post('/questions/:id/delete', async (req: Request, res: Response) => {
     const {
       query: { limit, offset, question, categories }
     } = req
@@ -79,34 +79,54 @@ export default async (bp: typeof sdk, botScopedStorage: Map<string, Storage>) =>
       const questionsData = await storage.getQuestions({ question, categories }, { limit, offset })
       res.send(questionsData)
     } catch (e) {
-      bp.logger.attachError(e).error('Could not delete QnA #' + req.params.id)
+      bp.logger.attachError(e).error(`Could not delete QnA #${req.params.id}`)
       res.status(500).send(e.message || 'Error')
       sendToastError('Delete', e.message)
     }
   })
 
-  router.get('/categories', async (req, res) => {
+  router.get('/categories', async (req: Request, res: Response) => {
     const storage = botScopedStorage.get(req.params.botId)
     const categories = await storage.getCategories()
     res.send({ categories })
   })
 
-  router.get('/export', async (req, res) => {
+  router.get('/export', async (req: Request, res: Response) => {
     const storage = botScopedStorage.get(req.params.botId)
-    const data: string = await prepareExport(storage)
+    const data: string = await prepareExport(storage, bp)
+
     res.setHeader('Content-Type', 'application/json')
     res.setHeader('Content-disposition', `attachment; filename=qna_${moment().format('DD-MM-YYYY')}.json`)
     res.end(data)
   })
 
+  router.get('/contentElementUsage', async (req: Request, res: Response) => {
+    const storage = botScopedStorage.get(req.params.botId)
+    const usage = await storage.getContentElementUsage()
+    res.send(usage)
+  })
+
   const upload = multer()
-  router.post('/import', upload.single('json'), async (req, res) => {
+  router.post('/analyzeImport', upload.single('file'), async (req: any, res: Response) => {
+    const storage = botScopedStorage.get(req.params.botId)
+    const cmsIds = await storage.getAllContentElementIds()
+    const importData = await prepareImport(JSON.parse(req.file.buffer))
+
+    res.send({
+      qnaCount: await storage.count(),
+      cmsCount: (cmsIds && cmsIds.length) || 0,
+      fileQnaCount: (importData.questions && importData.questions.length) || 0,
+      fileCmsCount: (importData.content && importData.content.length) || 0
+    })
+  })
+
+  router.post('/import', upload.single('file'), async (req: any, res: Response) => {
+    const uploadStatusId = nanoid()
+    res.send(uploadStatusId)
+
     const storage = botScopedStorage.get(req.params.botId)
 
-    const uploadStatusId = nanoid()
-    res.end(uploadStatusId)
-
-    if (yn(req.body.isReplace)) {
+    if (req.body.action === 'clear_insert') {
       updateUploadStatus(uploadStatusId, 'Deleting existing questions')
       const questions = await storage.fetchQNAs()
 
@@ -115,10 +135,9 @@ export default async (bp: typeof sdk, botScopedStorage: Map<string, Storage>) =>
     }
 
     try {
-      const parsedJson: any = JSON.parse(req.file.buffer)
-      const questions = (await validate(parsedJson, QnaItemArraySchema)) as QnaItem[]
+      const importData = await prepareImport(JSON.parse(req.file.buffer))
 
-      await importQuestions(questions, storage, updateUploadStatus, uploadStatusId)
+      await importQuestions(importData, storage, bp, updateUploadStatus, uploadStatusId)
       updateUploadStatus(uploadStatusId, 'Completed')
     } catch (e) {
       bp.logger.attachError(e).error('JSON Import Failure')
@@ -126,20 +145,19 @@ export default async (bp: typeof sdk, botScopedStorage: Map<string, Storage>) =>
     }
   })
 
-  router.get('/json-upload-status/:uploadStatusId', async (req, res) => {
+  router.get('/json-upload-status/:uploadStatusId', async (req: Request, res: Response) => {
     res.end(jsonUploadStatuses[req.params.uploadStatusId])
   })
 
-  const sendToastError = (action, error) => {
+  const sendToastError = (action: string, error: string) => {
     bp.realtime.sendPayload(
       bp.RealTimePayload.forAdmins('toast.qna-save', { text: `QnA ${action} Error: ${error}`, type: 'error' })
     )
   }
 
-  const updateUploadStatus = (uploadStatusId, status) => {
-    if (!uploadStatusId) {
-      return
+  const updateUploadStatus = (uploadStatusId: string, status: string) => {
+    if (uploadStatusId) {
+      jsonUploadStatuses[uploadStatusId] = status
     }
-    jsonUploadStatuses[uploadStatusId] = status
   }
 }

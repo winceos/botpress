@@ -15,7 +15,6 @@ import classnames from 'classnames'
 import _ from 'lodash'
 import React, { useState } from 'react'
 import { HotKeys } from 'react-hotkeys'
-import { MdHelpOutline, MdInfoOutline } from 'react-icons/md'
 import SplitPane from 'react-split-pane'
 
 import style from './style.scss'
@@ -46,13 +45,15 @@ export const Container = (props: ContainerProps) => {
     'toggle-sidepanel': toggleSidePanel
   }
 
-  const childs = React.Children.toArray(props.children)
+  const children = React.Children.toArray(props.children)
   return (
     <HotKeys handlers={keyHandlers} keyMap={props.keyMap || {}} className={style.fullsize} focused>
       <div className={classnames(style.container, { [style.sidePanel_hidden]: !sidePanelVisible })}>
         <SplitPane split={'vertical'} defaultSize={width} size={sidePanelVisible ? width : 0}>
-          {childs[0]}
-          <div className={style.fullsize}>{childs.slice(1)}</div>
+          {children[0]}
+          <div className={classnames(style.fullsize, { [style.yOverflowScroll]: props.yOverflowScroll })}>
+            {children.slice(1)}
+          </div>
         </SplitPane>
       </div>
     </HotKeys>
@@ -91,6 +92,7 @@ export const SearchBar = (props: SearchBarProps) => {
     <div className={style.searchBar}>
       <ControlGroup fill={true}>
         <InputGroup
+          id={props.id}
           leftIcon={props.icon}
           placeholder={props.placeholder || 'Search'}
           value={text}
@@ -98,6 +100,7 @@ export const SearchBar = (props: SearchBarProps) => {
         />
         {props.showButton && (
           <Button
+            id="btn-search"
             icon={'search'}
             className={Classes.FIXED}
             onClick={e => props.onButtonClick && props.onButtonClick(e)}
@@ -117,6 +120,7 @@ export const ItemList = (props: ItemListProps) => {
           return (
             <div key={key} className={classnames(style.item, { [style.itemListSelected]: item.selected })}>
               <div
+                id={item.id}
                 className={style.label}
                 onClick={() => props.onElementClicked && props.onElementClicked(item)}
                 onContextMenu={e => showContextMenu(e, item.contextMenu)}
@@ -127,12 +131,14 @@ export const ItemList = (props: ItemListProps) => {
                 {item.actions &&
                   item.actions.map(action => (
                     <Tooltip key={key + action.tooltip} content={action.tooltip} position={Position.RIGHT}>
-                      <Icon
-                        style={{ padding: '0 7px' }} // so it has the same padding of a button
-                        icon={action.icon}
-                        color={Colors.GRAY2}
-                        onClick={() => action.onClick && action.onClick(item)}
-                      />
+                      <span id={action.id}>
+                        <Icon
+                          style={{ padding: '0 7px' }} // so it has the same padding of a button
+                          icon={action.icon}
+                          color={Colors.GRAY2}
+                          onClick={() => action.onClick && action.onClick(item)}
+                        />
+                      </span>
                     </Tooltip>
                   ))}
               </div>
@@ -185,7 +191,7 @@ const SectionAction = (action: SectionAction) => {
     return (
       <Tooltip key={key} disabled={!action.tooltip} content={action.tooltip} position={Position.RIGHT}>
         <Popover content={buildMenu(action.items)} position={Position.BOTTOM_LEFT}>
-          <Button icon={action.icon} text={action.label} />
+          <Button id={action.id} icon={action.icon} text={action.label} />
         </Popover>
       </Tooltip>
     )
@@ -195,6 +201,7 @@ const SectionAction = (action: SectionAction) => {
     <Popover key={key} disabled={!action.popover} content={action.popover}>
       <Tooltip disabled={!action.tooltip} content={action.tooltip} position={Position.RIGHT}>
         <Button
+          id={action.id}
           disabled={action.disabled}
           icon={action.icon}
           text={action.label}
@@ -224,11 +231,7 @@ export const RightToolbarButtons = (props: ToolbarButtonsProps) => {
 }
 
 export const InfoTooltip = (props: InfoTooltipProps) => (
-  <Tooltip content={props.text} position={props.position || Position.RIGHT}>
-    {props.icon === 'help' ? (
-      <MdHelpOutline className={style.infoTooltip} />
-    ) : (
-      <MdInfoOutline className={style.infoTooltip} />
-    )}
+  <Tooltip content={props.text} position={props.position || Position.RIGHT} usePortal={false}>
+    <Icon icon={props.icon || 'info-sign'} iconSize={13} className={style.infoTooltip} />
   </Tooltip>
 )

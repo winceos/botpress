@@ -5,6 +5,7 @@ import { TYPES } from 'core/types'
 import { InvalidParameterError } from 'errors'
 import { EventEmitter2 } from 'eventemitter2'
 import { inject, injectable, postConstruct } from 'inversify'
+import { AppLifecycle, AppLifecycleEvents } from 'lifecycle'
 import _ from 'lodash'
 import ms from 'ms'
 
@@ -33,7 +34,9 @@ export class ConverseService {
   ) {}
 
   @postConstruct()
-  init() {
+  async init() {
+    await AppLifecycle.waitFor(AppLifecycleEvents.CONFIGURATION_LOADED)
+
     this.eventEngine.register({
       name: 'converse.capture.payload',
       description: 'Captures the response payload for the Converse API',
@@ -68,8 +71,17 @@ export class ConverseService {
       payload.type = 'text'
     }
 
-    if (payload.type === 'text' && (!payload.text || !_.isString(payload.text) || payload.text.length > 360)) {
-      throw new InvalidParameterError('Text must be a valid string of less than 360 chars')
+    let maxMessageLength = _.get(await this.configProvider.getBotConfig(botId), 'converse.maxMessageLength')
+
+    if (!maxMessageLength) {
+      maxMessageLength = _.get(await this.configProvider.getBotpressConfig(), 'converse.maxMessageLength', 360)
+    }
+
+    if (
+      payload.type === 'text' &&
+      (!payload.text || !_.isString(payload.text) || payload.text.length > maxMessageLength)
+    ) {
+      throw new InvalidParameterError(`Text must be a valid string of less than ${maxMessageLength} chars`)
     }
 
     await this.userRepository.getOrCreate('api', userId)
@@ -119,9 +131,12 @@ export class ConverseService {
   }
 
   private async _createTimeoutPromise(botId, userId) {
-    const botConfig = await this.configProvider.getBotConfig(botId)
-    const botpressConfig = await this.configProvider.getBotpressConfig()
-    const timeoutInMs = ms(_.get(botConfig, 'converse.timeout', botpressConfig.converse.timeout) as string)
+    let timeout = _.get(await this.configProvider.getBotConfig(botId), 'converse.timeout')
+    if (!timeout) {
+      timeout = _.get(await this.configProvider.getBotpressConfig(), 'converse.timeout', '5s')
+    }
+
+    const timeoutInMs = ms(timeout as string)
 
     let actionRunning = false
 

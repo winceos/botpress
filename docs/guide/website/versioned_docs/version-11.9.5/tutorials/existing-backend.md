@@ -19,7 +19,7 @@ You can either define the token when the chat is initialized: `window.botpressWe
 
 ## Persisting the user's profile
 
-Once the user is authenticated, you may want to extract some informations out of the credentials to save them in the `user` state, like the First name, Last name, etc. All you need to do is set up a hook listening for a certain type of event, for example `update_profile`. Then, just select the required fields
+Once the user is authenticated, you may want to extract some information out of the credentials to save them in the `user` state, like the First name, Last name, etc. All you need to do is set up a hook listening for a certain type of event, for example `update_profile`. Then, just select the required fields
 
 Example:
 
@@ -53,7 +53,7 @@ Since the User ID allows BP to recognize the user and to continue a conversation
 
 ## Using Custom Components to render special content
 
-Botpress already supports multiple different type of contents, but it is also possible to add new ones. The only way to add custom components is to create a new module. There is more details about that process on the [Creating Modules](../advanced/custom-module/#views) page.
+Botpress already supports multiple different type of contents, but it is also possible to add new ones. The only way to add custom components is to create a new module. There is more details about that process on the [Creating Modules](../advanced/custom-module#views) page.
 
 Once your component is created, you need to send a custom event to the web channel for it to render. There are two different ways to do that:
 

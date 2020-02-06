@@ -1,13 +1,15 @@
 import bodyParser from 'body-parser'
 import { AxiosBotConfig, AxiosOptions, http, Logger, RouterOptions } from 'botpress/sdk'
 import LicensingService from 'common/licensing-service'
+import { RequestWithUser } from 'common/typings'
 import session from 'cookie-session'
 import cors from 'cors'
 import errorHandler from 'errorhandler'
 import { UnlicensedError } from 'errors'
-import express from 'express'
+import express, { NextFunction, Response } from 'express'
 import { Request } from 'express-serve-static-core'
 import rewrite from 'express-urlrewrite'
+import fs from 'fs'
 import { createServer, Server } from 'http'
 import { inject, injectable, postConstruct, tagged } from 'inversify'
 import jsonwebtoken from 'jsonwebtoken'
@@ -17,6 +19,7 @@ import { Memoize } from 'lodash-decorators'
 import ms from 'ms'
 import path from 'path'
 import portFinder from 'portfinder'
+import { URL } from 'url'
 
 import { ExternalAuthConfig } from './config/botpress.config'
 import { ConfigProvider } from './config/config-loader'
@@ -28,7 +31,7 @@ import { HintsRouter } from './routers/bots/hints'
 import { isDisabled } from './routers/conditionalMiddleware'
 import { InvalidExternalToken, PaymentRequiredError } from './routers/errors'
 import { ShortLinksRouter } from './routers/shortlinks'
-import { monitoringMiddleware } from './routers/util'
+import { hasPermissions, monitoringMiddleware, needPermissions } from './routers/util'
 import { GhostService } from './services'
 import ActionService from './services/action/action-service'
 import { AlertingService } from './services/alerting-service'
@@ -41,6 +44,7 @@ import { ConverseService } from './services/converse'
 import { FlowService } from './services/dialog/flow/service'
 import { SkillService } from './services/dialog/skill/service'
 import { HintsService } from './services/hints'
+import { JobService } from './services/job-service'
 import { LogsService } from './services/logs/service'
 import MediaService from './services/media'
 import { MonitoringService } from './services/monitoring'
@@ -50,7 +54,6 @@ import { TYPES } from './types'
 
 const BASE_API_PATH = '/api/v1'
 const SERVER_USER_STRATEGY = 'default' // The strategy isn't validated for the userver user, it could be anything.
-const isProd = process.env.NODE_ENV === 'production'
 
 const debug = DEBUG('api')
 const debugRequest = debug.sub('request')
@@ -67,7 +70,7 @@ const debugRequestMw = (req: Request, _res, next) => {
 
 @injectable()
 export default class HTTPServer {
-  public readonly httpServer: Server
+  public httpServer!: Server
   public readonly app: express.Express
   private isBotpressReady = false
 
@@ -79,6 +82,12 @@ export default class HTTPServer {
   private readonly shortlinksRouter: ShortLinksRouter
   private converseRouter!: ConverseRouter
   private hintsRouter!: HintsRouter
+  private _needPermissions: (
+    operation: string,
+    resource: string
+  ) => (req: RequestWithUser, res: Response, next: NextFunction) => Promise<void>
+  private _hasPermissions: (req: RequestWithUser, operation: string, resource: string) => Promise<boolean>
+  private indexCache: { [pageUrl: string]: string } = {}
 
   constructor(
     @inject(TYPES.ConfigProvider) private configProvider: ConfigProvider,
@@ -102,7 +111,8 @@ export default class HTTPServer {
     @inject(TYPES.BotService) private botService: BotService,
     @inject(TYPES.AuthStrategies) private authStrategies: AuthStrategies,
     @inject(TYPES.MonitoringService) private monitoringService: MonitoringService,
-    @inject(TYPES.AlertingService) private alertingService: AlertingService
+    @inject(TYPES.AlertingService) private alertingService: AlertingService,
+    @inject(TYPES.JobService) private jobService: JobService
   ) {
     this.app = express()
 
@@ -113,8 +123,6 @@ export default class HTTPServer {
     if (process.core_env.REVERSE_PROXY) {
       this.app.set('trust proxy', process.core_env.REVERSE_PROXY)
     }
-
-    this.httpServer = createServer(this.app)
 
     this.app.use(debugRequestMw)
 
@@ -143,7 +151,8 @@ export default class HTTPServer {
       this.configProvider,
       this.monitoringService,
       this.alertingService,
-      moduleLoader
+      moduleLoader,
+      this.jobService
     )
     this.shortlinksRouter = new ShortLinksRouter(this.logger)
     this.botsRouter = new BotsRouter({
@@ -159,10 +168,31 @@ export default class HTTPServer {
       workspaceService,
       logger: this.logger
     })
+    this._needPermissions = needPermissions(this.workspaceService)
+    this._hasPermissions = hasPermissions(this.workspaceService)
+  }
+
+  async setupRootPath() {
+    const botpressConfig = await this.configProvider.getBotpressConfig()
+    const externalUrl = process.env.EXTERNAL_URL || botpressConfig.httpServer.externalUrl
+
+    if (!externalUrl) {
+      process.ROOT_PATH = ''
+    } else {
+      const pathname = new URL(externalUrl).pathname
+      process.ROOT_PATH = pathname.replace(/\/+$/, '')
+    }
   }
 
   @postConstruct()
   async initialize() {
+    await AppLifecycle.waitFor(AppLifecycleEvents.CONFIGURATION_LOADED)
+    await this.setupRootPath()
+
+    const app = express()
+    app.use(process.ROOT_PATH, this.app)
+    this.httpServer = createServer(app)
+
     await this.botsRouter.initialize()
     this.contentRouter = new ContentRouter(this.logger, this.authService, this.cmsService, this.workspaceService)
     this.converseRouter = new ConverseRouter(this.logger, this.converseService, this.authService, this)
@@ -189,7 +219,8 @@ export default class HTTPServer {
      * During this time, internal calls between modules can be made
      */
     this.app.use((req, res, next) => {
-      res.header('X-Powered-By', 'Botpress')
+      res.removeHeader('X-Powered-By') // Removes the default X-Powered-By: Express
+      res.set(config.headers)
       if (!this.isBotpressReady) {
         if (!(req.headers['user-agent'] || '').includes('axios') || !req.headers.authorization) {
           return res.status(503).send('Botpress is loading. Please try again in a minute.')
@@ -213,15 +244,20 @@ export default class HTTPServer {
     }
 
     this.app.use((req, res, next) => {
-      if (!isDisabled('bodyParser', req)) {
+      if (!isDisabled('bodyParserJson', req)) {
         bodyParser.json({ limit: config.bodyLimit })(req, res, next)
       } else {
         next()
       }
     })
 
-    // this.app.use(bodyParser.json({ limit: config.bodyLimit }))
-    this.app.use(bodyParser.urlencoded({ extended: true }))
+    this.app.use((req, res, next) => {
+      if (!isDisabled('bodyParserUrlEncoder', req)) {
+        bodyParser.urlencoded({ extended: true })(req, res, next)
+      } else {
+        next()
+      }
+    })
 
     if (config.cors && config.cors.enabled) {
       this.app.use(cors(config.cors.origin ? { origin: config.cors.origin } : {}))
@@ -229,6 +265,10 @@ export default class HTTPServer {
 
     this.app.get('/status', async (req, res, next) => {
       res.send(await this.monitoringService.getStatus())
+    })
+
+    this.app.get('/version', async (req, res) => {
+      res.send(process.BOTPRESS_VERSION)
     })
 
     this.app.use('/assets', this.guardWhiteLabel(), express.static(this.resolveAsset('')))
@@ -240,10 +280,13 @@ export default class HTTPServer {
     this.app.use(`${BASE_API_PATH}/bots/:botId`, this.botsRouter.router)
     this.app.use(`/s`, this.shortlinksRouter.router)
 
-    this.app.use(function handleErrors(err, req, res, next) {
+    this.app.use((err, req, res, next) => {
       if (err instanceof UnlicensedError) {
         next(new PaymentRequiredError(`Server is unlicensed "${err.message}"`))
       } else {
+        if (err.statusCode === 413) {
+          this.logger.error('You may need to increase httpServer.bodyLimit in file data/global/botpress.config.json')
+        }
         next(err)
       }
     })
@@ -252,8 +295,8 @@ export default class HTTPServer {
       const statusCode = err.statusCode || 500
       const errorCode = err.errorCode || 'BP_000'
       const message = (err.errorCode && err.message) || 'Unexpected error'
-      const docs = err.docs || 'https://botpress.io/docs'
-      const devOnly = isProd ? {} : { showStackInDev: true, stack: err.stack, full: err.message }
+      const docs = err.docs || 'https://botpress.com/docs'
+      const devOnly = process.IS_PRODUCTION ? {} : { showStackInDev: true, stack: err.stack, full: err.message }
 
       res.status(statusCode).json({
         statusCode,
@@ -270,10 +313,16 @@ export default class HTTPServer {
     process.HOST = config.host
     process.PORT = await portFinder.getPortPromise({ port: config.port })
     process.EXTERNAL_URL = process.env.EXTERNAL_URL || config.externalUrl || `http://${process.HOST}:${process.PORT}`
-    process.LOCAL_URL = `http://${process.HOST}:${process.PORT}`
+    process.LOCAL_URL = `http://${process.HOST}:${process.PORT}${process.ROOT_PATH}`
 
     if (process.PORT !== config.port) {
       this.logger.warn(`Configured port ${config.port} is already in use. Using next port available: ${process.PORT}`)
+    }
+
+    if (!process.env.EXTERNAL_URL && !config.externalUrl) {
+      this.logger.warn(
+        `External URL is not configured. Using default value of ${process.EXTERNAL_URL}. Some features may not work properly`
+      )
     }
 
     const hostname = config.host === 'localhost' ? undefined : config.host
@@ -294,29 +343,58 @@ export default class HTTPServer {
   }
 
   setupStaticRoutes(app) {
+    // Dynamically updates the static paths of index files
+    const resolveIndexPaths = page => (req, res) => {
+      res.contentType('text/html')
+
+      // Not caching pages in dev (issue with webpack )
+      if (this.indexCache[page] && process.IS_PRODUCTION) {
+        return res.send(this.indexCache[page])
+      }
+
+      fs.readFile(this.resolveAsset(page), (err, data) => {
+        if (data) {
+          this.indexCache[page] = data
+            .toString()
+            .replace(/\<base href=\"\/\" ?\/\>/, `<base href="${process.ROOT_PATH}/" />`)
+            .replace(/ROOT_PATH=""|ROOT_PATH = ''/, `window.ROOT_PATH="${process.ROOT_PATH}"`)
+
+          res.send(this.indexCache[page])
+        } else {
+          res.sendStatus(404)
+        }
+      })
+    }
+
     app.get('/studio', (req, res, next) => res.redirect('/admin'))
 
-    app.use('/:app(studio)/:botId', express.static(this.resolveAsset('ui-studio/public')))
-    app.use('/:app(lite)/:botId?', express.static(this.resolveAsset('ui-studio/public/lite')))
-    app.use('/:app(lite)/:botId', express.static(this.resolveAsset('ui-studio/public')))
+    app.use('/:app(studio)/:botId', express.static(this.resolveAsset('ui-studio/public'), { index: false }))
+    app.use('/:app(studio)/:botId', resolveIndexPaths('ui-studio/public/index.html'))
 
-    app.get(['/:app(studio)/:botId/*'], (req, res) => {
-      res.contentType('text/html')
-      res.sendFile(this.resolveAsset('ui-studio/public/index.html'))
-    })
+    app.use('/:app(lite)/:botId?', express.static(this.resolveAsset('ui-studio/public/lite'), { index: false }))
+    app.use('/:app(lite)/:botId?', resolveIndexPaths('ui-studio/public/lite/index.html'))
 
-    app.use('/admin', express.static(this.resolveAsset('ui-admin/public')))
+    app.use('/:app(lite)/:botId', express.static(this.resolveAsset('ui-studio/public'), { index: false }))
+    app.use('/:app(lite)/:botId', resolveIndexPaths('ui-studio/public/index.html'))
 
-    app.get(['/admin', '/admin/*'], (req, res) => {
-      res.contentType('text/html')
-      res.sendFile(this.resolveAsset('ui-admin/public/index.html'))
-    })
+    app.get(['/:app(studio)/:botId/*'], resolveIndexPaths('ui-studio/public/index.html'))
 
-    app.get('/', (req, res) => res.redirect('/admin'))
+    app.use('/admin', express.static(this.resolveAsset('ui-admin/public'), { index: false }))
+    app.get(['/admin', '/admin/*'], resolveIndexPaths('ui-admin/public/index.html'))
+
+    app.get('/', (req, res) => res.redirect(`${process.ROOT_PATH}/admin`))
   }
 
   createRouterForBot(router: string, identity: string, options: RouterOptions): any & http.RouterExtension {
     return this.botsRouter.getNewRouter(router, identity, options)
+  }
+
+  needPermission(operation: string, resource: string) {
+    return this._needPermissions(operation, resource)
+  }
+
+  hasPermission(req: RequestWithUser, operation: string, resource: string) {
+    return this._hasPermissions(req, operation, resource)
   }
 
   deleteRouterForBot(router: string): void {
@@ -375,7 +453,7 @@ export default class HTTPServer {
     })
   }
 
-  @Memoize
+  @Memoize()
   private async _getExternalAuthConfig(): Promise<ExternalAuthConfig | undefined> {
     const botpressConfig = await this.configProvider.getBotpressConfig()
     const config = botpressConfig.pro.externalAuth
@@ -394,8 +472,8 @@ export default class HTTPServer {
             .error(`External User Auth: Couldn't open public key file /data/global/end_users_auth.pub`)
           return undefined
         }
-      } else if (config.publicKey.length < 256) {
-        this.logger.error(`External User Auth: The provided publicKey is invalid (too short)`)
+      } else if (config.publicKey.length < 128) {
+        this.logger.error(`External User Auth: The provided publicKey is invalid (too short). Min length is 128 chars.`)
         return undefined
       }
     }

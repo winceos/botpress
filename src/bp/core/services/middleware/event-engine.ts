@@ -1,9 +1,11 @@
 import * as sdk from 'botpress/sdk'
 import { TimedPerfCounter } from 'core/misc/timed-perf'
+import { WellKnownFlags } from 'core/sdk/enums'
 import { inject, injectable, tagged } from 'inversify'
 import joi from 'joi'
 import _ from 'lodash'
 import { VError } from 'verror'
+import yn from 'yn'
 
 import { Event } from '../../sdk/impl'
 import { TYPES } from '../../types'
@@ -52,7 +54,8 @@ const eventSchema = {
       includedContexts: joi
         .array()
         .items(joi.string())
-        .optional()
+        .optional(),
+      ms: joi.number().optional()
     })
     .optional()
     .default({})
@@ -76,9 +79,9 @@ const debugOutgoing = debug.sub('outgoing')
 
 @injectable()
 export class EventEngine {
-  public onBeforeIncomingMiddleware: ((event) => Promise<void>) | undefined
-  public onAfterIncomingMiddleware: ((event) => Promise<void>) | undefined
-  public onBeforeOutgoingMiddleware: ((event) => Promise<void>) | undefined
+  public onBeforeIncomingMiddleware?: (event) => Promise<void>
+  public onAfterIncomingMiddleware?: (event) => Promise<void>
+  public onBeforeOutgoingMiddleware?: (event) => Promise<void>
 
   private readonly _incomingPerf = new TimedPerfCounter('mw_incoming')
   private readonly _outgoingPerf = new TimedPerfCounter('mw_outgoing')
@@ -94,6 +97,7 @@ export class EventEngine {
     @inject(TYPES.OutgoingQueue) private outgoingQueue: Queue
   ) {
     this.incomingQueue.subscribe(async event => {
+      await this._infoMiddleware(event)
       this.onBeforeIncomingMiddleware && (await this.onBeforeIncomingMiddleware(event))
       const { incoming } = await this.getBotMiddlewareChains(event.botId)
       await incoming.run(event)
@@ -116,7 +120,7 @@ export class EventEngine {
    * Usage: set `BP_DEBUG_IO` to `true`
    */
   private setupPerformanceHooks() {
-    if (!process.env.BP_DEBUG_IO) {
+    if (!yn(process.env.BP_DEBUG_IO)) {
       return
     }
 
@@ -162,7 +166,7 @@ export class EventEngine {
     }
   }
 
-  async sendEvent(event: sdk.IO.Event) {
+  async sendEvent(event: sdk.IO.Event): Promise<void> {
     this.validateEvent(event)
 
     if (event.direction === 'incoming') {
@@ -177,6 +181,7 @@ export class EventEngine {
   }
 
   async replyToEvent(eventDestination: sdk.IO.EventDestination, payloads: any[], incomingEventId?: string) {
+    // prettier-ignore
     const keys: (keyof sdk.IO.EventDestination)[] = ['botId', 'channel', 'target', 'threadId']
 
     for (const payload of payloads) {
@@ -227,6 +232,24 @@ export class EventEngine {
     const result = joi.validate(event, eventSchema)
     if (result.error) {
       throw new VError(result.error, 'Invalid Botpress Event')
+    }
+  }
+
+  private async _infoMiddleware(event: sdk.IO.Event) {
+    const sendText = async text => {
+      await this.replyToEvent(event, [{ text, markdown: true }])
+      event.setFlag(WellKnownFlags.SKIP_DIALOG_ENGINE, true)
+    }
+
+    if (event.preview === 'BP_VERSION') {
+      await sendText(`Version: ${process.BOTPRESS_VERSION}`)
+    } else if (event.preview === 'BP_LICENSE') {
+      await sendText(
+        `**Botpress Pro**
+Available: ${process.IS_PRO_AVAILABLE}
+Enabled: ${process.IS_PRO_ENABLED}
+Licensed: ${process.IS_LICENSED}`
+      )
     }
   }
 }

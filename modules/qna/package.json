@@ -6,7 +6,8 @@
   "main": "dist/backend/index.js",
   "scripts": {
     "build": "./node_modules/.bin/module-builder build",
-    "watch": "./node_modules/.bin/module-builder watch"
+    "watch": "./node_modules/.bin/module-builder watch",
+    "package": "./node_modules/.bin/module-builder package"
   },
   "author": "Botpress, Inc.",
   "license": "AGPL-3.0-only",
@@ -15,28 +16,32 @@
       "react": "React",
       "react-dom": "ReactDOM",
       "react-bootstrap": "ReactBootstrap",
-      "botpress/elements-list": "ElementsList"
+      "botpress/elements-list": "ElementsList",
+      "botpress/utils": "BotpressUtils"
     }
   },
   "devDependencies": {
-    "@babel/helpers": "^7.4.3",
+    "@blueprintjs/core": "^3.23.1",
+    "@types/node": "^10.11.3",
+    "@types/react": "^16.9.19",
+    "@types/react-bootstrap": "^0.32.19",
+    "@types/react-dom": "^16.9.5",
+    "@types/react-select": "^2.0.19",
     "module-builder": "../../build/module-builder"
   },
   "dependencies": {
-    "axios": "^0.18.1",
+    "axios": "^0.19.0",
     "bluebird": "^3.5.3",
     "classnames": "^2.2.6",
-    "csv-parse": "^2.5.0",
-    "iconv-lite": "^0.4.23",
     "joi": "^13.6.0",
-    "json2csv": "^4.3.5",
     "lodash": "^4.17.11",
     "moment": "^2.24.0",
-    "ms": "^2.1.1",
-    "multer": "^1.4.1",
+    "multer": "^1.4.2",
     "nanoid": "^2.0.1",
-    "react-icons": "^3.7.0",
-    "react-select": "^1.2.1",
-    "yn": "^2.0.0"
+    "react-select": "^2.4.2"
+  },
+  "resolutions": {
+    "fstream": ">=1.0.12",
+    "lodash": ">=4.17.12"
   }
 }

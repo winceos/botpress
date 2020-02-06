@@ -56,4 +56,19 @@ export interface Config {
    * @default 20
    */
   maxMessagesHistory?: number
+  /**
+   * Security configurations
+   */
+  security: {
+    /**
+     * Weather or not to escape plain html payload
+     * @default false
+     */
+    escapeHTML: boolean
+  }
+  /**
+   * The duration of the authentication session when a user authenticate through this channel.
+   * @default 24h
+   */
+  chatUserAuthDuration: string
 }

@@ -1,17 +1,102 @@
-// Layout
+.bp-sa {
+  &-wrapper {
+    display: flex;
+  }
+
+  &-menu {
+    min-width: 225px;
+    background-color: #fcfcfc;
+
+    &-header {
+      font-weight: bold;
+      background-color: #f2f2f2;
+      padding: 5px 0 5px 15px;
+    }
+
+    &-item {
+      padding: 7px 10px 7px 20px;
+
+      font-size: 0.9rem;
+      cursor: pointer;
+
+      svg {
+        color: #5c7080;
+      }
+
+      .label {
+        margin-left: 6px;
+      }
+
+      &:hover {
+        background-color: #e1e8ed;
+      }
+
+      &:active {
+        background-color: #d8e1e8;
+      }
+
+      &-active {
+        background-color: #e1e8ed;
+      }
+    }
+  }
+
+  &-content-wrapper {
+    flex-grow: 1;
+    justify-content: flex-end;
+    background-color: #fefefe;
+    height: var(--container-height);
+    overflow-y: hidden;
+    position: relative;
+  }
+
+  &-title {
+    height: var(--sa-page-header-height);
+    padding: 5px 10px;
+
+    background-color: #fff;
+    border-bottom: 1px solid #efefef;
+    font-weight: bold;
+
+    span {
+      margin-right: 10px;
+    }
+  }
+
+  &-overflow {
+    height: calc(var(--container-height) - var(--sa-page-header-height));
+    overflow: auto;
+  }
+
+  &-fullwidth {
+    max-width: 95% !important;
+    margin: 30px auto;
+  }
+
+  &-content {
+    max-width: 1000px;
+    margin: 30px auto;
+  }
+}
 
 .bp-header {
   background-color: var(--c-background--dark-2);
   border-bottom: 1px solid #999;
+  height: var(--header-height);
 
   &__logo {
     width: 140px;
   }
 
-  .navbar-brand,
+  .bp3-navbar,
   .nav-link {
     color: var(--c-neutral--light-3);
+    background-color: $dark-background-hover;
     font-size: 14px;
+  }
+
+  .bp3-navbar-divider {
+    border-left: 1px solid #efefef;
   }
 
   .dropdown-toggle.nav-link {
@@ -25,6 +110,7 @@
     font-size: 12px;
     font-weight: 600;
     text-align: center;
+    height: var(--unlicensed-height);
 
     svg {
       margin-right: 10px;
@@ -40,10 +126,11 @@
 }
 
 .bp-main-content {
-  min-height: calc(100vh - 58px);
+  height: var(--container-height);
+  overflow-y: hidden;
 
   .bp-header__warning + & {
-    min-height: calc(100vh - 92px);
+    height: calc(100vh - 92px - 21px);
   }
 
   &-header {
@@ -69,9 +156,10 @@
 .bp_container {
   &-header {
     padding-top: 20px;
-    margin-bottom: 40px;
+    margin-bottom: var(--page-header-margin);
     background: var(--c-neutral--light-2);
     border-bottom: 1px solid var(--c-background--light-3);
+    height: var(--page-header-height);
   }
 
   &-tabs {
@@ -91,6 +179,11 @@
     }
   }
 
+  &-content {
+    height: calc(var(--container-height) - var(--page-header-height) - var(--page-header-margin));
+    overflow-y: auto;
+  }
+
   &-fullwidth {
     .container {
       max-width: 100% !important;
@@ -105,5 +198,104 @@
 
   &:hover {
     color: #666666;
+  }
+}
+
+.statusBar {
+  background-color: var(--c-background--dark-1);
+  color: #fff;
+
+  z-index: 1000;
+
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  height: var(--statusbar-height);
+  width: 100%;
+  font-size: 14px;
+  padding: 0 10px;
+
+  display: flex;
+  align-items: center;
+
+  &-list {
+    list-style-type: none;
+    margin-bottom: 0;
+    padding-left: 0;
+    z-index: 15;
+    width: 100%;
+
+    &-item {
+      padding: 0 5px;
+      white-space: pre;
+      display: inline-block;
+      line-height: 30px;
+      height: 100%;
+      vertical-align: top;
+    }
+  }
+}
+
+.split_page {
+  display: flex;
+
+  &-container {
+    flex-grow: 1;
+    padding: 0 25px;
+  }
+}
+
+.coverImg {
+  width: auto;
+  max-width: 100%;
+}
+
+.configUploadSuccess {
+  color: green;
+  margin-top: 1rem;
+}
+
+.with-sticky-action-bar {
+  // Height of the sticky action bar (51px) + 14px to have a small gap between the bottom of the form and the bar
+  padding-bottom: 65px;
+}
+
+.sticky-action-bar {
+  background: #fcfcfc;
+  bottom: 0;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.1);
+  left: 0;
+  padding: 10px 15px;
+  position: absolute;
+  right: 0;
+  text-align: right;
+
+  button {
+    margin-left: 15px;
+  }
+
+  &--content {
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+}
+
+.dropdown-picture {
+  height: 30px;
+  width: 30px;
+  border-radius: 50%;
+}
+
+.workspaceButton {
+  color: white !important;
+  font-weight: 500;
+
+  &.bp3-disabled {
+    cursor: auto !important;
+  }
+
+  svg {
+    fill: white !important;
   }
 }

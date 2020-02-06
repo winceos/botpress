@@ -14,7 +14,7 @@ function render(data) {
     ...events,
     {
       type: 'text',
-      markdown: true,
+      markdown: data.markdown,
       text: data.text
     }
   ]
@@ -29,7 +29,7 @@ function renderMessenger(data) {
       value: data.typing
     })
   }
-  
+
   return [
     ...events,
     {
@@ -38,14 +38,32 @@ function renderMessenger(data) {
   ]
 }
 
-function renderElement(data, channel) {
-  if (channel === 'web' || channel === 'api' || channel === 'telegram') {
-    return render(data)
-  } else if (channel === 'messenger') {
-    return renderMessenger(data)
+function renderTeams(data) {
+  const events = []
+
+  if (data.typing) {
+    events.push({
+      type: 'typing'
+    })
   }
 
-  return [] // TODO
+  return [
+    ...events,
+    {
+      type: 'message',
+      text: data.text
+    }
+  ]
+}
+
+function renderElement(data, channel) {
+  if (channel === 'messenger') {
+    return renderMessenger(data)
+  } else if (channel === 'teams') {
+    return renderTeams(data)
+  } else {
+    return render(data)
+  }
 }
 
 module.exports = {
@@ -69,6 +87,11 @@ module.exports = {
           type: 'string',
           default: ''
         }
+      },
+      markdown: {
+        type: 'boolean',
+        title: 'Use markdown',
+        default: true
       },
       ...base.typingIndicators
     }

@@ -16,7 +16,7 @@ import { setDebugScopes } from '../debug'
 import { createForGlobalHooks } from './api'
 import { BotpressConfig } from './config/botpress.config'
 import { ConfigProvider } from './config/config-loader'
-import Database, { DatabaseType } from './database'
+import Database from './database'
 import { LoggerDbPersister, LoggerFilePersister, LoggerProvider } from './logger'
 import { ModuleLoader } from './module-loader'
 import HTTPServer from './server'
@@ -43,6 +43,7 @@ import { NotificationsService } from './services/notification/service'
 import RealtimeService from './services/realtime'
 import { DataRetentionJanitor } from './services/retention/janitor'
 import { DataRetentionService } from './services/retention/service'
+import { StatsService } from './services/stats-service'
 import { WorkspaceService } from './services/workspace-service'
 import { Statistics } from './stats'
 import { TYPES } from './types'
@@ -92,7 +93,8 @@ export class Botpress {
     @inject(TYPES.AlertingService) private alertingService: AlertingService,
     @inject(TYPES.EventCollector) private eventCollector: EventCollector,
     @inject(TYPES.AuthService) private authService: AuthService,
-    @inject(TYPES.MigrationService) private migrationService: MigrationService
+    @inject(TYPES.MigrationService) private migrationService: MigrationService,
+    @inject(TYPES.StatsService) private statsService: StatsService
   ) {
     this.botpressPath = path.join(process.cwd(), 'dist')
     this.configLocation = path.join(this.botpressPath, '/config')
@@ -105,24 +107,25 @@ export class Botpress {
     this.logger.info(`Started in ${bootTime}ms`)
   }
 
+  private _killServer(message: string) {
+    this.logger.error(message)
+    process.exit()
+  }
+
   private async initialize(options: StartOptions) {
+    this.config = await this.configProvider.getBotpressConfig()
+
     this.trackStart()
     this.trackHeartbeat()
 
     setDebugScopes(process.core_env.DEBUG || (process.IS_PRODUCTION ? '' : 'bp:dialog'))
 
-    this.config = await this.loadConfiguration()
-    await this.createDatabase()
-    await this.initializeGhost()
-    await this.restoreDebugScope()
-
-    // Invalidating the configuration to force it to load it from the ghost if enabled
-    this.config = await this.loadConfiguration(true)
-
     await AppLifecycle.setDone(AppLifecycleEvents.CONFIGURATION_LOADED)
-    await this.migrationService.initialize()
+
+    await this.restoreDebugScope()
     await this.checkJwtSecret()
     await this.loadModules(options.modules)
+    await this.migrationService.initialize()
     await this.cleanDisabledModules()
     await this.initializeServices()
     await this.checkEditionRequirements()
@@ -130,6 +133,10 @@ export class Botpress {
     await this.startRealtime()
     await this.startServer()
     await this.discoverBots()
+
+    if (this.config.sendUsageStats) {
+      this.statsService.start()
+    }
 
     await AppLifecycle.setDone(AppLifecycleEvents.BOTPRESS_READY)
 
@@ -154,7 +161,7 @@ export class Botpress {
     let appSecret = this.config.appSecret || this.config.jwtSecret
     if (!appSecret) {
       appSecret = nanoid(40)
-      await this.configProvider.mergeBotpressConfig({ appSecret })
+      await this.configProvider.mergeBotpressConfig({ appSecret }, true)
       this.logger.debug(`JWT Secret isn't defined. Generating a random key...`)
     }
 
@@ -162,10 +169,11 @@ export class Botpress {
   }
 
   async checkEditionRequirements() {
-    const databaseType = this.getDatabaseType()
+    const { DATABASE_URL } = process.env
+    const dbType = DATABASE_URL && DATABASE_URL.toLowerCase().startsWith('postgres') ? 'postgres' : 'sqlite'
 
     if (!process.IS_PRO_ENABLED && process.CLUSTER_ENABLED) {
-      this.logger.warn(
+      this._killServer(
         'Redis is enabled in your Botpress configuration. To use Botpress in a cluster, please upgrade to Botpress Pro.'
       )
     }
@@ -173,7 +181,7 @@ export class Botpress {
     if (!process.IS_PRO_ENABLED) {
       const workspaces = await this.workspaceService.getWorkspaces()
       if (workspaces.length > 1) {
-        throw new Error(
+        this._killServer(
           'You have more than one workspace. To create unlimited workspaces, please upgrade to Botpress Pro.'
         )
       }
@@ -182,7 +190,7 @@ export class Botpress {
         for (const workspace of workspaces) {
           const pipeline = await this.workspaceService.getPipeline(workspace.id)
           if (pipeline && pipeline.length > 1) {
-            throw new Error(
+            this._killServer(
               'Your pipeline has more than a single stage. To enable the pipeline feature, please upgrade to Botpress Pro.'
             )
           }
@@ -193,8 +201,8 @@ export class Botpress {
     const bots = await this.botService.getBots()
     bots.forEach(bot => {
       if (!process.IS_PRO_ENABLED && bot.languages && bot.languages.length > 1) {
-        throw new Error(
-          'A bot has more than a single language. To enable the multilangual feature, please upgrade to Botpress Pro.'
+        this._killServer(
+          `A bot has more than a single language (${bot.id}). To enable the multilangual feature, please upgrade to Botpress Pro.`
         )
       }
     })
@@ -203,13 +211,13 @@ export class Botpress {
         'Botpress can be run on a cluster. If you want to do so, make sure Redis is running and properly configured in your environment variables'
       )
     }
-    if (process.IS_PRO_ENABLED && databaseType !== 'postgres' && process.CLUSTER_ENABLED) {
-      throw new Error(
+    if (process.IS_PRO_ENABLED && dbType !== 'postgres' && process.CLUSTER_ENABLED) {
+      this._killServer(
         'Postgres is required to use Botpress in a cluster. Please migrate your database to Postgres and enable it in your Botpress configuration file.'
       )
     }
     if (process.CLUSTER_ENABLED && !process.env.REDIS_URL) {
-      throw new Error('The environment variable REDIS_URL is required when cluster is enabled')
+      this._killServer('The environment variable REDIS_URL is required when cluster is enabled')
     }
   }
 
@@ -218,7 +226,7 @@ export class Botpress {
       const assets = path.resolve(process.PROJECT_LOCATION, 'data/assets')
       await copyDir(path.join(__dirname, '../ui-admin'), `${assets}/ui-admin`)
 
-      // Avoids overwriting the folder when developping locally on the studio
+      // Avoids overwriting the folder when developing locally on the studio
       if (fse.pathExistsSync(`${assets}/ui-studio/public`)) {
         const studioPath = await fse.lstatSync(`${assets}/ui-studio/public`)
         if (studioPath.isSymbolicLink()) {
@@ -235,11 +243,6 @@ export class Botpress {
   @WrapErrorsWith('Error while discovering bots')
   async discoverBots(): Promise<void> {
     const botsRef = await this.workspaceService.getBotRefs()
-
-    for (const botId of botsRef) {
-      await this.ghostService.forBot(botId).sync()
-    }
-
     const botsIds = await this.botService.getBotsIds()
     const unlinked = _.difference(botsIds, botsRef)
     const deleted = _.difference(botsRef, botsIds)
@@ -263,9 +266,7 @@ export class Botpress {
       const pipeline = await this.workspaceService.getPipeline(workspace.id)
       if (pipeline && pipeline.length > 4) {
         this.logger.warn(
-          `It seems like you have more than 4 stages in your pipeline, consider to join stages together (workspace: ${
-            workspace.id
-          })`
+          `It seems like you have more than 4 stages in your pipeline, consider to join stages together (workspace: ${workspace.id})`
         )
       }
     }
@@ -273,13 +274,9 @@ export class Botpress {
     const disabledBots = [...bots.values()].filter(b => b.disabled).map(b => b.id)
     const botsToMount = _.without(botsRef, ...disabledBots, ...deleted)
 
-    await Promise.map(botsToMount, botId => this.botService.mountBot(botId))
-  }
+    disabledBots.forEach(botId => BotService.setBotStatus(botId, 'disabled'))
 
-  @WrapErrorsWith('Error initializing Ghost Service')
-  async initializeGhost(): Promise<void> {
-    this.ghostService.initialize(process.IS_PRODUCTION)
-    await this.ghostService.global().sync()
+    await Promise.map(botsToMount, botId => this.botService.mountBot(botId))
   }
 
   private async initializeServices() {
@@ -287,6 +284,10 @@ export class Botpress {
     this.loggerDbPersister.start()
 
     await this.loggerFilePersister.initialize(this.config!, await this.loggerProvider('LogFilePersister'))
+
+    this.configProvider.onBotpressConfigChanged = async (initialHash: string, newHash: string) => {
+      this.realtimeService.sendToSocket({ eventName: 'config.updated', payload: { initialHash, newHash } })
+    }
 
     await this.authService.initialize()
     await this.workspaceService.initialize()
@@ -350,6 +351,7 @@ export class Botpress {
       this.realtimeService.sendToSocket(payload)
     }
 
+    await this.stateManager.initialize()
     await this.logJanitor.start()
     await this.dialogJanitor.start()
     await this.monitoringService.start()
@@ -364,26 +366,6 @@ export class Botpress {
     this.hintsService.refreshAll()
 
     await AppLifecycle.setDone(AppLifecycleEvents.SERVICES_READY)
-  }
-
-  private async loadConfiguration(forceInvalidate?): Promise<BotpressConfig> {
-    if (forceInvalidate) {
-      await this.configProvider.invalidateBotpressConfig()
-    }
-    return this.configProvider.getBotpressConfig()
-  }
-
-  private getDatabaseType(): DatabaseType {
-    const databaseUrl = process.env.DATABASE_URL
-    const databaseType = databaseUrl && databaseUrl.toLowerCase().startsWith('postgres') ? 'postgres' : 'sqlite'
-
-    return databaseType
-  }
-
-  @WrapErrorsWith(`Error initializing Database. Please check your configuration`)
-  private async createDatabase(): Promise<void> {
-    const databaseType = this.getDatabaseType()
-    await this.database.initialize(<DatabaseType>databaseType.toLowerCase(), process.env.DATABASE_URL)
   }
 
   private async loadModules(modules: sdk.ModuleEntryPoint[]): Promise<void> {
@@ -403,13 +385,14 @@ export class Botpress {
     AppLifecycle.setDone(AppLifecycleEvents.HTTP_SERVER_READY)
   }
 
-  private startRealtime() {
-    this.realtimeService.installOnHttpServer(this.httpServer.httpServer)
+  private async startRealtime() {
+    await this.realtimeService.installOnHttpServer(this.httpServer.httpServer)
   }
 
   private formatProcessingError(err: ProcessingError) {
     return `Error processing "${err.instruction}"
 Err: ${err.message}
+BotId: ${err.botId}
 Flow: ${err.flowName}
 Node: ${err.nodeName}`
   }
@@ -437,9 +420,7 @@ Node: ${err.nodeName}`
         this.stats.track(
           'server',
           'heartbeat',
-          `version: ${process.BOTPRESS_VERSION}, pro: ${process.IS_PRO_ENABLED}, licensed: ${
-            process.IS_LICENSED
-          }, bots: ${nbBots}, collaborators: ${nbCollabs}`
+          `version: ${process.BOTPRESS_VERSION}, pro: ${process.IS_PRO_ENABLED}, licensed: ${process.IS_LICENSED}, bots: ${nbBots}, collaborators: ${nbCollabs}`
         )
       }
     }, ms('2m'))

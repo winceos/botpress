@@ -111,7 +111,7 @@ To enable Postgres, you can edit the configuration or pass 2 environment variabl
 Botpress allows you to build a powerful tool for autonomous communication with your users.
 However there may be cases where it is difficult or very resource-consuming to implement a conversation flow within the bot. At this point you may consider having a human take over the conversation and continue to communicate with your user.
 
-The [Human-in-the-Loop (hitl)](https://github.com/botpress/botpress/tree/master/modules/.hitl) module allows you to do just that!
+The [Human-in-the-Loop (hitl)](https://github.com/botpress/botpress/tree/master/modules/hitl) module allows you to do just that!
 
 Human-in-the-Loop is currently supported on `channel-web` and `channel-messenger`.
 
@@ -354,7 +354,7 @@ Notice in the above example that via the `web-style` key we are changing the dir
 
 One of the most popular use-case for Actions is to call an API, get some data and use it in your flow. That's what we're going to demonstrate here.
 
-We're going to use `axios` as http client because its already a Botpress dependency. See our [Custom Code](https://botpress.io/docs/build/code/) section to learn more about how dependencies work in Actions.
+We're going to use `axios` as http client because its already a Botpress dependency. See our [Custom Code](https://botpress.com/docs/build/code/) section to learn more about how dependencies work in Actions.
 
 Start by creating a new javascript file in `/data/bots/<your_bot>/actions/getQuote.js`. Then copy the following code:
 
@@ -396,7 +396,7 @@ await bp.events.replyToEvent(event, payloads)
 
 In the end, calling an API in an Action works as it would in any other javascript project. The real difference is how you want to handle the data afterwards. So we just made the bot reply, but what if we wanted to return that data and use it later on in the flow?
 
-We're gonna use [Temp Memory](https://botpress.io/docs/build/memory/#temporary-memory) to store the data instead.
+We're gonna use [Temp Memory](https://botpress.com/docs/build/memory#temporary-memory) to store the data instead.
 
 ```javascript
 // Assigns the quote to the temporary memory

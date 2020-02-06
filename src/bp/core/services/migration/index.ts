@@ -4,16 +4,18 @@ import { BotpressAPIProvider } from 'core/api'
 import { ConfigProvider } from 'core/config/config-loader'
 import Database from 'core/database'
 import center from 'core/logger/center'
+import { stringify } from 'core/misc/utils'
 import { TYPES } from 'core/types'
-import fs from 'fs'
+import fse from 'fs-extra'
 import glob from 'glob'
 import { Container, inject, injectable, tagged } from 'inversify'
 import _ from 'lodash'
-import mkdirp from 'mkdirp'
 import path from 'path'
 import semver from 'semver'
+import yn from 'yn'
 
 import { container } from '../../app.inversify'
+import { GhostService } from '../ghost/service'
 
 const debug = DEBUG('migration')
 
@@ -22,137 +24,225 @@ const types = {
   config: 'Config File Changes',
   content: 'Changes to Content Files (*.json)'
 }
+/**
+ * Use a combination of these environment variables to easily test migrations.
+ * TESTMIG_BP_VERSION: Change the target version of your migration
+ * TESTMIG_CONFIG_VERSION: Override the current version of the server
+ * TESTMIG_IGNORE_COMPLETED: Ignore completed migrations (so they can be run again and again)
+ * TESTMIG_IGNORE_LIST: Comma separated list of migration filename part to ignore
+ */
 
 @injectable()
 export class MigrationService {
-  /** This is the declared version in the configuration file */
-  private configVersion!: string
   /** This is the actual running version (package.json) */
   private currentVersion: string
   private loadedMigrations: { [filename: string]: Migration | sdk.ModuleMigration } = {}
-  private completedMigrationsDir: string
 
   constructor(
     @tagged('name', 'Migration')
     @inject(TYPES.Logger)
     private logger: sdk.Logger,
     @inject(TYPES.Database) private database: Database,
-    @inject(TYPES.ConfigProvider) private configProvider: ConfigProvider
+    @inject(TYPES.ConfigProvider) private configProvider: ConfigProvider,
+    @inject(TYPES.GhostService) private ghostService: GhostService
   ) {
-    this.currentVersion = process.env.MIGRATION_TEST_VERSION || process.BOTPRESS_VERSION
-    this.completedMigrationsDir = path.resolve(process.PROJECT_LOCATION, `data/migrations`)
-    mkdirp.sync(this.completedMigrationsDir)
+    this.currentVersion = process.env.TESTMIG_BP_VERSION || process.BOTPRESS_VERSION
   }
 
   async initialize() {
-    this.configVersion = (await this.configProvider.getBotpressConfig()).version
-    debug(`Migration Check: %o`, { configVersion: this.configVersion, currentVersion: this.currentVersion })
+    const configVersion = process.env.TESTMIG_CONFIG_VERSION || (await this.configProvider.getBotpressConfig()).version
+    debug(`Migration Check: %o`, { configVersion, currentVersion: this.currentVersion })
 
-    if (process.env.SKIP_MIGRATIONS) {
+    if (yn(process.env.SKIP_MIGRATIONS)) {
       debug(`Skipping Migrations`)
       return
     }
 
-    const missingMigrations = [...this._getMissingCoreMigrations(), ...this._getMissingModuleMigrations()]
+    const missingMigrations = this.filterMissing(this.getAllMigrations(), configVersion)
     if (!missingMigrations.length) {
       return
     }
 
     this._loadMigrations(missingMigrations)
-    this._displayStatus()
+    this.displayMigrationStatus(configVersion, missingMigrations, this.logger)
 
     if (!process.AUTO_MIGRATE) {
-      await this.logger.error(
+      this.logger.error(
         `Botpress needs to migrate your data. Please make a copy of your data, then start it with "./bp --auto-migrate"`
       )
-      process.exit(1)
+
+      // When failsafe is enabled, simply stop executing migrations
+      if (!process.IS_FAILSAFE) {
+        process.exit(0)
+      } else {
+        return
+      }
     }
 
-    await this.execute()
+    await this.executeMigrations(missingMigrations)
   }
 
-  private _displayStatus() {
-    const migrations = Object.keys(this.loadedMigrations).map(filename => this.loadedMigrations[filename].info)
+  async executeMissingBotMigrations(botId: string, botVersion: string) {
+    debug.forBot(botId, `Checking missing migrations for bot `, { botId, botVersion })
 
-    this.logger.warn(chalk`========================================
-{bold ${center(`Migration Required`, 40)}}
-{dim ${center(`Version ${this.configVersion} => ${this.currentVersion} `, 40)}}
-{dim ${center(`${migrations.length} changes`, 40)}}
-========================================`)
+    const missingMigrations = this.filterBotTarget(this.filterMissing(this.getAllMigrations(), botVersion))
+    if (!missingMigrations.length) {
+      return
+    }
 
-    Object.keys(types).map(type => {
-      this.logger.warn(chalk`{bold ${types[type]}}`)
-      const filtered = migrations.filter(x => x.type === type)
-
-      if (filtered.length) {
-        filtered.map(x => this.logger.warn(`- ${x.description}`))
-      } else {
-        this.logger.warn(`- None`)
-      }
-    })
-  }
-
-  async execute() {
-    const migrationCount = Object.keys(this.loadedMigrations).length
-    const api = await container.get<BotpressAPIProvider>(TYPES.BotpressAPIProvider).create('Migration', 'core')
-
-    this.logger.info(chalk`========================================
-{bold ${center(`Executing ${migrationCount.toString()} migrations`, 40)}}
-========================================`)
-
-    const completed = this._getCompletedMigrations()
+    this.displayMigrationStatus(botVersion, missingMigrations, this.logger.forBot(botId))
+    const opts = await this.getMigrationOpts({ botId })
     let hasFailures = false
 
-    await Promise.mapSeries(Object.keys(this.loadedMigrations), async file => {
-      if (completed.includes(file)) {
-        return this.logger.info(`Skipping already migrated file "${file}"`)
-      }
-
-      this.logger.info(`Running ${file}`)
-
-      const result = await this.loadedMigrations[file].up(api, this.configProvider, this.database, container)
+    await Promise.mapSeries(missingMigrations, async ({ filename }) => {
+      const result = await this.loadedMigrations[filename].up(opts)
+      debug.forBot(botId, `Migration step finished`, { filename, result })
       if (result.success) {
-        this._saveCompletedMigration(file, result)
-        await this.logger.info(`- ${result.message || 'Success'}`)
+        this.logger.info(`- ${result.message || 'Success'}`)
       } else {
         hasFailures = true
-        await this.logger.error(`- ${result.message || 'Failure'}`)
+        this.logger.error(`- ${result.message || 'Failure'}`)
       }
     })
 
     if (hasFailures) {
-      await this.logger.error(
-        `Some steps failed to complete. Please fix errors manually, then restart Botpress so the update process may finish.`
-      )
-      process.exit(1)
+      return this.logger.error(`Could not complete bot migration. It may behave unexpectedly.`)
     }
 
-    await this.configProvider.mergeBotpressConfig({ version: this.currentVersion })
+    await this.configProvider.mergeBotConfig(botId, { version: this.currentVersion })
+  }
+
+  private async executeMigrations(missingMigrations: MigrationFile[]) {
+    const opts = await this.getMigrationOpts()
+
+    this.logger.info(chalk`========================================
+{bold ${center(`Executing ${missingMigrations.length} migration${missingMigrations.length === 1 ? '' : 's'}`, 40)}}
+========================================`)
+
+    const completed = await this._getCompletedMigrations()
+    let hasFailures = false
+
+    // Clear the Botpress cache before executing any migrations
+    try {
+      const cachePath = path.join(process.APP_DATA_PATH, 'cache')
+      if (process.APP_DATA_PATH && fse.pathExistsSync(cachePath)) {
+        fse.removeSync(cachePath)
+        this.logger.info('Cleared cache')
+      }
+    } catch (err) {
+      this.logger.attachError(err).warn('Could not clear cache')
+    }
+
+    await Promise.mapSeries(missingMigrations, async ({ filename }) => {
+      if (completed.includes(filename)) {
+        return this.logger.info(`Skipping already migrated file "${filename}"`)
+      }
+
+      if (
+        process.env.TESTMIG_IGNORE_LIST &&
+        process.env.TESTMIG_IGNORE_LIST.split(',').filter(x => filename.includes(x)).length
+      ) {
+        return this.logger.info(`Skipping ignored migration file "${filename}"`)
+      }
+
+      this.logger.info(`Running ${filename}`)
+
+      const result = await this.loadedMigrations[filename].up(opts)
+      if (result.success) {
+        await this._saveCompletedMigration(filename, result)
+        this.logger.info(`- ${result.message || 'Success'}`)
+      } else {
+        hasFailures = true
+        this.logger.error(`- ${result.message || 'Failure'}`)
+      }
+    })
+
+    if (hasFailures) {
+      this.logger.error(
+        `Some steps failed to complete. Please fix errors manually, then restart Botpress so the update process may finish.`
+      )
+
+      if (!process.IS_FAILSAFE) {
+        process.exit(0)
+      }
+    }
+
+    await this.updateAllVersions()
     this.logger.info(`Migrations completed successfully! `)
   }
 
-  private _getCompletedMigrations(): string[] {
-    return fs.readdirSync(this.completedMigrationsDir)
+  private async updateAllVersions() {
+    await this.configProvider.mergeBotpressConfig({ version: this.currentVersion })
+
+    const botIds = (await this.ghostService.bots().directoryListing('/', 'bot.config.json')).map(path.dirname)
+    for (const botId of botIds) {
+      await this.configProvider.mergeBotConfig(botId, { version: this.currentVersion }, true)
+    }
   }
 
-  private _saveCompletedMigration(filename: string, result: sdk.MigrationResult) {
-    fs.writeFileSync(path.resolve(`${this.completedMigrationsDir}/${filename}`), JSON.stringify(result, undefined, 2))
+  private displayMigrationStatus(configVersion: string, missingMigrations: MigrationFile[], logger: sdk.Logger) {
+    const migrations = missingMigrations.map(x => this.loadedMigrations[x.filename].info)
+
+    logger.warn(chalk`========================================
+{bold ${center(`Migration Required`, 40)}}
+{dim ${center(`Version ${configVersion} => ${this.currentVersion} `, 40)}}
+{dim ${center(`${migrations.length} change${migrations.length === 1 ? '' : 's'}`, 40)}}
+========================================`)
+
+    Object.keys(types).map(type => {
+      logger.warn(chalk`{bold ${types[type]}}`)
+      const filtered = migrations.filter(x => x.type === type)
+
+      if (filtered.length) {
+        filtered.map(x => logger.warn(`- ${x.description}`))
+      } else {
+        logger.warn(`- None`)
+      }
+    })
+  }
+
+  private async getMigrationOpts(metadata?: sdk.MigrationMetadata) {
+    return {
+      bp: await container.get<BotpressAPIProvider>(TYPES.BotpressAPIProvider).create('Migration', 'core'),
+      configProvider: this.configProvider,
+      database: this.database,
+      inversify: container,
+      metadata: metadata || {}
+    }
+  }
+
+  private filterBotTarget(migrationFiles: MigrationFile[]): MigrationFile[] {
+    this._loadMigrations(migrationFiles)
+    return migrationFiles.filter(x => this.loadedMigrations[x.filename].info.target === 'bot')
+  }
+
+  private getAllMigrations(): MigrationFile[] {
+    const coreMigrations = this._getMigrations(path.join(__dirname, '../../../migrations'))
+    const moduleMigrations = _.flatMap(Object.keys(process.LOADED_MODULES), module =>
+      this._getMigrations(path.join(process.LOADED_MODULES[module], 'dist/migrations'))
+    )
+
+    return [...coreMigrations, ...moduleMigrations]
+  }
+
+  private async _getCompletedMigrations(): Promise<string[]> {
+    if (yn(process.env.TESTMIG_IGNORE_COMPLETED)) {
+      return []
+    }
+
+    return this.ghostService.root().directoryListing('migrations')
+  }
+
+  private _saveCompletedMigration(filename: string, result: sdk.MigrationResult): Promise<void> {
+    return this.ghostService.root().upsertFile('migrations', filename, stringify(result))
   }
 
   private _loadMigrations = (fileList: MigrationFile[]) =>
-    fileList.map(file => (this.loadedMigrations[file.filename] = require(file.location).default))
-
-  private _getMissingCoreMigrations() {
-    return this._getFilteredMigrations(path.join(__dirname, '../../../migrations'))
-  }
-
-  private _getMissingModuleMigrations() {
-    return _.flatMap(Object.keys(process.LOADED_MODULES), module =>
-      this._getFilteredMigrations(path.join(process.LOADED_MODULES[module], 'dist/migrations'))
-    )
-  }
-
-  private _getFilteredMigrations = (rootPath: string) => this._filterMissing(this._getMigrations(rootPath))
+    fileList.map(file => {
+      if (!this.loadedMigrations[file.filename]) {
+        this.loadedMigrations[file.filename] = require(file.location).default
+      }
+    })
 
   private _getMigrations(rootPath: string): MigrationFile[] {
     return _.orderBy(
@@ -161,7 +251,7 @@ export class MigrationService {
         return {
           filename: path.basename(filepath),
           version: semver.valid(rawVersion.replace(/_/g, '.')),
-          title: (title || '').replace('.js', ''),
+          title: (title || '').replace(/\.js$/i, ''),
           date: Number(timestamp),
           location: path.join(rootPath, filepath)
         }
@@ -170,11 +260,11 @@ export class MigrationService {
     )
   }
 
-  private _filterMissing = (files: MigrationFile[]) =>
-    files.filter(file => semver.satisfies(file.version, `>${this.configVersion} <= ${this.currentVersion}`))
+  private filterMissing = (files: MigrationFile[], version) =>
+    files.filter(file => semver.satisfies(file.version, `>${version} <= ${this.currentVersion}`))
 }
 
-interface MigrationFile {
+export interface MigrationFile {
   date: number
   version: string
   location: string
@@ -182,16 +272,20 @@ interface MigrationFile {
   title: string
 }
 
+export interface MigrationOpts {
+  bp: typeof sdk
+  configProvider: ConfigProvider
+  database: Database
+  inversify: Container
+  metadata: sdk.MigrationMetadata
+}
+
 export interface Migration {
   info: {
     description: string
+    target?: 'core' | 'bot'
     type: 'database' | 'config' | 'content'
   }
-  up: (bp: typeof sdk, config: ConfigProvider, database: Database, inversify: Container) => Promise<sdk.MigrationResult>
-  down?: (
-    bp: typeof sdk,
-    config: ConfigProvider,
-    database: Database,
-    inversify: Container
-  ) => Promise<sdk.MigrationResult>
+  up: (opts: MigrationOpts | sdk.ModuleMigrationOpts) => Promise<sdk.MigrationResult>
+  down?: (opts: MigrationOpts | sdk.ModuleMigrationOpts) => Promise<sdk.MigrationResult>
 }

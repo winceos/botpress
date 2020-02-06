@@ -16,6 +16,7 @@ export const NoneIntent: sdk.NLU.Intent = {
  * @param fixedThreshold
  * @param zThresh number of standard deviation between 2 furthest from the mean
  */
+// DEPRECATED
 export function findMostConfidentIntentMeanStd(
   intents: sdk.NLU.Intent[],
   fixedThreshold: number,
@@ -46,9 +47,19 @@ export function findMostConfidentIntentMeanStd(
   return zintents[0].z - zintents[1].z >= zThresh ? zintents[0].intent : NoneIntent
 }
 
+// DEPRECATED
 export const createIntentMatcher = (intentName: string): ((pattern: string) => boolean) => {
   return (pattern: string) => {
     const matcher = new RegExp(`^${escapeRegex(pattern)}$`, 'i')
     return matcher.test(intentName)
   }
+}
+
+// DEPRECATED
+export const getHighlightedIntentEntities = (intent: sdk.NLU.IntentDefinition): string[] => {
+  return _.chain(intent.slots)
+    .flatMap(s => s.entities)
+    .filter(e => e !== 'any')
+    .uniq()
+    .value()
 }

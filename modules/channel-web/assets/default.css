@@ -50,7 +50,7 @@ body {
 }
 
 .bpw-layout {
-  position: absolute;
+  position: fixed;
   bottom: 0;
   right: 0;
   width: 100%;
@@ -183,6 +183,11 @@ body {
   margin-bottom: 2px;
 }
 
+.bpw-message-timestamp {
+  font-size: 0.6rem;
+  float: right;
+}
+
 .bpw-from-user {
   padding-right: 0;
 }
@@ -243,6 +248,21 @@ body {
   margin: auto;
   width: 80px;
   margin-top: 5px;
+}
+
+.bpw-new-messages-indicator {
+  position: absolute;
+  width: 100%;
+  background: whitesmoke;
+  height: 40px;
+  display: flex;
+  flex-grow: 1;
+  margin-left: -8px;
+  align-items: center;
+  justify-content: center;
+  text-decoration: underline;
+  color: #106ba3;
+  cursor: pointer;
 }
 
 /**
@@ -723,8 +743,14 @@ body {
   overflow-y: auto;
 }
 
+.bpw-botinfo-cover-picture-wrapper {
+  height: 50%;
+  overflow: hidden;
+}
+
 .bpw-botinfo-cover-picture {
   width: 100%;
+  object-fit: cover;
 }
 
 .bpw-botinfo-container button,
@@ -761,6 +787,14 @@ body {
 
 .bpw-botinfo-link i {
   margin-right: 10px;
+}
+
+.bpw-botinfo-preferred-language {
+  margin: 20px 0;
+}
+
+.bpw-botinfo-preferred-language select {
+  margin-left: 10px;
 }
 
 .bpw-botinfo-terms {
@@ -837,13 +871,11 @@ body {
 }
 
 /* IE10+ CSS styles go here */
-/*@media all and (-ms-high-contrast: none), (-ms-high-contrast: active) {
-  .typingGroup {
-    .typingBubble {
-      animation: initial;
-    }
+@media all and (-ms-high-contrast: none), (-ms-high-contrast: active) {
+  .bpw-typing-bubble {
+    animation: none;
   }
-}*/
+}
 
 /**ANIMATIONS */
 

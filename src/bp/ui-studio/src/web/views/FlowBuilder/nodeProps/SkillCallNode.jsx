@@ -2,7 +2,7 @@ import React, { Component, Fragment } from 'react'
 
 import { Panel, Tabs, Tab, Badge, Button } from 'react-bootstrap'
 
-import PermissionsChecker from '~/components/Layout/PermissionsChecker'
+import { AccessControl } from '~/components/Shared/Utils'
 import EditableInput from '../common/EditableInput'
 import TransitionSection from './TransitionSection'
 
@@ -10,8 +10,11 @@ const style = require('./style.scss')
 
 export default class SkillCallNodePropertiesPanel extends Component {
   renameNode = text => {
-    if (text && text !== this.props.node.name) {
-      this.props.updateNode({ name: text })
+    if (text) {
+      const alreadyExists = this.props.flow.nodes.find(x => x.name === text)
+      if (!alreadyExists) {
+        this.props.updateNode({ name: text })
+      }
     }
   }
 
@@ -22,13 +25,6 @@ export default class SkillCallNodePropertiesPanel extends Component {
   render() {
     const { node, readOnly } = this.props
 
-    const onNameMounted = input => {
-      if (input.value.startsWith('node-')) {
-        input.focus()
-        input.setSelectionRange(0, 1000)
-      }
-    }
-
     const editSkill = () => this.props.requestEditSkill(node.id)
 
     return (
@@ -36,16 +32,15 @@ export default class SkillCallNodePropertiesPanel extends Component {
         <Panel>
           <EditableInput
             readOnly={readOnly}
-            onMount={onNameMounted}
             value={node.name}
             className={style.name}
             onChanged={this.renameNode}
             transform={this.transformText}
           />
           <div style={{ padding: '5px' }}>
-            <PermissionsChecker user={this.props.user} op="write" res="bot.skills">
+            <AccessControl resource="bot.skills" operation="write">
               <Button onClick={editSkill}>Edit skill</Button>
-            </PermissionsChecker>
+            </AccessControl>
           </div>
         </Panel>
         <Tabs animation={false} id="node-props-modal-skill-node-tabs">
@@ -60,6 +55,7 @@ export default class SkillCallNodePropertiesPanel extends Component {
             <TransitionSection
               readOnly={readOnly}
               items={node.next}
+              currentFlow={this.props.flow}
               header="Transitions"
               subflows={this.props.subflows}
               onItemsUpdated={items => this.props.updateNode({ next: items })}

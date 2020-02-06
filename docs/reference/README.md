@@ -1,16 +1,16 @@
 # Botpress SDK
 
-Botpress SDK allows you to create _Botpress Modules_ that extends the functionnalities of the plateform. Botpress SDK exposes all the major methods that a Module needs to interact with the core.
+Botpress SDK allows you to create _Botpress Modules_ that extends the functionalities of the platform. Botpress SDK exposes all the major methods that a Module needs to interact with the core.
 
 We made sure that the SDK is always up-to-date with the latest version of Botpress. It will always match the current version of your Botpress installation.
 
-> **Tip**: For step-by-step instructions in how to install a Module or create one, see our _Developer's Guide_ [Module Section](https://botpress.io/docs/modules/install/).
+> **Tip**: For step-by-step instructions in how to install a Module or create one, see our _Developer's Guide_ [Module Section](https://botpress.com/docs/modules/install/).
 
 ## How to use Botpress SDK
 
 To use the SDK in your Module, it has to be recognized by Botpress.
 
-> **Tip**: Before continuing, please refer to the [Module Building](https://botpress.io/docs/modules/build/) section of our Developer's Guide to learn how to build your Module.
+> **Tip**: Before continuing, please refer to the [Module Building](https://botpress.com/docs/modules/build/) section of our Developer's Guide to learn how to build your Module.
 
 ### Definition File
 
