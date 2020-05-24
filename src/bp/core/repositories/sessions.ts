@@ -1,4 +1,5 @@
 import * as sdk from 'botpress/sdk'
+import { SessionIdFactory } from 'core/services/dialog/session/id-factory'
 import { inject, injectable } from 'inversify'
 import Knex from 'knex'
 import _ from 'lodash'
@@ -55,6 +56,8 @@ export class KnexSessionRepository implements SessionRepository {
     trx?: Knex.Transaction
   ): Promise<DialogSession> {
     const session = new DialogSession(sessionId, botId, context, temp_data, session_data)
+    const { channel } = SessionIdFactory.extractDestinationFromId(sessionId)
+    BOTPRESS_CORE_EVENT('bp_core_session_created', { botId, channel })
     return this.insert(session, trx)
   }
 
@@ -102,12 +105,22 @@ export class KnexSessionRepository implements SessionRepository {
   }
 
   async getExpiredContextSessionIds(botId: string): Promise<string[]> {
-    return (await this.database
+    let query = this.database
       .knex(this.tableName)
       .where('botId', botId)
       .andWhere(this.database.knex.date.isBefore('context_expiry', new Date()))
+
+    // We only process expired context if there is actually a context
+    if (this.database.knex.isLite) {
+      query = query.andWhereRaw(this.database.knex.raw(`context <> '{}' `))
+    } else {
+      query = query.andWhereRaw(this.database.knex.raw(`context::text <> '{}'::text`))
+    }
+
+    return (await query
       .select('id')
       .limit(250)
+      .orderBy('modified_on')
       .then(rows => {
         return rows.map(r => r.id)
       })) as string[]

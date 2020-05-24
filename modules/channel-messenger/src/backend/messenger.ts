@@ -28,14 +28,12 @@ export class MessengerService {
   async initialize() {
     const config = (await this.bp.config.getModuleConfig('channel-messenger')) as Config
 
-    if (!config.verifyToken || !config.verifyToken.length) {
-      throw new Error(
-        'You need to set a non-empty value for "verifyToken" in data/global/config/channel-messenger.json'
-      )
+    if (!config.verifyToken?.length || config.verifyToken === 'verify_token') {
+      throw new Error('You need to set a valid value for "verifyToken" in data/global/config/channel-messenger.json')
     }
 
-    if (!config.appSecret || !config.appSecret.length) {
-      throw new Error(`You need to set a non-empty value for "appSecret" in data/global/config/channel-messenger.json`)
+    if (!config.appSecret?.length || config.appSecret === 'app_secret') {
+      throw new Error(`You need to set a valid value for "appSecret" in data/global/config/channel-messenger.json`)
     }
 
     this.appSecret = config.appSecret
@@ -45,13 +43,11 @@ export class MessengerService {
       enableJsonBodyParser: false // we use our custom json body parser instead, see below
     })
 
-    this.router.getPublicPath().then(publicPath => {
-      if (publicPath.indexOf('https://') !== 0) {
-        this.bp.logger.warn('Messenger requires HTTPS to be setup to work properly. See EXTERNAL_URL botpress config.')
-      }
-
-      this.bp.logger.info(`Messenger Webhook URL is ${publicPath.replace('BOT_ID', '___')}/webhook`)
-    })
+    const publicPath = await this.router.getPublicPath()
+    if (!publicPath.startsWith('https://')) {
+      this.bp.logger.warn('Messenger requires HTTPS to be setup to work properly. See EXTERNAL_URL botpress config.')
+    }
+    this.bp.logger.info(`Messenger Webhook URL is ${publicPath.replace('BOT_ID', '___')}/webhook`)
 
     this.router.use(
       expressJson({
@@ -82,7 +78,7 @@ export class MessengerService {
 
       const { data } = await this.http.get('/', { params: { access_token: config.accessToken } })
 
-      if (!data || !data.id) {
+      if (!data?.id) {
         return this.bp.logger
           .forBot(botId)
           .error(
@@ -148,7 +144,7 @@ export class MessengerService {
     if (body.object !== 'page') {
       // TODO: Handle other cases here
     } else {
-      res.status(200).send('EVENT_RECEIVED')
+      res.send('EVENT_RECEIVED')
     }
 
     for (const entry of body.entry) {
@@ -206,7 +202,7 @@ export class MessengerService {
 
     if (mode && token && mode === 'subscribe' && token === config.verifyToken) {
       this.bp.logger.debug('Webhook Verified')
-      res.status(200).send(challenge)
+      res.send(challenge)
     } else {
       res.sendStatus(403)
     }
@@ -290,7 +286,7 @@ export class MessengerClient {
 
   async setupPersistentMenu(): Promise<void> {
     const config = await this.getConfig()
-    if (!config.persistentMenu || !config.persistentMenu.length) {
+    if (!config.persistentMenu?.length) {
       await this.deleteProfileFields(['persistent_menu'])
       return
     }
@@ -309,12 +305,14 @@ export class MessengerClient {
     await this._callEndpoint('/messages', body)
   }
 
-  async sendTextMessage(senderId: string, message: string) {
+  async sendTextMessage(senderId: string, message: { [key: string]: any }) {
+    const acceptableKeys = ['text', 'quick_replies', 'metadata', 'attachment']
+
     const body = {
       recipient: {
         id: senderId
       },
-      message
+      message: _.pick(message, acceptableKeys)
     }
 
     debugMessages('outgoing text message', { senderId, message, body })

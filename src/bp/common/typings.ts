@@ -1,8 +1,8 @@
-import { BotDetails, Flow, FlowNode, RolloutStrategy } from 'botpress/sdk'
+import { BotDetails, Flow, FlowNode, RolloutStrategy, StageRequestApprovers } from 'botpress/sdk'
 import { Request } from 'express'
 
 import { BotpressConfig } from '../core/config/botpress.config'
-import { StrategyUser } from '../core/repositories/strategy_users'
+import { StrategyUser } from 'botpress/sdk'
 
 export interface IDisposeOnExit {
   disposeOnExit(): void
@@ -76,6 +76,13 @@ export interface TokenUser {
   strategy: string
   isSuperAdmin: boolean
   exp?: number
+  iat?: number
+}
+
+export interface StoredToken {
+  token: string
+  expiresAt: number
+  issuedAt: number
 }
 
 export type RequestWithUser = Request & {
@@ -107,6 +114,9 @@ export interface Stage {
   id: string
   label: string
   action: StageAction
+  reviewers: StageRequestApprovers[]
+  minimumApprovals: number
+  reviewSequence: 'serial' | 'parallel'
 }
 
 export interface UserProfile {
@@ -152,6 +162,11 @@ export interface ServerConfig {
   live: { [keyName: string]: string }
 }
 
+export interface NodeProblem {
+  nodeName: string
+  missingPorts: any
+}
+
 export interface ChatUserAuth {
   sessionId: string
   botId: string
@@ -168,6 +183,27 @@ export interface AuthPayload {
   identity?: TokenUser
 }
 
+export interface ModuleInfo {
+  name: string
+  fullName?: string
+  description?: string
+  /** Archived modules must be unpacked before information is available */
+  archived?: boolean
+  /** The location of the module as listed in botpress config */
+  location: string
+  /** The complete location of the module */
+  fullPath: string
+  enabled: boolean
+  status?: 'stable' | 'experimental'
+}
+
+export interface LibraryElement {
+  contentId: string
+  type: 'say_something' | 'execute'
+  preview: string
+  path: string
+}
+
 export interface ServerHealth {
   serverId: string
   hostname: string
@@ -175,7 +211,42 @@ export interface ServerHealth {
 }
 
 export interface BotHealth {
-  status: 'mounted' | 'unmounted' | 'disabled' | 'error'
+  status: 'healthy' | 'unhealthy' | 'disabled'
   errorCount: number
+  criticalCount: number
   warningCount: number
+}
+
+export interface ActionServer {
+  id: string
+  baseUrl: string
+}
+
+export type ActionScope = 'bot' | 'global'
+
+export interface ActionDefinition {
+  name: string
+  category: string
+  description: string
+  author: string
+  params: ActionParameterDefinition[]
+}
+
+export type LocalActionDefinition = ActionDefinition & {
+  title: string
+  scope: ActionScope
+  legacy: boolean
+  hidden: boolean
+}
+
+export interface ActionParameterDefinition {
+  name: string
+  description: string
+  required: boolean
+  type: string
+  default: any
+}
+
+export type ActionServerWithActions = ActionServer & {
+  actions: ActionDefinition[] | undefined
 }

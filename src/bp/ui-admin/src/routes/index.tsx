@@ -6,6 +6,7 @@ import { ConnectedRouter } from 'react-router-redux'
 import ChatAuthResult from '~/Pages/Account/ChatAuthResult'
 import Details from '~/Pages/Bot/Details'
 import { LoginContainer } from '~/Pages/Layouts/LoginContainer'
+import Logs from '~/Pages/Logs'
 import Alerting from '~/Pages/Server/Alerting'
 import Checklist from '~/Pages/Server/Checklist'
 import Languages from '~/Pages/Server/Languages'
@@ -21,7 +22,7 @@ import Workspaces from '~/Pages/Workspaces'
 import store, { history } from '../store'
 import { extractCookie } from '../utils/cookies'
 import App from '../App/Layout'
-import Auth, { getActiveWorkspace } from '../Auth'
+import Auth, { getActiveWorkspace, setToken } from '../Auth'
 import ChangePassword from '../Pages/Account/ChangePassword'
 import LoginPage from '../Pages/Account/Login'
 import RegisterPage from '../Pages/Account/Register'
@@ -34,7 +35,11 @@ export const makeMainRoutes = () => {
   const auth = new Auth()
 
   const ExtractToken = () => {
-    auth.setSession({ expiresIn: 7200, idToken: extractCookie('userToken') })
+    const token = extractCookie('userToken')
+    if (token) {
+      setToken(token)
+    }
+
     // tslint:disable-next-line: no-floating-promises
     auth.afterLoginRedirect()
 
@@ -74,6 +79,7 @@ export const makeMainRoutes = () => {
               <Route path="/workspace/:workspaceId?/bots" component={Bots} />
               <Route path="/workspace/:workspaceId?/users" component={Collaborators} />
               <Route path="/workspace/:workspaceId?/roles" component={Roles} />
+              <Route path="/workspace/:workspaceId?/logs" component={Logs} />
               <Route path="/workspaces" component={Workspaces} />
               <Route path="/debug" component={Debug} />
               <Route path="/modules" component={Modules} />

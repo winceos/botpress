@@ -1,5 +1,6 @@
 import { AxiosInstance } from 'axios'
 import { NLU } from 'botpress/sdk'
+import cx from 'classnames'
 import _ from 'lodash'
 import React, { FC, useEffect, useState } from 'react'
 
@@ -25,6 +26,7 @@ export const IntentEditor: FC<Props> = props => {
   const [intent, setIntent] = useState<NLU.IntentDefinition>()
 
   useEffect(() => {
+    // tslint:disable-next-line: no-floating-promises
     props.api.fetchIntent(props.intent).then(setIntent)
   }, [props.intent])
 
@@ -35,6 +37,7 @@ export const IntentEditor: FC<Props> = props => {
 
   const saveIntent = (newIntent: NLU.IntentDefinition) => {
     setIntent(newIntent)
+    // tslint:disable-next-line: no-floating-promises
     props.api.createIntent(newIntent)
   }
 
@@ -58,7 +61,7 @@ export const IntentEditor: FC<Props> = props => {
   const utterances = (intent && intent.utterances[props.contentLang]) || []
 
   return (
-    <div className={style.intentEditor}>
+    <div className={cx(style.intentEditor, { [style.liteIntentEditor]: props.liteEditor })}>
       <div>
         <div className={style.header}>
           {!props.liteEditor && (
@@ -68,7 +71,12 @@ export const IntentEditor: FC<Props> = props => {
               api={props.api}
             />
           )}
-          <IntentHint intent={intent} contentLang={props.contentLang} axios={props.axios} />
+          <IntentHint
+            intent={intent}
+            liteEditor={props.liteEditor}
+            contentLang={props.contentLang}
+            axios={props.axios}
+          />
         </div>
         <UtterancesEditor
           intentName={intent.name}

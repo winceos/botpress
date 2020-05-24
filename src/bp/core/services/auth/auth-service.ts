@@ -1,11 +1,11 @@
-import { Logger, RolloutStrategy } from 'botpress/sdk'
+import { Logger, RolloutStrategy, StrategyUser } from 'botpress/sdk'
 import { AuthStrategy, AuthStrategyBasic } from 'core/config/botpress.config'
 import { ConfigProvider } from 'core/config/config-loader'
 import Database from 'core/database'
 import { StrategyUserTable } from 'core/database/tables/server-wide/strategy_users'
 import { getMessageSignature } from 'core/misc/security'
 import { ModuleLoader } from 'core/module-loader'
-import { StrategyUser, StrategyUsersRepository } from 'core/repositories/strategy_users'
+import { StrategyUsersRepository } from 'core/repositories/strategy_users'
 import { BadRequestError } from 'core/routers/errors'
 import { Event } from 'core/sdk/impl'
 import { inject, injectable, tagged } from 'inversify'
@@ -108,7 +108,7 @@ export default class AuthService {
     const duration = config.jwtToken && config.jwtToken.duration
 
     const key = `${channel}::${target}`
-    await this.kvs.setStorageWithExpiry('', key, { email, strategy }, duration)
+    await this.kvs.global().set(key, { email, strategy }, undefined, duration)
 
     return generateUserToken(email, strategy, false, duration, CHAT_USERS_AUDIENCE)
   }

@@ -67,7 +67,9 @@ export const requireAtPaths = (module: string, locations: string[], scriptPath?:
         const pkgEntry = path.join(loc, pkg.main)
         return (requireCache[requireKey] = require(pkgEntry))
       }
-    } catch (err) {}
+    } catch (err) {
+      throw new Error(`Error while loading module "${module}" at location "${locations.join(', ')}": ${err}`)
+    }
   }
 
   try {
@@ -97,4 +99,28 @@ export const buildLookupPaths = (module: string, locations: string[]) => {
       return paths
     })
   )
+}
+
+export const clearModuleScriptCache = (moduleLocation: string) => {
+  const seenCache: any = {}
+
+  const clearRecursive = (moduleLocation: string) => {
+    const cacheKey = require.resolve(moduleLocation)
+    const file = require.cache[cacheKey]
+
+    if (file) {
+      for (const { filename } of file.children) {
+        // Circular reference protection, we only unload the user's module files
+        if (!filename.includes('node_modules') && !seenCache[filename]) {
+          seenCache[filename] = true
+          clearRecursive(filename)
+        }
+      }
+
+      DEBUG('cache')(`Clear cached file ${cacheKey}`)
+      delete require.cache[cacheKey]
+    }
+  }
+
+  clearRecursive(moduleLocation)
 }

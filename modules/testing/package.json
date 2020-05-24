@@ -1,23 +1,19 @@
 {
   "name": "testing",
+  "fullName": "Testing",
   "version": "1.0.0",
-  "description": "",
+  "status": "stable",
+  "description": "Provides the tools required to record a conversation and ensure answers stay consistent",
   "private": true,
   "main": "dist/backend/index.js",
   "author": "Botpress, Inc.",
   "license": "AGPL-3.0-only",
   "scripts": {
-    "build": "./node_modules/.bin/module-builder build",
-    "watch": "./node_modules/.bin/module-builder watch",
-    "package": "./node_modules/.bin/module-builder package"
-  },
-  "devDependencies": {
-    "@types/node": "^10.11.3",
-    "@types/react": "^16.9.19",
-    "module-builder": "../../build/module-builder"
+    "build": "node ../../build/module-builder/bin/entry build",
+    "watch": "node ../../build/module-builder/bin/entry watch",
+    "package": "node ../../build/module-builder/bin/entry package"
   },
   "dependencies": {
-    "@blueprintjs/core": "^3.23.1",
     "classnames": "^2.2.6",
     "react-icons": "^3.8.0"
   },

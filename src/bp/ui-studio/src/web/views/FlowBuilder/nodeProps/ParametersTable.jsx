@@ -6,6 +6,7 @@ import classnames from 'classnames'
 import _ from 'lodash'
 
 import SmartInput from '~/components/SmartInput'
+import { lang } from 'botpress/shared'
 
 const style = require('./parameters.scss')
 
@@ -100,7 +101,7 @@ export default class ParametersTable extends Component {
 
       const definition = _.find(this.props.definitions || [], { name: paramName }) || {
         required: false,
-        description: 'No description',
+        description: lang.tr('studio.flow.node.noDescription'),
         default: '',
         type: 'Unknown',
         fake: true
@@ -127,7 +128,7 @@ export default class ParametersTable extends Component {
             <input type="text" disabled={!!definition.required} value={paramName} onChange={editKey} />
           </td>
           <td>
-            <SmartInput singleLine={true} value={paramValue} placeholder={definition.default} onChange={editValue} />
+            <SmartInput singleLine value={paramValue} placeholder={definition.default} onChange={editValue} />
           </td>
         </tr>
       )

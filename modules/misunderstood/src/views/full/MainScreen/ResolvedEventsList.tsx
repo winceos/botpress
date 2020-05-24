@@ -1,7 +1,9 @@
 import { Button, HTMLTable, Intent } from '@blueprintjs/core'
+import { lang } from 'botpress/shared'
 import React from 'react'
 
 import { DbFlaggedEvent } from '../../../types'
+import style from '../style.scss'
 import { RESOLUTION } from '../util'
 
 interface Props {
@@ -12,13 +14,13 @@ interface Props {
 const ResolvedEventsList = ({ events, resetEvent }: Props) =>
   events &&
   !!events.length && (
-    <HTMLTable condensed interactive striped>
+    <HTMLTable className={style.mainViewTable} condensed interactive striped>
       <thead>
         <tr>
-          <th>Phrase</th>
-          <th>Resolution</th>
-          <th>Updated</th>
-          <th />
+          <th className={style.thPhrase}>{lang.tr('module.misunderstood.phrase')}</th>
+          <th>{lang.tr('module.misunderstood.resolution')}</th>
+          <th className={style.thUpdated}>{lang.tr('module.misunderstood.updated')}</th>
+          <th className={style.thAction} />
         </tr>
       </thead>
       <tbody>
@@ -36,7 +38,7 @@ const ResolvedEventsList = ({ events, resetEvent }: Props) =>
             <td>{event.updatedAt}</td>
             <td>
               <Button onClick={() => resetEvent('' + event.id)} small icon="refresh" intent={Intent.PRIMARY}>
-                Reset
+                {lang.tr('module.misunderstood.reset')}
               </Button>
             </td>
           </tr>

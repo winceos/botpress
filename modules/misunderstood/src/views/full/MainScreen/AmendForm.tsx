@@ -1,8 +1,10 @@
 import { Button, ButtonGroup, Intent } from '@blueprintjs/core'
 import { AxiosStatic } from 'axios'
+import { lang } from 'botpress/shared'
 import React from 'react'
 
 import { ApiFlaggedEvent, RESOLUTION_TYPE } from '../../../types'
+import StickyActionBar from '../StickyActionBar'
 
 import style from './style.scss'
 import IntentPicker from './IntentPicker'
@@ -37,9 +39,11 @@ const AmendForm = ({
 }: Props) => (
   <div className={style.amendForm}>
     <h4>
-      What is this message type?&nbsp;
-      <ButtonGroup>
+      {lang.tr('module.misunderstood.whatIsMessageType')}
+      <br />
+      <ButtonGroup className={style.messageTypeBtnGroup}>
         <Button
+          disabled={mode !== RESOLUTION_TYPE.intent && !!resolution}
           onClick={() => {
             if (mode === RESOLUTION_TYPE.intent) {
               return
@@ -48,9 +52,10 @@ const AmendForm = ({
           }}
           intent={mode === RESOLUTION_TYPE.intent ? Intent.SUCCESS : Intent.NONE}
         >
-          Goal
+          {lang.tr('module.misunderstood.goal')}
         </Button>
         <Button
+          disabled={mode !== RESOLUTION_TYPE.qna && !!resolution}
           onClick={() => {
             if (mode === RESOLUTION_TYPE.qna) {
               return
@@ -59,16 +64,17 @@ const AmendForm = ({
           }}
           intent={mode === RESOLUTION_TYPE.qna ? Intent.SUCCESS : Intent.NONE}
         >
-          Query
+          {lang.tr('module.misunderstood.query')}
         </Button>
         {mode != null && (
           <Button
             onClick={() => {
               setMode(null)
+              onSelect(null)
             }}
             icon="undo"
           >
-            Undo
+            {lang.tr('undo')}
           </Button>
         )}
       </ButtonGroup>
@@ -94,14 +100,14 @@ const AmendForm = ({
       </div>
     )}
 
-    <ButtonGroup large>
-      <Button onClick={onSave} icon="tick" intent={Intent.SUCCESS} disabled={!mode || !resolution}>
-        Save
-      </Button>
+    <StickyActionBar>
       <Button onClick={onCancel} icon="cross" intent={Intent.NONE}>
-        Cancel
+        {lang.tr('cancel')}
       </Button>
-    </ButtonGroup>
+      <Button onClick={onSave} icon="tick" intent={Intent.SUCCESS} disabled={!mode || !resolution}>
+        {lang.tr('save')}
+      </Button>
+    </StickyActionBar>
   </div>
 )
 

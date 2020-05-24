@@ -17,6 +17,7 @@ import { TYPES } from '../types'
 
 import { GhostService } from '.'
 import { JobService } from './job-service'
+import MediaService from './media'
 
 const UNLIMITED_ELEMENTS = -1
 export const DefaultSearchParams: SearchParams = {
@@ -57,11 +58,12 @@ export class CMSService implements IDisposeOnExit {
     @inject(TYPES.ConfigProvider) private configProvider: ConfigProvider,
     @inject(TYPES.InMemoryDatabase) private memDb: KnexExtended,
     @inject(TYPES.JobService) private jobService: JobService,
+    @inject(TYPES.MediaService) private mediaService: MediaService,
     @inject(TYPES.ModuleLoader) private moduleLoader: ModuleLoader
   ) {}
 
   disposeOnExit() {
-    this.sandbox && this.sandbox.dispose()
+    this.sandbox?.dispose()
   }
 
   async initialize() {
@@ -91,7 +93,7 @@ export class CMSService implements IDisposeOnExit {
   }
 
   async getAllElements(botId: string): Promise<ContentElement[]> {
-    const fileNames = await this.ghost.forBot(botId).directoryListing(this.elementsDir, '*.json')
+    const fileNames = await this.ghost.forBot(botId).directoryListing(this.elementsDir, '*.json', 'library.json')
     let contentElements: ContentElement[] = []
 
     for (const fileName of fileNames) {
@@ -209,15 +211,13 @@ export class CMSService implements IDisposeOnExit {
       query = query.andWhere(builder => builder.whereIn('id', ids))
     }
 
-    filters &&
-      filters.forEach(filter => {
-        query = query.andWhere(filter.column, 'like', `%${filter.value}%`)
-      })
+    filters?.forEach(filter => {
+      query = query.andWhere(filter.column, 'like', `%${filter.value}%`)
+    })
 
-    sortOrder &&
-      sortOrder.forEach(sort => {
-        query = query.orderBy(sort.column, sort.desc ? 'desc' : 'asc')
-      })
+    sortOrder?.forEach(sort => {
+      query = query.orderBy(sort.column, sort.desc ? 'desc' : 'asc')
+    })
 
     if (count !== UNLIMITED_ELEMENTS) {
       query = query.limit(count)
@@ -273,8 +273,30 @@ export class CMSService implements IDisposeOnExit {
 
     await this.broadcastRemoveElements(botId, ids)
 
+    this.deleteMedia(botId, elements)
+
     const contentTypes = _.uniq(_.map(elements, 'contentType'))
     await Promise.mapSeries(contentTypes, contentTypeId => this._writeElementsToFile(botId, contentTypeId))
+  }
+
+  getMediaFiles(formData): string[] {
+    const media = '/media/'
+    const iterator = (result: string[], value, key: string) => {
+      if (key.startsWith('image') && value.includes(media)) {
+        result.push(value.substr(value.indexOf(media) + media.length))
+      } else if (key.startsWith('items$')) {
+        value.forEach(e => _.reduce(e, iterator, result))
+      }
+      return result
+    }
+    return _.reduce(formData, iterator, []).filter(Boolean)
+  }
+
+  deleteMedia(botId: string, elements: ContentElement[]) {
+    _.map(elements, 'formData').forEach(formData => {
+      const filesToDelete = this.getMediaFiles(formData)
+      filesToDelete.forEach(e => this.mediaService.deleteFile(botId, e))
+    })
   }
 
   async getAllContentTypes(botId?: string): Promise<ContentType[]> {
@@ -513,11 +535,13 @@ export class CMSService implements IDisposeOnExit {
         result[lang] = 'No preview'
       } else {
         const translated = this.getOriginalProps(formData, contentType, lang)
-        let preview = contentType.computePreviewText(translated)
+        let preview = contentType.computePreviewText({ ...translated, ...this._getAdditionalData() })
 
         if (!preview) {
           const defaultTranslation = this.getOriginalProps(formData, contentType, defaultLang)
-          preview = '(missing translation) ' + contentType.computePreviewText(defaultTranslation)
+          preview =
+            '(missing translation) ' +
+            contentType.computePreviewText({ ...defaultTranslation, ...this._getAdditionalData() })
         }
 
         result[lang] = preview
@@ -527,7 +551,7 @@ export class CMSService implements IDisposeOnExit {
     }, {})
   }
 
-  async translateContentProps(botId, fromLang, toLang) {
+  async translateContentProps(botId: string, fromLang: string | undefined, toLang: string) {
     const elements = await this.listContentElements(botId, undefined, { from: 0, count: UNLIMITED_ELEMENTS })
 
     for (const el of elements) {
@@ -575,10 +599,21 @@ export class CMSService implements IDisposeOnExit {
     }, {})
   }
 
-  async renderElement(contentId, args, eventDestination: IO.EventDestination) {
+  private _getAdditionalData() {
+    return { BOT_URL: process.EXTERNAL_URL }
+  }
+
+  async renderElement(contentId: string, args, eventDestination: IO.EventDestination) {
     const { botId, channel } = eventDestination
     contentId = contentId.replace(/^#?/i, '')
-    let contentTypeRenderer
+    let contentTypeRenderer: ContentType
+
+    const translateFormData = async (formData: object): Promise<object> => {
+      const defaultLang = (await this.configProvider.getBotConfig(eventDestination.botId)).defaultLanguage
+      const lang = _.get(args, 'event.state.user.language')
+
+      return this.getOriginalProps(formData, contentTypeRenderer, lang, defaultLang)
+    }
 
     if (contentId.startsWith('!')) {
       const content = await this.getContentElement(botId, contentId.substr(1)) // TODO handle errors
@@ -587,12 +622,7 @@ export class CMSService implements IDisposeOnExit {
       }
 
       contentTypeRenderer = this.getContentType(content.contentType)
-
-      const defaultLang = (await this.configProvider.getBotConfig(eventDestination.botId)).defaultLanguage
-      const lang = _.get(args, 'event.state.user.language')
-
-      const translated = await this.getOriginalProps(content.formData, contentTypeRenderer, lang, defaultLang)
-      content.formData = translated
+      content.formData = await translateFormData(content.formData)
 
       _.set(content, 'formData', renderRecursive(content.formData, args))
 
@@ -608,8 +638,14 @@ export class CMSService implements IDisposeOnExit {
         ...args,
         ...content.formData
       }
+    } else if (contentId.startsWith('@')) {
+      contentTypeRenderer = this.getContentType(contentId.substr(1))
+      args = {
+        ...args,
+        ...(await translateFormData(args))
+      }
     } else {
-      contentTypeRenderer = await this.getContentType(contentId)
+      contentTypeRenderer = this.getContentType(contentId)
       if (args.text) {
         args = {
           ...args,
@@ -618,9 +654,7 @@ export class CMSService implements IDisposeOnExit {
       }
     }
 
-    const additionalData = { BOT_URL: process.EXTERNAL_URL }
-
-    let payloads = await contentTypeRenderer.renderElement({ ...additionalData, ...args }, channel)
+    let payloads = contentTypeRenderer.renderElement({ ...this._getAdditionalData(), ...args }, channel)
     if (!_.isArray(payloads)) {
       payloads = [payloads]
     }

@@ -1,17 +1,29 @@
+import { EditableFile } from '../../../backend/typings'
 import { HOOK_SIGNATURES } from '../../../typings/hooks'
 
 const START_COMMENT = `/** Your code starts below */`
 const END_COMMENT = '/** Your code ends here */'
 
-const ACTION_SIGNATURE =
-  'async function action(bp: typeof sdk, event: sdk.IO.IncomingEvent, args: any, { user, temp, session } = event.state)'
+const ACTION_HTTP_SIGNATURE =
+  'function action(event: sdk.IO.IncomingEvent, args: any, { user, temp, session } = event.state)'
+
+const ACTION_LEGACY_SIGNATURE =
+  'function action(bp: typeof sdk, event: sdk.IO.IncomingEvent, args: any, { user, temp, session } = event.state)'
 
 const wrapper = {
-  add: (content: string, type: string, hookType?: string) => {
-    if (type === 'action') {
-      return `${ACTION_SIGNATURE} {\n  ${START_COMMENT}\n${content}\n  ${END_COMMENT}\n}`
+  add: (file: EditableFile, content: string) => {
+    const { type, hookType, botId } = file
+
+    if (type === 'action_legacy') {
+      return `${ACTION_LEGACY_SIGNATURE} {\n  ${START_COMMENT}\n\n${content}\n\n  ${END_COMMENT}\n}`
+    } else if (type === 'action_http') {
+      return `${ACTION_HTTP_SIGNATURE} {\n  ${START_COMMENT}\n\n${content}\n\n  ${END_COMMENT}\n}`
     } else if (type === 'hook' && HOOK_SIGNATURES[hookType]) {
-      return `${HOOK_SIGNATURES[hookType]} {\n  ${START_COMMENT}\n${content}\n  ${END_COMMENT}\n}`
+      let signature = HOOK_SIGNATURES[hookType]
+      if (signature.includes('\n')) {
+        signature = `${signature.substring(0, signature.length - 1)}\n)`
+      }
+      return `${signature} {\n  ${START_COMMENT}\n\n${content}\n\n  ${END_COMMENT}\n}`
     } else if (type === 'bot_config') {
       return content.replace('../../bot.config.schema.json', 'bp://types/bot.config.schema.json')
     } else if (type === 'main_config') {
@@ -40,7 +52,13 @@ const wrapper = {
       return content
     }
 
-    return content.substring(startIndex + START_COMMENT.length, endIndex).trim()
+    const emptyLineAtBeginning = /^\s+?\n/
+    const emptyLineAtEnd = /\s+?\n?$/
+    return content
+      .substring(startIndex + START_COMMENT.length, endIndex)
+      .replace(emptyLineAtBeginning, '')
+      .replace(emptyLineAtBeginning, '')
+      .replace(emptyLineAtEnd, '')
   }
 }
 

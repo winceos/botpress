@@ -1,4 +1,5 @@
 import { ActionBuilderProps, ContentElement } from 'botpress/sdk'
+import { lang } from 'botpress/shared'
 import classnames from 'classnames'
 import { FlowView, NodeView } from 'common/typings'
 import _ from 'lodash'
@@ -8,6 +9,7 @@ import { connect } from 'react-redux'
 import { RouteComponentProps } from 'react-router'
 import {
   deleteContentItems,
+  deleteMedia,
   fetchContentCategories,
   fetchContentItems,
   fetchFlows,
@@ -16,12 +18,12 @@ import {
 } from '~/actions'
 import CreateOrEditModal from '~/components/Content/CreateOrEditModal'
 import { Container } from '~/components/Shared/Interface'
-import { getFlowLabel } from '~/components/Shared/Utils'
 import { isOperationAllowed } from '~/components/Shared/Utils/AccessControl'
 import DocumentationProvider from '~/components/Util/DocumentationProvider'
 import { RootReducer } from '~/reducers'
 import { FlowReducer } from '~/reducers/flows'
 import { UserReducer } from '~/reducers/user'
+import { CONTENT_TYPES_MEDIA } from '~/util/ContentDeletion'
 
 import style from './style.scss'
 import List from './List'
@@ -80,11 +82,10 @@ class ContentView extends Component<Props, State> {
     this.props.contentItems.forEach(async (element: ContentElementUsage) => {
       element.usage = []
       Object.values(this.props.flows.flowsByName).forEach((flow: FlowView) => {
-        const name = getFlowLabel(flow.name)
         flow.nodes.forEach((node: NodeView) => {
           const usage: ContentUsage = {
             type: 'Flow',
-            name,
+            name: flow.name,
             node: node.name,
             count: 0
           }
@@ -102,15 +103,14 @@ class ContentView extends Component<Props, State> {
         })
       })
 
-      if (this.props.qnaUsage) {
-        const usage = this.props.qnaUsage['#!' + element.id]
-        usage &&
-          element.usage.push({
-            type: 'Q&A',
-            name: usage.qna,
-            count: usage.count
-          })
-      }
+      const usage = this.props.qnaUsage?.['#!' + element.id]
+      usage &&
+        element.usage.push({
+          type: 'Q&A',
+          id: usage.qna,
+          name: usage.qna.substr(usage.qna.indexOf('_') + 1),
+          count: usage.count
+        })
     })
 
     return this.state.modifyId
@@ -119,6 +119,10 @@ class ContentView extends Component<Props, State> {
   }
 
   handleCloseModal = () => {
+    if (this.state.modifyId === null && CONTENT_TYPES_MEDIA.includes(this.currentContentType())) {
+      this.props.deleteMedia(this.state.contentToEdit)
+    }
+
     this.setState({
       showModal: false,
       modifyId: null,
@@ -161,7 +165,10 @@ class ContentView extends Component<Props, State> {
   }
 
   handleDeleteSelected = ids => {
-    this.props.deleteContentItems(ids).then(() => this.fetchCategoryItems(this.state.selectedId))
+    this.props
+      .deleteContentItems(ids)
+      .then(() => this.props.fetchContentCategories())
+      .then(() => this.fetchCategoryItems(this.state.selectedId))
   }
 
   handleModalShowForEdit = (id: string) => {
@@ -170,7 +177,7 @@ class ContentView extends Component<Props, State> {
   }
 
   handleRefresh = () => {
-    this.fetchCategoryItems(this.state.selectedId || 'all')
+    this.fetchCategoryItems(this.state.selectedId ?? 'all')
   }
 
   handleSearch = input => {
@@ -180,7 +187,7 @@ class ContentView extends Component<Props, State> {
 
   render() {
     const { selectedId = 'all', contentToEdit } = this.state
-    const categories = this.props.categories || []
+    const categories = this.props.categories ?? []
     const selectedCategory = _.find(categories, { id: this.currentContentType() })
 
     const classNames = classnames(style.content, 'bp-content')
@@ -189,11 +196,14 @@ class ContentView extends Component<Props, State> {
       return (
         <div className={classNames}>
           <Alert bsStyle="warning">
-            <strong>We think you don&apos;t have any content types defined.</strong> Please&nbsp;
-            <a href="https://botpress.com/docs/foundamentals/content/" target="_blank" rel="noopener noreferrer">
-              <strong>read the docs</strong>
-            </a>
-            &nbsp;to see how you can make use of this feature.
+            <strong>{lang.tr('studio.content.noContentDefined')}</strong>{' '}
+            {lang.tr('studio.content.pleaseReadDoc', {
+              readTheDocs: (
+                <a href="https://botpress.com/docs/main/content/" target="_blank" rel="noopener noreferrer">
+                  <strong>{lang.tr('studio.content.readTheDocs')}</strong>
+                </a>
+              )
+            })}
           </Alert>
         </div>
       )
@@ -215,7 +225,8 @@ class ContentView extends Component<Props, State> {
               ? _.sumBy(categories, 'count') || 0
               : _.find(categories, { id: this.state.selectedId }).count
           }
-          contentItems={this.props.contentItems || []}
+          className={style.contentListWrapper}
+          contentItems={this.props.contentItems ?? []}
           handleRefresh={this.handleRefresh}
           handleEdit={this.handleModalShowForEdit}
           handleDeleteSelected={this.handleDeleteSelected}
@@ -226,8 +237,8 @@ class ContentView extends Component<Props, State> {
         {this.canEdit && (
           <CreateOrEditModal
             show={this.state.showModal}
-            schema={(selectedCategory && selectedCategory.schema.json) || {}}
-            uiSchema={(selectedCategory && selectedCategory.schema.ui) || {}}
+            schema={selectedCategory?.schema.json ?? {}}
+            uiSchema={selectedCategory?.schema.ui ?? {}}
             formData={contentToEdit}
             isEditing={this.state.modifyId !== null}
             handleCreateOrUpdate={this.handleUpsert}
@@ -235,7 +246,7 @@ class ContentView extends Component<Props, State> {
             handleClose={this.handleCloseModal}
           />
         )}
-        <DocumentationProvider file="content" />
+        <DocumentationProvider file="main/content" />
       </Container>
     )
   }
@@ -250,18 +261,16 @@ const mapStateToProps = (state: RootReducer) => ({
 })
 
 const mapDispatchToProps = {
+  deleteContentItems,
+  deleteMedia,
   fetchContentCategories,
   fetchContentItems,
   fetchFlows,
   getQNAContentElementUsage,
-  upsertContentItem,
-  deleteContentItems
+  upsertContentItem
 }
 
-export default connect(
-  mapStateToProps,
-  mapDispatchToProps
-)(ContentView)
+export default connect(mapStateToProps, mapDispatchToProps)(ContentView)
 
 type Props = {
   fetchContentCategories: Function
@@ -270,6 +279,7 @@ type Props = {
   getQNAContentElementUsage: Function
   upsertContentItem: Function
   deleteContentItems: Function
+  deleteMedia: Function
   categories: any
   contentItems: ContentElementUsage[]
   flows: FlowReducer
@@ -292,6 +302,7 @@ type ContentElementUsage = {
 
 export interface ContentUsage {
   type: string
+  id?: string
   name: string
   node?: string
   count: number

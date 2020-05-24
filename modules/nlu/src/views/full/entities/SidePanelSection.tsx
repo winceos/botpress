@@ -1,9 +1,11 @@
 import { Button, Classes } from '@blueprintjs/core'
-import { NLUApi } from 'api'
 import { NLU } from 'botpress/sdk'
+import { confirmDialog, lang } from 'botpress/shared'
 import { Item, ItemList, SearchBar } from 'botpress/ui'
-import { NluItem } from 'full'
 import React, { FC, useState } from 'react'
+
+import { NluItem } from '..'
+import { NLUApi } from '../../api'
 
 import { EntityNameModal } from './EntityNameModal'
 
@@ -18,7 +20,7 @@ interface Props {
 export const EntitySidePanelSection: FC<Props> = props => {
   const [entitiesFilter, setEntitiesFilter] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
-  const [entity, setEntity] = useState()
+  const [entity, setEntity] = useState<NLU.EntityDefinition>()
   const [entityAction, setEntityAction] = useState<any>('create')
 
   const createEntity = () => {
@@ -38,14 +40,18 @@ export const EntitySidePanelSection: FC<Props> = props => {
     setModalOpen(true)
   }
 
-  const deleteEntity = (entity: NLU.EntityDefinition) => {
-    const confirmDelete = window.confirm(`Are you sure you want to delete the entity "${entity.name}" ?`)
-    if (confirmDelete) {
+  const deleteEntity = async (entity: NLU.EntityDefinition) => {
+    if (
+      await confirmDialog(lang.tr('module.nlu.entities.deleteMessage', { entityName: entity.name }), {
+        acceptLabel: lang.tr('delete')
+      })
+    ) {
       if (props.currentItem && props.currentItem.name === entity.name) {
         props.setCurrentItem(undefined)
       }
 
-      props.api.deleteEntity(entity.id).then(props.reloadEntities)
+      await props.api.deleteEntity(entity.name)
+      await props.reloadEntities()
     }
   }
 
@@ -59,9 +65,13 @@ export const EntitySidePanelSection: FC<Props> = props => {
           value: entity.name,
           selected: props.currentItem && props.currentItem.name === entity.name,
           contextMenu: [
-            { label: 'Rename', icon: 'edit', onClick: () => renameEntity(entity) },
-            { label: 'Duplicate', icon: 'duplicate', onClick: () => duplicateEntity(entity) },
-            { label: 'Delete', icon: 'delete', onClick: () => deleteEntity(entity) }
+            { label: lang.tr('rename'), icon: 'edit', onClick: () => renameEntity(entity) },
+            {
+              label: lang.tr('duplicate'),
+              icon: 'duplicate',
+              onClick: () => duplicateEntity(entity)
+            },
+            { label: lang.tr('delete'), icon: 'delete', onClick: () => deleteEntity(entity) }
           ]
         } as Item)
     )
@@ -73,11 +83,16 @@ export const EntitySidePanelSection: FC<Props> = props => {
 
   return (
     <div>
-      <Button className={Classes.MINIMAL} icon="new-object" text="New entity" onClick={createEntity} />
+      <Button
+        className={Classes.MINIMAL}
+        icon="new-object"
+        text={lang.tr('module.nlu.entities.new')}
+        onClick={createEntity}
+      />
       <SearchBar
         id="entities-filter"
         icon="filter"
-        placeholder="filter entities"
+        placeholder={lang.tr('module.nlu.entities.filterPlaceholder')}
         onChange={setEntitiesFilter}
         showButton={false}
       />

@@ -1,3 +1,4 @@
+import jsonlintMod from 'jsonlint-mod'
 import _ from 'lodash'
 
 import { FileDefinition, FileTypes } from './definitions'
@@ -10,7 +11,7 @@ export const RAW_TYPE: FileType = 'raw'
 export const BUILTIN_MODULES = [
   'analytics',
   'basic-skills',
-  'builtin',
+  'bot-improvement',
   'builtin',
   'channel-messenger',
   'channel-slack',
@@ -20,6 +21,7 @@ export const BUILTIN_MODULES = [
   'code-editor',
   'examples',
   'extensions',
+  'misunderstood',
   'history',
   'hitl',
   'nlu',
@@ -46,7 +48,11 @@ export const assertValidJson = (content: string): boolean => {
     JSON.parse(content)
     return true
   } catch (err) {
-    throw new EditorError(`Invalid JSON file. ${err}`)
+    try {
+      jsonlintMod.parse(content)
+    } catch (e) {
+      throw new Error(`Invalid JSON file. ${e.message.split(':')[0]}`)
+    }
   }
 }
 
@@ -99,7 +105,7 @@ export const validateFilePayload = async (
   }
 
   if (def.validate) {
-    const result = await def.validate(editableFile)
+    const result = await def.validate(editableFile, actionType === 'write')
     if (result) {
       throw new Error(result)
     }

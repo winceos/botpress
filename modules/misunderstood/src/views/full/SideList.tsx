@@ -1,4 +1,5 @@
 import { Button, Icon, Intent, Tab, Tabs } from '@blueprintjs/core'
+import { lang } from 'botpress/shared'
 import classnames from 'classnames'
 import React from 'react'
 
@@ -23,7 +24,7 @@ const SideList = ({
   return (
     <div className={style.sideList}>
       <Tabs
-        className={style.contentFixed}
+        className={classnames(style.contentFixed, style.headerTabs)}
         id="StatusSelect"
         onChange={onSelectedStatusChange}
         selectedTabId={selectedStatus}
@@ -36,7 +37,7 @@ const SideList = ({
       {selectedStatus === FLAGGED_MESSAGE_STATUS.pending && events && events.length > 0 && (
         <div className={style.applyAllButton}>
           <Button onClick={applyAllPending} intent={Intent.WARNING} icon="export" fill>
-            Apply all pending
+            {lang.tr('module.misunderstood.applyAllPending')}
           </Button>
         </div>
       )}

@@ -52,7 +52,8 @@ export class ConfigProvider {
 
     const config = await this.getConfig<BotpressConfig>('botpress.config.json')
 
-    config.httpServer.port = process.env.PORT ? parseInt(process.env.PORT) : config.httpServer.port
+    const envPort = process.env.BP_PORT || process.env.PORT
+    config.httpServer.port = envPort ? parseInt(envPort) : config.httpServer.port
     config.httpServer.host = process.env.BP_HOST || config.httpServer.host
     process.PROXY = process.core_env.BP_PROXY || config.httpServer.proxy
 
@@ -97,9 +98,9 @@ export class ConfigProvider {
   }
 
   public async createDefaultConfigIfMissing() {
-    if (!(await this.ghostService.global().fileExists('/', 'botpress.config.json'))) {
-      await this._copyConfigSchemas()
+    await this._copyConfigSchemas()
 
+    if (!(await this.ghostService.global().fileExists('/', 'botpress.config.json'))) {
       const botpressConfigSchema = await this.ghostService
         .root()
         .readFileAsObject<any>('/', 'botpress.config.schema.json')
@@ -120,8 +121,10 @@ export class ConfigProvider {
     const schemasToCopy = ['botpress.config.schema.json', 'bot.config.schema.json']
 
     for (const schema of schemasToCopy) {
-      const schemaContent = fs.readFileSync(path.join(__dirname, 'schemas', schema))
-      await this.ghostService.root().upsertFile('/', schema, schemaContent)
+      if (!(await this.ghostService.root().fileExists('/', schema))) {
+        const schemaContent = fs.readFileSync(path.join(__dirname, 'schemas', schema))
+        await this.ghostService.root().upsertFile('/', schema, schemaContent)
+      }
     }
   }
 

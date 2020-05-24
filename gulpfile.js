@@ -14,9 +14,12 @@ process.on('uncaughtException', err => {
 })
 
 if (yn(process.env.GULP_PARALLEL)) {
-  gulp.task('build', gulp.series([core.build(), gulp.parallel(modules.build(), ui.build())]))
+  gulp.task(
+    'build',
+    gulp.series([core.build(), ui.buildShared(), ui.initStudio, gulp.parallel(modules.build(), ui.build())])
+  )
 } else {
-  gulp.task('build', gulp.series([core.build(), modules.build(), ui.build()]))
+  gulp.task('build', gulp.series([core.build(), ui.buildShared(), ui.initStudio, modules.build(), ui.build()]))
 }
 
 gulp.task('default', cb => {
@@ -28,14 +31,15 @@ gulp.task('default', cb => {
     yarn cmd watch:core   Recompiles the server on file modification (restart server to apply)
     yarn cmd watch:studio Recompiles the bundle on file modification (no restart required - refresh page manually)
     yarn cmd watch:admin  Recompiles the bundle on file modification (no restart required - page refresh automatically)
+    yarn cmd watch:shared Recompiles the bundle on file modification (no restart required - refresh page manually)
   `)
   cb()
 })
 
 gulp.task('build:ui', ui.build())
 gulp.task('build:core', core.build())
+gulp.task('build:shared', ui.buildShared())
 gulp.task('build:modules', gulp.series([modules.build()]))
-gulp.task('build:sdk', gulp.series([modules.buildSdk()]))
 
 gulp.task('start:guide', docs.startDevServer)
 gulp.task('build:guide', docs.buildGuide())
@@ -49,14 +53,14 @@ gulp.task('watch:core', core.watch)
 gulp.task('watch:studio', ui.watchStudio)
 gulp.task('watch:admin', ui.watchAdmin)
 gulp.task('watch:ui', ui.watchAll)
+gulp.task('watch:shared', ui.watchShared)
+gulp.task('watch:modules', modules.watchModules)
 
 gulp.task('clean:node', cb => rimraf('**/node_modules/**', cb))
 gulp.task('clean:out', cb => rimraf('out', cb))
 gulp.task('clean:data', cb => rimraf('out/bp/data', cb))
 gulp.task('clean:db', cb => rimraf('out/bp/data/storage/core.sqlite', cb))
 
-// Example: yarn cmd dev:module --public nlu or yarn cmd dev:module --private bank
-gulp.task('dev:module', gulp.series([modules.cleanModuleAssets, modules.createModuleSymlink]))
 gulp.task('dev:modules', modules.createAllModulesSymlink())
 
 /**
@@ -64,6 +68,8 @@ gulp.task('dev:modules', modules.createAllModulesSymlink())
  * target can either be "core" or the name of any module
  */
 gulp.task('migration:create', core.createMigration)
+
+gulp.task('check-translations', core.checkTranslations)
 
 gulp.task('changelog', () => {
   // see options here: https://github.com/conventional-changelog/conventional-changelog/tree/master/packages

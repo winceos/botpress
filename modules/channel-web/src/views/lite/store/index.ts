@@ -6,13 +6,13 @@ import { InjectedIntl } from 'react-intl'
 
 import WebchatApi from '../core/api'
 import constants from '../core/constants'
-import { getUserLocale, initializeLocale, translations } from '../translations'
-
+import { getUserLocale, initializeLocale } from '../translations'
 import {
   BotInfo,
   Config,
   ConversationSummary,
   CurrentConversation,
+  EventFeedback,
   Message,
   MessageWrapper,
   StudioConnector
@@ -54,6 +54,9 @@ class RootStore {
   @observable
   public isInitialized: boolean
 
+  @observable
+  public eventFeedbacks: EventFeedback[]
+
   public intl: InjectedIntl
 
   public isBotTyping = observable.box(false)
@@ -77,39 +80,37 @@ class RootStore {
 
   @computed
   get isConversationStarted(): boolean {
-    return this.currentConversation && !!this.currentConversation.messages.length
+    return !!this.currentConversation?.messages.length
   }
 
   @computed
   get botName(): string {
-    return (this.config && this.config.botName) || (this.botInfo && this.botInfo.name) || 'Bot'
+    return this.config?.botName || this.botInfo?.name || 'Bot'
   }
 
   @computed
   get hasBotInfoDescription(): boolean {
-    return this.config.botConvoDescription && !!this.config.botConvoDescription.length
+    return !!this.config.botConvoDescription?.length
   }
 
   @computed
   get botAvatarUrl(): string {
-    return (
-      (this.botInfo && this.botInfo.details && this.botInfo.details.avatarUrl) || (this.config && this.config.avatarUrl)
-    )
+    return this.botInfo?.details?.avatarUrl || this.config?.avatarUrl
   }
 
   @computed
   get escapeHTML(): boolean {
-    return this.botInfo && this.botInfo.security && this.botInfo.security.escapeHTML
+    return this.botInfo?.security?.escapeHTML
   }
 
   @computed
   get currentMessages(): Message[] {
-    return this.currentConversation && this.currentConversation.messages
+    return this.currentConversation?.messages
   }
 
   @computed
   get currentConversationId(): number | undefined {
-    return this.currentConversation && this.currentConversation.id
+    return this.currentConversation?.id
   }
 
   @action.bound
@@ -165,6 +166,7 @@ class RootStore {
     runInAction('-> setBotInfo', () => {
       this.botInfo = botInfo
     })
+    this.mergeConfig({ extraStylesheet: botInfo.extraStylesheet })
   }
 
   @action.bound
@@ -199,7 +201,9 @@ class RootStore {
       return this.createConversation()
     }
 
-    const conversation = await this.api.fetchConversation(convoId || this._getCurrentConvoId())
+    const conversation: CurrentConversation = await this.api.fetchConversation(convoId || this._getCurrentConvoId())
+    await this.extractFeedback(conversation && conversation.messages)
+
     runInAction('-> setConversation', () => {
       this.currentConversation = conversation
       this.view.hideConversations()
@@ -266,6 +270,21 @@ class RootStore {
   }
 
   @action.bound
+  async extractFeedback(messages: Message[]): Promise<void> {
+    const feedbackEventIds = messages.filter(x => x.payload && x.payload.collectFeedback).map(x => x.incomingEventId)
+
+    const feedbackInfo = await this.api.getEventIdsFeedbackInfo(feedbackEventIds)
+    runInAction('-> setFeedbackInfo', () => {
+      this.eventFeedbacks = feedbackInfo
+    })
+  }
+
+  @action.bound
+  async sendFeedback(feedback: number, eventId: string): Promise<void> {
+    await this.api.sendFeedback(feedback, eventId)
+  }
+
+  @action.bound
   async downloadConversation(): Promise<void> {
     try {
       const { txt, name } = await this.api.downloadConversation(this.currentConversationId)
@@ -320,7 +339,12 @@ class RootStore {
     this.config.containerWidth && this.view.setContainerWidth(this.config.containerWidth)
     this.view.disableAnimations = this.config.disableAnimations
     this.config.showPoweredBy ? this.view.showPoweredBy() : this.view.hidePoweredBy()
-    this.config.locale && this.updateBotUILanguage(getUserLocale(this.config.locale))
+
+    const locale = getUserLocale(this.config.locale)
+    this.config.locale && this.updateBotUILanguage(locale)
+    document.documentElement.setAttribute('lang', locale)
+
+    document.title = this.config.botName || 'Botpress Webchat'
 
     try {
       window.USE_SESSION_STORAGE = this.config.useSessionStorage

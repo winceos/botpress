@@ -1,9 +1,11 @@
 import { Button, ButtonGroup, Intent } from '@blueprintjs/core'
 import { AxiosStatic } from 'axios'
+import { lang } from 'botpress/shared'
 import pick from 'lodash/pick'
 import React from 'react'
 
 import { ApiFlaggedEvent, RESOLUTION_TYPE, ResolutionData } from '../../../types'
+import StickyActionBar from '../StickyActionBar'
 
 import style from './style.scss'
 import AmendForm from './AmendForm'
@@ -71,30 +73,35 @@ class NewEventView extends React.Component<Props, State> {
 
     return (
       <>
-        <h3>
-          New Misunderstood | {eventIndex + 1} of {totalEventsCount}
-        </h3>
+        <h3>{lang.tr('module.misunderstood.newMisunderstood', { eventIndex, totalEventsCount })}</h3>
 
-        <ChatPreview messages={event.context} />
+        {!isAmending && (
+          <>
+            <ChatPreview messages={event.context} />
+            <StickyActionBar>
+              <Button onClick={deleteEvent} icon="trash" intent={Intent.DANGER} disabled={isAmending}>
+                {lang.tr('module.misunderstood.ignore')}
+              </Button>
+              <Button
+                onClick={skipEvent}
+                icon="arrow-right"
+                intent={Intent.WARNING}
+                disabled={isAmending || eventIndex === totalEventsCount - 1}
+              >
+                {lang.tr('module.misunderstood.skip')}
+              </Button>
+              <Button onClick={this.startAmend} icon="confirm" intent={Intent.PRIMARY} disabled={isAmending}>
+                {lang.tr('module.misunderstood.amend')}
+              </Button>
+            </StickyActionBar>
+          </>
+        )}
 
-        <h4 className={style.newEventPreview}>{event.preview}</h4>
-
-        <ButtonGroup large>
-          <Button
-            onClick={skipEvent}
-            icon="arrow-right"
-            intent={Intent.WARNING}
-            disabled={isAmending || eventIndex === totalEventsCount - 1}
-          >
-            Skip
-          </Button>
-          <Button onClick={deleteEvent} icon="trash" intent={Intent.DANGER} disabled={isAmending}>
-            Ignore
-          </Button>
-          <Button onClick={this.startAmend} icon="confirm" intent={Intent.PRIMARY} disabled={isAmending}>
-            Amend
-          </Button>
-        </ButtonGroup>
+        <h4 className={style.newEventPreview}>
+          {lang.tr('module.misunderstood.showMisunderstoodMessage', {
+            preview: <span className={style.newEventPreviewMessage}>{event.preview}</span>
+          })}
+        </h4>
 
         {isAmending && (
           <AmendForm

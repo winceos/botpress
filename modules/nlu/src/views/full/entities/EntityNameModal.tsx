@@ -1,16 +1,18 @@
 import { Button, Callout, Classes, Dialog, FormGroup, HTMLSelect, Intent } from '@blueprintjs/core'
-import { NLUApi } from 'api'
 import { NLU } from 'botpress/sdk'
+import { lang } from 'botpress/shared'
 import _ from 'lodash'
-import React, { FC, useEffect, useRef, useState } from 'react'
+import React, { FC, useEffect, useState } from 'react'
+
+import { NLUApi } from '../../api'
 
 const AVAILABLE_TYPES = [
   {
-    label: 'List',
+    label: lang.tr('list'),
     value: 'list'
   },
   {
-    label: 'Pattern',
+    label: lang.tr('pattern'),
     value: 'pattern'
   }
 ]
@@ -43,33 +45,33 @@ export const EntityNameModal: FC<Props> = props => {
     e.preventDefault()
 
     if (props.action === 'create') {
-      onCreateEntity()
+      await onCreateEntity()
     } else if (props.action === 'duplicate') {
-      onDuplicateEntity()
+      await onDuplicateEntity()
     } else if (props.action === 'rename') {
-      onRenameEntity()
+      await onRenameEntity()
     }
 
     props.closeModal()
   }
 
-  const onCreateEntity = () => {
+  const onCreateEntity = async () => {
     const entity = {
       id: getEntityId(name),
       name: name.trim(),
       type: type as NLU.EntityType,
       occurrences: []
     }
-    props.api.createEntity(entity).then(() => {
-      props.onEntityModified(entity)
-    })
+    await props.api.createEntity(entity)
+    props.onEntityModified(entity)
   }
 
   const onRenameEntity = async () => {
     const entity = _.cloneDeep(props.originalEntity)
     entity.name = name.trim()
     entity.id = getEntityId(name)
-    props.api.updateEntity(props.originalEntity.id, entity).then(() => props.onEntityModified(entity))
+    await props.api.updateEntity(getEntityId(props.originalEntity.name), entity)
+    props.onEntityModified(entity)
   }
 
   const getEntityId = (entityName: string) =>
@@ -82,27 +84,28 @@ export const EntityNameModal: FC<Props> = props => {
     const clone = _.cloneDeep(props.originalEntity)
     clone.name = name.trim()
     clone.id = getEntityId(name)
-    props.api.createEntity(clone).then(() => props.onEntityModified(clone))
+    await props.api.createEntity(clone)
+    props.onEntityModified(clone)
   }
 
   const isIdentical = props.action === 'rename' && props.originalEntity.name === name
   const alreadyExists = !isIdentical && _.some(props.entityIDs, id => id === getEntityId(name))
 
-  let dialog: { icon: any; title: string } = { icon: 'add', title: 'Create Entity' }
-  let submitText = 'Create'
+  let dialog: { icon: any; title: string } = { icon: 'add', title: lang.tr('create') }
+  let submitText = lang.tr('create')
   if (props.action === 'duplicate') {
-    dialog = { icon: 'duplicate', title: 'Duplicate Entity' }
-    submitText = 'Duplicate'
+    dialog = { icon: 'duplicate', title: 'module.nlu.entities.duplicate' }
+    submitText = lang.tr('duplicate')
   } else if (props.action === 'rename') {
-    dialog = { icon: 'edit', title: 'Rename Entity' }
-    submitText = 'Rename'
+    dialog = { icon: 'edit', title: 'module.nlu.entities.rename' }
+    submitText = lang.tr('rename')
   }
 
   return (
     <Dialog isOpen={props.isOpen} onClose={props.closeModal} transitionDuration={0} {...dialog}>
       <form onSubmit={submit}>
         <div className={Classes.DIALOG_BODY}>
-          <FormGroup label="Name">
+          <FormGroup label={lang.tr('name')}>
             <input
               required
               name="name"
@@ -110,7 +113,7 @@ export const EntityNameModal: FC<Props> = props => {
               tabIndex={1}
               className={`${Classes.INPUT} ${Classes.FILL}`}
               dir="auto"
-              placeholder="Entity name"
+              placeholder={lang.tr('module.nlu.entities.namePlaceholder')}
               value={name}
               onChange={e => setName(e.target.value)}
               autoFocus
@@ -129,8 +132,8 @@ export const EntityNameModal: FC<Props> = props => {
           )}
 
           {alreadyExists && (
-            <Callout title="Name already in use" intent={Intent.DANGER}>
-              An entity with that name already exists. Please choose another one.
+            <Callout title={lang.tr('module.nlu.entities.nameConflictTitle')} intent={Intent.DANGER}>
+              {lang.tr('module.nlu.entities.nameConflictMessage')}
             </Callout>
           )}
         </div>

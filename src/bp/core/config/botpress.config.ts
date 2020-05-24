@@ -1,6 +1,8 @@
 import { ConverseConfig } from 'botpress/sdk'
-import { UniqueUser } from 'common/typings'
-import { IncidentRule } from 'core/services/alerting-service'
+import { Algorithm } from 'jsonwebtoken'
+
+import { ActionServer, UniqueUser } from '../../common/typings'
+import { IncidentRule } from '../services/alerting-service'
 
 export type BotpressCondition = '$isProduction' | '$isDevelopment'
 
@@ -183,7 +185,7 @@ export type BotpressConfig = {
   }
   /**
    * An array of e-mails of users which will have root access to Botpress (manage users, server settings)
-   * @example: [admin@botpress.io]
+   * @example: [admin@botpress.com]
    */
   superAdmins: UniqueUser[]
   /**
@@ -239,6 +241,7 @@ export type BotpressConfig = {
    */
   autoRevision: boolean
   eventCollector: EventCollectorConfig
+  botMonitoring: BotMonitoringConfig
   /**
    * @default { "default": { "type": "basic", "allowSelfSignup": false, "options": { "maxLoginAttempt": 0} }}
    */
@@ -252,12 +255,30 @@ export type BotpressConfig = {
    */
   showPoweredBy: boolean
   /**
+   * When true, the bot will avoid repeating itself. By default it is disabled.
+   * Use in conjunction with BP_DECISION_MIN_NO_REPEAT to set the time before the bot will repeat itself
+   * @default false
+   */
+  noRepeatPolicy: boolean
+  /**
    * By adding this, you'll make possible to translate a bot in more languages than those supported by your botpress language server
    * Warning: This means that Botpress NLU won't be working properly and you'll need to handle NLU on your own with a **beforeIncoming** Hook.
    * @example [{name: 'Swedish', code: 'sv'}]
    * @default []
    */
   additionalLanguages?: { name: string; code: string }[]
+
+  /**
+   * Action Servers to be used when dispatching actions.
+   */
+
+  actionServers: ActionServersConfig
+  /**
+   * Whether or not to display experimental features throughout the UI. These are subject
+   * to change and can be unstable.
+   * @default false
+   */
+  experimental: boolean
 }
 
 export interface ExternalAuthConfig {
@@ -279,13 +300,31 @@ export interface ExternalAuthConfig {
    * The algorithms allowed to validate the JWT tokens.
    * @default ["HS256"]
    */
-  algorithms: string[]
+  algorithms: Algorithm[]
   /**
    * You need to provide the public key used to verify the JWT token authenticity.
    * If not provided, the public key will be read from `data/global/end_users_auth.key`
    * @default insert key here
    */
   publicKey?: string
+  /**
+   * Alternatively, you can configure a client to fetch a JWKS file for the public key.
+   * The audience, issuer and algorithms must also be provided.
+   */
+  jwksClient?: {
+    /**
+     * The full URL to the jwks.json file
+     */
+    jwksUri: string
+    /**
+     * The ID of the key in the jwks file
+     */
+    keyId: string
+    /**
+     * Provide additional options to pass to jwks-rsa (https://github.com/auth0/node-jwks-rsa)
+     */
+    [keyName: string]: any
+  }
 }
 
 export interface DataRetentionConfig {
@@ -435,7 +474,7 @@ export interface AuthStrategyOauth2 {
      * The algorithms allowed to validate the JWT tokens.
      * @default ["HS256"]
      */
-    algorithms: string[]
+    algorithms: Algorithm[]
     /**
      * The public certificate starting with "-----BEGIN CERTIFICATE-----"
      * The string should be provided as one line (use \n for new lines)
@@ -523,6 +562,20 @@ export interface AlertingConfig {
   rules: IncidentRule[]
 }
 
+export interface BotMonitoringConfig {
+  /**
+   * This must be enabled for the hook OnBotError to work properly.
+   * @default true
+   */
+  enabled: boolean
+  /**
+   * The interval between which logs are accumulated before triggering the OnBotError hook.
+   * Set this value higher if the hook is triggered too often.
+   * @default 1m
+   */
+  interval: string
+}
+
 export interface EventCollectorConfig {
   /**
    * When enabled, incoming and outgoing events will be saved on the database.
@@ -552,4 +605,29 @@ export interface EventCollectorConfig {
    * @default []
    */
   ignoredEventProperties: string[]
+  /**
+   * These properties are only stored with the event when the user is logged on the studio
+   * @default ["ndu.triggers","ndu.predictions","nlu.predictions"]
+   */
+  debuggerProperties: string[]
+}
+
+interface ActionServersConfig {
+  local: {
+    /**
+     * Port on which the local Action Server listens
+     * @default 4000
+     */
+    port: number
+    /**
+     * Whether or not the enable the local Action Server
+     * @default true
+     */
+    enabled: boolean
+  }
+  /**
+   * The list of remote Action Servers
+   * @default []
+   */
+  remotes: ActionServer[]
 }

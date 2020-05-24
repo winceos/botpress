@@ -157,8 +157,8 @@ class MessageList extends React.Component<MessageListProps, State> {
       <div>
         {groups.map((group, i) => {
           const lastGroup = groups[i - 1]
-          const lastDate = lastGroup && lastGroup[lastGroup.length - 1] && lastGroup[lastGroup.length - 1].sent_on
-          const groupDate = group && group[0].sent_on
+          const lastDate = lastGroup?.[lastGroup.length - 1]?.sent_on
+          const groupDate = group?.[0].sent_on
 
           const isDateNeeded =
             !groups[i - 1] ||
@@ -203,7 +203,7 @@ class MessageList extends React.Component<MessageListProps, State> {
   render() {
     return (
       <div
-        tabIndex={-1}
+        tabIndex={0}
         onKeyDown={this.handleKeyDown}
         className={'bpw-msg-list'}
         ref={m => {

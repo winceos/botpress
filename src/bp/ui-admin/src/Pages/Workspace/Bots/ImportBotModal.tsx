@@ -1,4 +1,5 @@
-import { Button, Classes, Dialog, FileInput, FormGroup, InputGroup, Intent } from '@blueprintjs/core'
+import { Button, Checkbox, Classes, Dialog, FileInput, FormGroup, InputGroup, Intent } from '@blueprintjs/core'
+import { lang } from 'botpress/shared'
 import _ from 'lodash'
 import React, { Component } from 'react'
 
@@ -16,17 +17,19 @@ interface State {
   error: any
   filePath: string | null
   fileContent: Buffer | null
-  isProcessing: boolean
   isIdTaken: boolean
+  isProcessing: boolean
+  overwrite: boolean
 }
 
-const defaultState = {
+const defaultState: State = {
   botId: '',
   error: null,
   filePath: null,
   fileContent: null,
   isIdTaken: false,
-  isProcessing: false
+  isProcessing: false,
+  overwrite: false
 }
 
 class ImportBotModal extends Component<Props, State> {
@@ -42,9 +45,11 @@ class ImportBotModal extends Component<Props, State> {
     this.setState({ isProcessing: true })
 
     try {
-      await api.getSecured({ timeout: 60000 }).post(`/admin/bots/${this.state.botId}/import`, this.state.fileContent, {
-        headers: { 'Content-Type': 'application/tar+gzip' }
-      })
+      await api
+        .getSecured({ timeout: 60000 })
+        .post(`/admin/bots/${this.state.botId}/import?overwrite=${this.state.overwrite}`, this.state.fileContent, {
+          headers: { 'Content-Type': 'application/tar+gzip' }
+        })
 
       this.props.onCreateBotSuccess()
       this.toggleDialog()
@@ -66,7 +71,8 @@ class ImportBotModal extends Component<Props, State> {
     }
   }, 500)
 
-  handleBotIdChanged = e => this.setState({ botId: sanitizeBotId(e.target.value) }, this.checkIdAvailability)
+  handleBotIdChanged = e =>
+    this.setState({ botId: sanitizeBotId(e.target.value), overwrite: false }, this.checkIdAvailability)
 
   handleFileChanged = (files: FileList | null) => {
     if (!files) {
@@ -89,7 +95,10 @@ class ImportBotModal extends Component<Props, State> {
   generateBotId = (filename: string) => {
     const noExt = filename.substr(0, filename.indexOf('.'))
     const matches = noExt.match(/bot_(.*)_[0-9]+/)
-    this.setState({ botId: sanitizeBotId((matches && matches[1]) || noExt) })
+    this.setState(
+      { botId: sanitizeBotId((matches && matches[1]) || noExt), overwrite: false },
+      this.checkIdAvailability
+    )
   }
 
   toggleDialog = () => {
@@ -98,14 +107,16 @@ class ImportBotModal extends Component<Props, State> {
   }
 
   get isButtonDisabled() {
-    const { isProcessing, botId, fileContent, isIdTaken } = this.state
-    return isProcessing || !botId || !fileContent || isIdTaken || !this._form || !this._form.checkValidity()
+    const { isProcessing, botId, fileContent, isIdTaken, overwrite } = this.state
+    return (
+      isProcessing || !botId || !fileContent || (isIdTaken && !overwrite) || !this._form || !this._form.checkValidity()
+    )
   }
 
   render() {
     return (
       <Dialog
-        title="Import bot from archive"
+        title={lang.tr('admin.workspace.bots.import.fromArchive')}
         icon="import"
         isOpen={this.props.isOpen}
         onClose={this.toggleDialog}
@@ -122,16 +133,22 @@ class ImportBotModal extends Component<Props, State> {
         >
           <div className={Classes.DIALOG_BODY}>
             <FormGroup
-              label={<span>Bot ID {this.state.isIdTaken && <span className="text-danger">Already in use</span>}</span>}
+              label={
+                <span>
+                  {lang.tr('admin.workspace.bots.create.id')}{' '}
+                  {this.state.isIdTaken && (
+                    <span className="text-danger">{lang.tr('admin.workspace.bots.import.alreadyInUse')}</span>
+                  )}
+                </span>
+              }
               labelFor="input-botId"
               labelInfo="*"
-              helperText="This ID cannot be changed, so choose wisely. It will be displayed in the URL and your visitors can see it.
-              Special characters are not allowed. Minimum length: 4"
+              helperText={lang.tr('admin.workspace.bots.create.idHelper')}
             >
               <InputGroup
                 id="input-botId"
                 tabIndex={1}
-                placeholder="The ID of your bot"
+                placeholder={lang.tr('admin.workspace.bots.create.idPlaceholder')}
                 intent={Intent.PRIMARY}
                 minLength={3}
                 value={this.state.botId}
@@ -139,14 +156,21 @@ class ImportBotModal extends Component<Props, State> {
                 autoFocus={true}
               />
             </FormGroup>
-            <FormGroup label="Bot Archive" labelInfo="*" labelFor="archive">
+            <FormGroup label={lang.tr('admin.workspace.bots.import.archive')} labelInfo="*" labelFor="archive">
               <FileInput
                 tabIndex={2}
-                text={this.state.filePath || 'Choose file...'}
+                text={this.state.filePath || lang.tr('chooseFile')}
                 onChange={event => this.handleFileChanged((event.target as HTMLInputElement).files)}
                 inputProps={{ accept: '.zip,.tgz' }}
               />
             </FormGroup>
+            {this.state.isIdTaken && (
+              <Checkbox
+                label={lang.tr('admin.workspace.bots.import.overwrite')}
+                checked={this.state.overwrite}
+                onChange={e => this.setState({ overwrite: e.currentTarget.checked })}
+              ></Checkbox>
+            )}
           </div>
           <div className={Classes.DIALOG_FOOTER}>
             {!!this.state.error && <p className="text-danger">{this.state.error}</p>}
@@ -155,7 +179,7 @@ class ImportBotModal extends Component<Props, State> {
                 id="btn-upload"
                 tabIndex={3}
                 type="submit"
-                text={this.state.isProcessing ? 'Please wait...' : 'Import Bot'}
+                text={this.state.isProcessing ? lang.tr('pleaseWait') : lang.tr('admin.workspace.bots.import.import')}
                 onClick={this.importBot}
                 disabled={this.isButtonDisabled}
                 intent={Intent.PRIMARY}

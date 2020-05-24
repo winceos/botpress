@@ -12,16 +12,15 @@
   background-color: var(--c-background--dark-2);
   color: $sidebar-text-color;
   height: 100%;
-  width: 50px;
   max-width: 200px;
-
-  display: flex;
-  flex-direction: column;
-  justify-content: stretch;
-
-  overflow-x: visible;
+  position: relative;
+  width: 50px;
+  z-index: 999;
 
   .logo {
+    display: block;
+    overflow-x: hidden;
+    padding: 8px 13px;
     width: 50px;
   }
 }
@@ -42,7 +41,7 @@
   transition-timing-function: ease-in-out;
 
   &:hover {
-    width: 175px;
+    width: 190px;
     border-radius: 0 5px 5px 0;
   }
 

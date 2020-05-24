@@ -5,6 +5,7 @@ import {
   Collapse,
   Colors,
   ControlGroup,
+  Dialog,
   Icon,
   InputGroup,
   Popover,
@@ -13,7 +14,7 @@ import {
 } from '@blueprintjs/core'
 import classnames from 'classnames'
 import _ from 'lodash'
-import React, { useState } from 'react'
+import React, { FC, useState } from 'react'
 import { HotKeys } from 'react-hotkeys'
 import SplitPane from 'react-split-pane'
 
@@ -46,10 +47,18 @@ export const Container = (props: ContainerProps) => {
   }
 
   const children = React.Children.toArray(props.children)
+
   return (
     <HotKeys handlers={keyHandlers} keyMap={props.keyMap || {}} className={style.fullsize} focused>
       <div className={classnames(style.container, { [style.sidePanel_hidden]: !sidePanelVisible })}>
-        <SplitPane split={'vertical'} defaultSize={width} size={sidePanelVisible ? width : 0}>
+        <SplitPane
+          split={'vertical'}
+          defaultSize={width}
+          size={sidePanelVisible ? width : 0}
+          pane2Style={{
+            overflowX: 'auto'
+          }}
+        >
           {children[0]}
           <div className={classnames(style.fullsize, { [style.yOverflowScroll]: props.yOverflowScroll })}>
             {children.slice(1)}

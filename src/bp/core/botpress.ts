@@ -3,6 +3,7 @@ import { copyDir } from 'core/misc/pkg-fs'
 import { WrapErrorsWith } from 'errors'
 import fse from 'fs-extra'
 import { inject, injectable, tagged } from 'inversify'
+import joi from 'joi'
 import { AppLifecycle, AppLifecycleEvents } from 'lifecycle'
 import _ from 'lodash'
 import moment from 'moment'
@@ -11,6 +12,7 @@ import nanoid from 'nanoid'
 import path from 'path'
 import plur from 'plur'
 
+import { startLocalActionServer } from '../cluster'
 import { setDebugScopes } from '../debug'
 
 import { createForGlobalHooks } from './api'
@@ -21,8 +23,10 @@ import { LoggerDbPersister, LoggerFilePersister, LoggerProvider } from './logger
 import { ModuleLoader } from './module-loader'
 import HTTPServer from './server'
 import { GhostService } from './services'
+import { ActionServersConfigSchema } from './services/action/action-servers-service'
 import { AlertingService } from './services/alerting-service'
 import AuthService from './services/auth/auth-service'
+import { BotMonitoringService } from './services/bot-monitoring-service'
 import { BotService } from './services/bot-service'
 import { CMSService } from './services/cms'
 import { converseApiEvents } from './services/converse'
@@ -94,7 +98,8 @@ export class Botpress {
     @inject(TYPES.EventCollector) private eventCollector: EventCollector,
     @inject(TYPES.AuthService) private authService: AuthService,
     @inject(TYPES.MigrationService) private migrationService: MigrationService,
-    @inject(TYPES.StatsService) private statsService: StatsService
+    @inject(TYPES.StatsService) private statsService: StatsService,
+    @inject(TYPES.BotMonitoringService) private botMonitor: BotMonitoringService
   ) {
     this.botpressPath = path.join(process.cwd(), 'dist')
     this.configLocation = path.join(this.botpressPath, '/config')
@@ -113,6 +118,10 @@ export class Botpress {
   }
 
   private async initialize(options: StartOptions) {
+    if (!process.IS_PRODUCTION) {
+      this.logger.info(`Running in DEVELOPMENT MODE`)
+    }
+
     this.config = await this.configProvider.getBotpressConfig()
 
     this.trackStart()
@@ -120,7 +129,7 @@ export class Botpress {
 
     setDebugScopes(process.core_env.DEBUG || (process.IS_PRODUCTION ? '' : 'bp:dialog'))
 
-    await AppLifecycle.setDone(AppLifecycleEvents.CONFIGURATION_LOADED)
+    AppLifecycle.setDone(AppLifecycleEvents.CONFIGURATION_LOADED)
 
     await this.restoreDebugScope()
     await this.checkJwtSecret()
@@ -133,12 +142,13 @@ export class Botpress {
     await this.startRealtime()
     await this.startServer()
     await this.discoverBots()
+    await this.maybeStartLocalActionServer()
 
     if (this.config.sendUsageStats) {
       this.statsService.start()
     }
 
-    await AppLifecycle.setDone(AppLifecycleEvents.BOTPRESS_READY)
+    AppLifecycle.setDone(AppLifecycleEvents.BOTPRESS_READY)
 
     this.api = await createForGlobalHooks()
     await this.hookService.executeHook(new Hooks.AfterServerStart(this.api))
@@ -153,6 +163,35 @@ export class Botpress {
         this.logger.attachError(err).error(`Couldn't load debug scopes. Check the syntax of debug.json`)
       }
     }
+  }
+
+  private async maybeStartLocalActionServer() {
+    const { actionServers, experimental } = await this.configProvider.getBotpressConfig()
+
+    if (!actionServers) {
+      this.logger.warn('No config ("actionServers") found for Action Servers')
+      return
+    }
+
+    const { error } = joi.validate(actionServers, ActionServersConfigSchema)
+    if (error) {
+      this.logger.error(`Invalid actionServers configuration: ${error}`)
+      return
+    }
+
+    const { enabled, port } = actionServers.local
+
+    if (!enabled) {
+      this.logger.info('Local Action Server disabled')
+      return
+    }
+
+    if (!experimental) {
+      this.logger.info('Local Action Server will only run in experimental mode')
+      return
+    }
+
+    startLocalActionServer({ appSecret: process.APP_SECRET, port })
   }
 
   async checkJwtSecret() {
@@ -202,7 +241,7 @@ export class Botpress {
     bots.forEach(bot => {
       if (!process.IS_PRO_ENABLED && bot.languages && bot.languages.length > 1) {
         this._killServer(
-          `A bot has more than a single language (${bot.id}). To enable the multilangual feature, please upgrade to Botpress Pro.`
+          `A bot has more than a single language (${bot.id}). To enable the multilingual feature, please upgrade to Botpress Pro.`
         )
       }
     })
@@ -228,7 +267,7 @@ export class Botpress {
 
       // Avoids overwriting the folder when developing locally on the studio
       if (fse.pathExistsSync(`${assets}/ui-studio/public`)) {
-        const studioPath = await fse.lstatSync(`${assets}/ui-studio/public`)
+        const studioPath = fse.lstatSync(`${assets}/ui-studio/public`)
         if (studioPath.isSymbolicLink()) {
           return
         }
@@ -276,7 +315,14 @@ export class Botpress {
 
     disabledBots.forEach(botId => BotService.setBotStatus(botId, 'disabled'))
 
-    await Promise.map(botsToMount, botId => this.botService.mountBot(botId))
+    this.logger.info(
+      `Discovered ${botsToMount.length} bot${botsToMount.length === 1 ? '' : 's'}${
+        botsToMount.length ? `, mounting ${botsToMount.length === 1 ? 'it' : 'them'}...` : ''
+      }`
+    )
+
+    const maxConcurrentMount = parseInt(process.env.MAX_CONCURRENT_MOUNT || '5')
+    await Promise.map(botsToMount, botId => this.botService.mountBot(botId), { concurrency: maxConcurrentMount })
   }
 
   private async initializeServices() {
@@ -328,6 +374,10 @@ export class Botpress {
       await this.hookService.executeHook(new Hooks.AfterEventProcessed(this.api, event))
     }
 
+    this.botMonitor.onBotError = async (botId: string, events: sdk.LoggerEntry[]) => {
+      await this.hookService.executeHook(new Hooks.OnBotError(this.api, botId, events))
+    }
+
     await this.dataRetentionService.initialize()
 
     const dialogEngineLogger = await this.loggerProvider('DialogEngine')
@@ -351,12 +401,13 @@ export class Botpress {
       this.realtimeService.sendToSocket(payload)
     }
 
-    await this.stateManager.initialize()
+    this.stateManager.initialize()
     await this.logJanitor.start()
     await this.dialogJanitor.start()
     await this.monitoringService.start()
-    await this.alertingService.start()
-    await this.eventCollector.start()
+    this.alertingService.start()
+    this.eventCollector.start()
+    await this.botMonitor.start()
 
     if (this.config!.dataRetention) {
       await this.dataRetentionJanitor.start()
@@ -365,7 +416,7 @@ export class Botpress {
     // tslint:disable-next-line: no-floating-promises
     this.hintsService.refreshAll()
 
-    await AppLifecycle.setDone(AppLifecycleEvents.SERVICES_READY)
+    AppLifecycle.setDone(AppLifecycleEvents.SERVICES_READY)
   }
 
   private async loadModules(modules: sdk.ModuleEntryPoint[]): Promise<void> {
@@ -390,7 +441,7 @@ export class Botpress {
   }
 
   private formatProcessingError(err: ProcessingError) {
-    return `Error processing "${err.instruction}"
+    return `Error processing '${err.instruction}'
 Err: ${err.message}
 BotId: ${err.botId}
 Flow: ${err.flowName}

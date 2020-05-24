@@ -14,7 +14,7 @@ import { getToken } from '~/util/Auth'
 
 const token = getToken()
 if (token) {
-  axios.defaults.headers.common['Authorization'] = `Bearer ${token.token}`
+  axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
 }
 
 const { m, v } = queryString.parse(location.search)
@@ -60,10 +60,7 @@ class LiteView extends React.Component {
 
 const mapDispatchToProps = { fetchModules }
 const mapStateToProps = state => ({ modules: state.modules })
-const LiteViewConnected = connect(
-  mapStateToProps,
-  mapDispatchToProps
-)(LiteView)
+const LiteViewConnected = connect(mapStateToProps, mapDispatchToProps)(LiteView)
 
 ReactDOM.render(
   <Provider store={store}>

@@ -1,4 +1,5 @@
 import { Classes, ContextMenu, ITreeNode, Menu, MenuItem, Tree } from '@blueprintjs/core'
+import { confirmDialog, lang } from 'botpress/shared'
 import { isEqual } from 'lodash'
 import React, { Component } from 'react'
 
@@ -65,8 +66,12 @@ export default class FlowsList extends Component<Props, State> {
     this.setState({ nodes })
   }
 
-  handleDelete = flow => {
-    if (confirm(`Are you sure you want to delete the flow ${flow.name}?`)) {
+  handleDelete = async flow => {
+    if (
+      await confirmDialog(lang.tr('studio.flow.sidePanel.confirmDeleteFlow', { name: flow.name }), {
+        acceptLabel: lang.tr('delete')
+      })
+    ) {
       this.props.deleteFlow(flow.name)
     }
   }
@@ -84,21 +89,21 @@ export default class FlowsList extends Component<Props, State> {
           id="btn-rename"
           disabled={lockedFlows.includes(node.nodeData.name) || !this.props.canRename || this.props.readOnly}
           icon="edit"
-          text="Rename"
+          text={lang.tr('rename')}
           onClick={() => this.props.renameFlow(node.nodeData.name)}
         />
         <MenuItem
           id="btn-duplicate"
           disabled={this.props.readOnly}
           icon="duplicate"
-          text="Duplicate"
+          text={lang.tr('duplicate')}
           onClick={() => this.props.duplicateFlow(node.nodeData.name)}
         />
         <MenuItem
           id="btn-delete"
           disabled={lockedFlows.includes(node.nodeData.name) || !this.props.canDelete || this.props.readOnly}
           icon="delete"
-          text="Delete"
+          text={lang.tr('delete')}
           onClick={() => this.handleDelete(node.nodeData)}
         />
       </Menu>,

@@ -1,102 +1,19 @@
 import { AxiosInstance } from 'axios'
 import sdk from 'botpress/sdk'
+import LRUCache from 'lru-cache'
 
 export const BIO = {
-  INSIDE: 'I' as Tag,
-  BEGINNING: 'B' as Tag,
-  OUT: 'o' as Tag
-}
+  INSIDE: 'I',
+  BEGINNING: 'B',
+  OUT: 'o'
+} as _.Dictionary<Tag>
 
 export type Tag = 'o' | 'B' | 'I'
-
-export interface Token {
-  tag?: Tag
-  value: string
-  canonical: string
-  slot?: string
-  start: number
-  end: number
-  matchedEntities: string[]
-}
-
-// TODO get rid of this and use upcoming Utterance
-export interface Sequence {
-  intent: string
-  canonical: string
-  tokens: Token[]
-  contexts?: string[]
-}
-
-export interface TrainingSequence extends Sequence {
-  knownSlots: KnownSlot[]
-}
 
 export interface KnownSlot extends sdk.NLU.SlotDefinition {
   start: number
   end: number
   source: string
-}
-
-export type EngineByBot = { [botId: string]: Engine }
-
-export interface Engine {
-  trainOrLoad(forceRetrain: boolean): Promise<string>
-  checkSyncNeeded(): Promise<boolean>
-  extract(text: string, lastMessages: string[], includedContexts: string[]): Promise<sdk.IO.EventUnderstanding>
-}
-
-export interface SlotExtractor {
-  load(trainingSet: Sequence[], language: Buffer, crf: Buffer): Promise<void>
-  train(trainingSet: Sequence[]): Promise<{ language: Buffer | undefined; crf: Buffer | undefined }>
-  extract(ds: NLUStructure, intent: sdk.NLU.IntentDefinition): Promise<sdk.NLU.SlotCollection>
-}
-
-export type IntentModel = { name: string; model: Buffer }
-
-export interface IntentClassifier {
-  load(models: IntentModel[]): Promise<void>
-  train(intents: sdk.NLU.IntentDefinition[]): Promise<IntentModel[]>
-  predict(input: string, includedContexts: string[]): Promise<sdk.NLU.Intent[]>
-}
-
-export interface LanguageIdentifier {
-  identify(input: string): Promise<sdk.MLToolkit.FastText.PredictResult[]>
-}
-
-export const MODEL_TYPES = {
-  INTENT: ['intent-l0', 'intent-l1', 'intent-tfidf', 'vocab'],
-  SLOT_CRF: 'slot-crf'
-}
-
-export interface ModelMeta {
-  fileName?: string
-  created_on: number // timestamp
-  hash: string
-  context: string
-  type: string
-  scope: string
-}
-
-export interface Model {
-  meta: ModelMeta
-  model: Buffer
-}
-
-export interface NLUStructure {
-  rawText: string
-  sanitizedText: string
-  sanitizedLowerText: string
-  detectedLanguage: string
-  language: string
-  includedContexts: string[]
-  lastMessages: string[]
-  slots: { [key: string]: sdk.NLU.Slot }
-  entities: sdk.NLU.Entity[]
-  ambiguous: boolean
-  intents: sdk.NLU.Intent[]
-  intent: sdk.NLU.Intent
-  tokens: Token[]
-  errored: boolean
 }
 
 export type Token2Vec = { [token: string]: number[] }
@@ -138,11 +55,20 @@ export interface NluMlRecommendations {
   goodUtterancesForML: number
 }
 
-// TODOs adjust typings
-export interface Engine2 {
+export interface NLUEngine {
   loadModel: (m: any) => Promise<void>
   train: (...args) => Promise<any>
   predict: (t: string, ctx: string[]) => Promise<sdk.IO.EventUnderstanding>
+}
+
+export interface EntityService {
+  getSystemEntities(): sdk.NLU.EntityDefinition[]
+  getCustomEntities(): Promise<sdk.NLU.EntityDefinition[]>
+  getEntities(): Promise<sdk.NLU.EntityDefinition[]>
+  getEntity(x: string): Promise<sdk.NLU.EntityDefinition>
+  deleteEntity(x: string): Promise<void>
+  saveEntity(x: sdk.NLU.EntityDefinition): Promise<void>
+  updateEntity(x: string, y: sdk.NLU.EntityDefinition): Promise<void>
 }
 
 export interface NLUState {
@@ -155,10 +81,13 @@ export interface NLUState {
 
 export interface BotState {
   botId: string
-  engine1: Engine
-  engine: Engine2
+  engine: NLUEngine
   trainWatcher: sdk.ListenHandle
+  trainOrLoad: (forceTrain: boolean) => Promise<void>
   trainSessions: _.Dictionary<TrainingSession>
+  cancelTraining: () => Promise<void>
+  isTraining: () => Promise<boolean>
+  entityService: EntityService
 }
 
 export type TFIDF = _.Dictionary<number>
@@ -178,7 +107,10 @@ export type ListEntity = Readonly<{
   sensitive: boolean
 }>
 
-export type ListEntityModel = Readonly<{
+export type EntityCache = LRUCache<string, EntityExtractionResult[]>
+export type EntityCacheDump = LRUCache.Entry<string, EntityExtractionResult[]>[]
+
+export type ListEntityModel = {
   type: 'custom.list'
   id: string
   languageCode: string
@@ -187,12 +119,24 @@ export type ListEntityModel = Readonly<{
   sensitive: boolean
   /** @example { 'Air Canada': [ ['Air', '_Canada'], ['air', 'can'] ] } */
   mappingsTokens: _.Dictionary<string[][]>
-}>
+  cache?: EntityCache | EntityCacheDump
+}
 
 export type ExtractedSlot = { confidence: number; name: string; source: string; value: any }
-export type ExtractedEntity = { confidence: number; type: string; metadata: any; value: string }
-export type EntityExtractionResult = ExtractedEntity & { start: number; end: number }
 export type SlotExtractionResult = { slot: ExtractedSlot; start: number; end: number }
+export type ExtractedEntity = {
+  confidence: number
+  type: string
+  metadata: {
+    source: string
+    entityId: string
+    extractor: 'system' | 'list' | 'pattern'
+    unit?: string
+    occurrence?: string
+  }
+  value: string
+}
+export type EntityExtractionResult = ExtractedEntity & { start: number; end: number }
 
 export interface TrainingSession {
   status: 'training' | 'canceled' | 'done' | 'idle'
@@ -212,8 +156,8 @@ export interface Tools {
 }
 
 export interface SystemEntityExtractor {
-  extractMultiple(input: string[], lang: string, useCache?: Boolean): Promise<sdk.NLU.Entity[][]>
-  extract(input: string, lang: string): Promise<sdk.NLU.Entity[]>
+  extractMultiple(input: string[], lang: string, useCache?: Boolean): Promise<EntityExtractionResult[][]>
+  extract(input: string, lang: string): Promise<EntityExtractionResult[]>
 }
 
 export type Intent<T> = Readonly<{

@@ -4,11 +4,13 @@ interface CssExports {
   'btn': string;
   'editor': string;
   'editorContainer': string;
+  'hidden': string;
   'padding': string;
   'sidePanel': string;
   'status': string;
   'tab': string;
   'tabsContainer': string;
+  'warning': string;
 }
 declare var cssExports: CssExports;
 export = cssExports;

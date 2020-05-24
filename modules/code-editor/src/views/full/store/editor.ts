@@ -1,11 +1,15 @@
+import { confirmDialog, lang, toast } from 'botpress/shared'
 import { action, computed, observable, runInAction } from 'mobx'
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api'
+import path from 'path'
 
 import { EditableFile } from '../../../backend/typings'
 import { calculateHash, toastSuccess } from '../utils'
 import { wrapper } from '../utils/wrapper'
 
 import { RootStore } from '.'
+
+const NO_EDIT_EXTENSIONS = ['.tgz', '.sqlite', '.png', '.gif', '.jpg']
 
 class EditorStore {
   /** Reference to monaco the editor so we can call triggers */
@@ -28,9 +32,12 @@ class EditorStore {
   private _isFileLoaded: boolean
 
   @observable
+  public isAdvanced: boolean = false
+
+  @observable
   private _originalHash: string
 
-  constructor(rootStore) {
+  constructor(rootStore: RootStore) {
     this.rootStore = rootStore
   }
 
@@ -46,7 +53,10 @@ class EditorStore {
 
   @action.bound
   async openFile(file: EditableFile) {
-    const { type, hookType } = file
+    if (NO_EDIT_EXTENSIONS.includes(path.extname(file.location))) {
+      toast.warning('module.code-editor.error.cannotOpenFile')
+      return
+    }
 
     let content = file.content
     if (!content) {
@@ -55,7 +65,7 @@ class EditorStore {
 
     runInAction('-> setFileContent', () => {
       this.fileContent = content
-      this.fileContentWrapped = wrapper.add(content, type, hookType)
+      this.fileContentWrapped = wrapper.add(file, content)
 
       this.currentFile = file
       this._isFileLoaded = true
@@ -81,6 +91,16 @@ class EditorStore {
   }
 
   @action.bound
+  async setAdvanced(isAdvanced) {
+    if (this.rootStore.permissions?.['root.raw']?.read) {
+      this.isAdvanced = isAdvanced
+      await this.rootStore.fetchFiles()
+    } else {
+      console.error(lang.tr('module.code-editor.store.onlySuperAdmins'))
+    }
+  }
+
+  @action.bound
   async saveChanges() {
     if (!this.fileContent || this.currentFile.readOnly || this.currentFile.isExample) {
       return
@@ -89,7 +109,7 @@ class EditorStore {
     await this._editorRef.getAction('editor.action.formatDocument').run()
 
     if (await this.rootStore.api.saveFile({ ...this.currentFile, content: this.fileContent })) {
-      toastSuccess('File saved successfully!')
+      toastSuccess(lang.tr('module.code-editor.store.fileSaved'))
 
       await this.rootStore.fetchFiles()
       this.resetOriginalHash()
@@ -99,7 +119,12 @@ class EditorStore {
   @action.bound
   async discardChanges() {
     if (this.isDirty && this.fileContent) {
-      if (window.confirm(`Do you want to save the changes you made to ${this.currentFile.name}?`)) {
+      if (
+        await confirmDialog(lang.tr('module.code-editor.store.confirmSaveFile', { file: this.currentFile.name }), {
+          acceptLabel: lang.tr('save'),
+          declineLabel: lang.tr('discard')
+        })
+      ) {
         await this.saveChanges()
       }
     }
@@ -116,7 +141,7 @@ class EditorStore {
   }
 
   @action.bound
-  setMonacoEditor(editor) {
+  setMonacoEditor(editor: monaco.editor.IStandaloneCodeEditor) {
     this._editorRef = editor
   }
 }

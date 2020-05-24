@@ -1,4 +1,5 @@
 import { BotConfig, Logger } from 'botpress/sdk'
+import { UnexpectedError } from 'common/http'
 import { RequestWithUser } from 'common/typings'
 import { ConfigProvider } from 'core/config/config-loader'
 import { BotService } from 'core/services/bot-service'
@@ -6,10 +7,18 @@ import { WorkspaceService } from 'core/services/workspace-service'
 import { RequestHandler, Router } from 'express'
 import Joi from 'joi'
 import _ from 'lodash'
+import yn from 'yn'
 
 import { CustomRouter } from '../customRouter'
 import { ConflictError, ForbiddenError } from '../errors'
-import { assertBotpressPro, assertWorkspace, hasPermissions, needPermissions, success as sendSuccess } from '../util'
+import {
+  assertBotpressPro,
+  assertSuperAdmin,
+  assertWorkspace,
+  hasPermissions,
+  needPermissions,
+  success as sendSuccess
+} from '../util'
 
 const chatUserBotFields = [
   'id',
@@ -67,6 +76,20 @@ export class BotsRouter extends CustomRouter {
           bots: isBotAdmin ? bots : bots.map(b => _.pick(b, chatUserBotFields)),
           workspace: _.pick(workspace, ['name', 'pipeline'])
         })
+      })
+    )
+
+    router.get(
+      '/byWorkspaces',
+      assertSuperAdmin,
+      this.asyncMiddleware(async (_req, res) => {
+        const workspaces = await this.workspaceService.getWorkspaces()
+        const bots = workspaces.reduce((obj, workspace) => {
+          obj[workspace.id] = workspace.bots
+          return obj
+        }, {})
+
+        return sendSuccess(res, 'Retrieved bots', { bots })
       })
     )
 
@@ -139,11 +162,22 @@ export class BotsRouter extends CustomRouter {
 
           return res.sendStatus(200)
         } catch (err) {
-          this.logger
-            .forBot(req.params.botId)
-            .attachError(err)
-            .error(`Cannot request bot: ${req.params.botId} for stage change`)
-          res.status(400)
+          throw new UnexpectedError('Cannot request state change for bot', err)
+        }
+      })
+    )
+
+    router.post(
+      '/:botId/approve-stage',
+      this.assertBotpressPro,
+      this.needPermissions('write', this.resource),
+      this.asyncMiddleware(async (req, res) => {
+        try {
+          await this.botService.approveStageChange(req.params.botId, req.tokenUser!.email, req.tokenUser!.strategy)
+
+          return res.sendStatus(200)
+        } catch (err) {
+          throw new UnexpectedError('Cannot approve state change for bot', err)
         }
       })
     )
@@ -155,11 +189,14 @@ export class BotsRouter extends CustomRouter {
         const { botId } = req.params
         const bot = <BotConfig>req.body
 
-        await this.botService.updateBot(botId, bot)
-
-        return sendSuccess(res, 'Updated bot', {
-          botId
-        })
+        try {
+          await this.botService.updateBot(botId, bot)
+          return sendSuccess(res, 'Updated bot', {
+            botId
+          })
+        } catch (err) {
+          throw new UnexpectedError('Cannot update bot', err)
+        }
       })
     )
 
@@ -169,10 +206,13 @@ export class BotsRouter extends CustomRouter {
       this.asyncMiddleware(async (req, res) => {
         const { botId } = req.params
 
-        await this.botService.deleteBot(botId)
-        await this.workspaceService.deleteBotRef(botId)
-
-        return sendSuccess(res, 'Removed bot from team', { botId })
+        try {
+          await this.botService.deleteBot(botId)
+          await this.workspaceService.deleteBotRef(botId)
+          return sendSuccess(res, 'Removed bot from team', { botId })
+        } catch (err) {
+          throw new UnexpectedError('Cannot delete bot', err)
+        }
       })
     )
 
@@ -204,7 +244,8 @@ export class BotsRouter extends CustomRouter {
         req.on('data', chunk => buffers.push(chunk))
         await Promise.fromCallback(cb => req.on('end', cb))
 
-        await this.botService.importBot(req.params.botId, Buffer.concat(buffers), req.workspace!, false)
+        const overwrite = yn(req.query.overwrite)
+        await this.botService.importBot(req.params.botId, Buffer.concat(buffers), req.workspace!, overwrite)
         res.sendStatus(200)
       })
     )
@@ -214,11 +255,14 @@ export class BotsRouter extends CustomRouter {
       this.needPermissions('read', this.resource),
       this.asyncMiddleware(async (req, res) => {
         const botId = req.params.botId
-        const revisions = await this.botService.listRevisions(botId)
-
-        return sendSuccess(res, 'Bot revisions', {
-          revisions
-        })
+        try {
+          const revisions = await this.botService.listRevisions(botId)
+          return sendSuccess(res, 'Bot revisions', {
+            revisions
+          })
+        } catch (err) {
+          throw new UnexpectedError('Cannot list revisions for bot', err)
+        }
       })
     )
 
@@ -227,8 +271,12 @@ export class BotsRouter extends CustomRouter {
       this.needPermissions('write', this.resource),
       this.asyncMiddleware(async (req, res) => {
         const botId = req.params.botId
-        await this.botService.createRevision(botId)
-        return sendSuccess(res, `Created a new revision for bot ${botId}`)
+        try {
+          await this.botService.createRevision(botId)
+          return sendSuccess(res, `Created a new revision for bot ${botId}`)
+        } catch (err) {
+          throw new UnexpectedError('Cannot create new revision for bot', err)
+        }
       })
     )
 
