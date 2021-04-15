@@ -4,7 +4,7 @@ import { lang } from 'botpress/shared'
 import _ from 'lodash'
 import React, { FC, useEffect, useState } from 'react'
 
-import { makeApi } from '../../api'
+import { makeApi } from '../../../api'
 import style from '../style.scss'
 
 import { IntentEditor } from './FullEditor'
@@ -39,7 +39,7 @@ export const LiteEditor: FC<Props> = props => {
   useEffect(() => {
     // Ensure the current topic is in the intent's contexts
     if (props.forceSave && dirtyIntents.length) {
-      // tslint:disable-next-line: no-floating-promises
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
       api.syncIntentTopics()
     }
   }, [props.forceSave])
@@ -47,7 +47,7 @@ export const LiteEditor: FC<Props> = props => {
   const api = makeApi(props.bp)
 
   useEffect(() => {
-    // tslint:disable-next-line: no-floating-promises
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
     loadIntents()
   }, [])
 
@@ -92,15 +92,7 @@ export const LiteEditor: FC<Props> = props => {
         onSubmit={createIntent}
         title={lang.tr('module.nlu.intents.createLabel')}
       />
-      {currentIntent && (
-        <IntentEditor
-          liteEditor
-          intent={currentIntent}
-          api={api}
-          contentLang={props.contentLang}
-          axios={props.bp.axios} // to be removed for api, requires a lot of refactoring
-        />
-      )}
+      {currentIntent && <IntentEditor liteEditor intent={currentIntent} api={api} contentLang={props.contentLang} />}
 
       <div className={style.chooseContainer}>
         <ControlGroup>

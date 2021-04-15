@@ -10,7 +10,8 @@ export const FLAGGED_MESSAGE_STATUSES = Object.values(FLAGGED_MESSAGE_STATUS)
 export enum FLAG_REASON {
   auto_hook = 'auto_hook',
   action = 'action',
-  manual = 'manual'
+  manual = 'manual',
+  thumbs_down = 'thumbs_down'
 }
 
 export enum RESOLUTION_TYPE {
@@ -18,7 +19,7 @@ export enum RESOLUTION_TYPE {
   intent = 'intent'
 }
 
-export type FlaggedEvent = {
+export interface FlaggedEvent {
   eventId: string
   botId: string
   language: string
@@ -36,7 +37,7 @@ export type DbFlaggedEvent = FlaggedEvent & {
   updatedAt: string
 }
 
-export type ContextMessage = {
+export interface ContextMessage {
   direction: 'incoming' | 'outgoing'
   preview: string
   payloadMessage: string
@@ -48,8 +49,14 @@ export type ApiFlaggedEvent = DbFlaggedEvent & {
   nluContexts: string[]
 }
 
-export type ResolutionData = {
+export interface ResolutionData {
   resolutionType: RESOLUTION_TYPE
   resolution: string | null
   resolutionParams?: object | null
 }
+
+export type FilteringOptions = Partial<{
+  startDate: Date
+  endDate: Date
+  reason?: string
+}>

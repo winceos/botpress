@@ -27,7 +27,7 @@ const Toolbar: FC<Props> = props => {
   return (
     <header className={style.toolbar}>
       <div className={style.list}>
-        {hasDoc && (
+        {!!hasDoc && (
           <Fragment>
             <Tooltip
               content={
@@ -50,7 +50,7 @@ const Toolbar: FC<Props> = props => {
           <Tooltip
             content={
               <div className={style.tooltip}>
-                {lang.tr('toolbar.logsPanel')}
+                {lang.tr('toolbar.bottomPanel')}
                 <div className={style.shortcutLabel}>
                   <ShortcutLabel light shortcut="bottom-bar" />
                 </div>

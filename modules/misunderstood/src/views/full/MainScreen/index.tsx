@@ -16,13 +16,15 @@ const MainScreen = ({
   selectedStatus,
   events,
   selectedEventIndex,
+  eventNotFound,
   totalEventsCount,
   skipEvent,
   deleteEvent,
   undeleteEvent,
   resetPendingEvent,
   amendEvent,
-  applyAllPending
+  applyAllPending,
+  manyEventsSelected
 }) => {
   if (selectedStatus === FLAGGED_MESSAGE_STATUS.deleted) {
     return <DeletedList events={events} totalEventsCount={totalEventsCount} undeleteEvent={undeleteEvent} />
@@ -50,11 +52,13 @@ const MainScreen = ({
       language={language}
       axios={axios}
       event={selectedEvent}
+      eventNotFound={eventNotFound}
       totalEventsCount={totalEventsCount}
       eventIndex={selectedEventIndex}
       skipEvent={skipEvent}
       deleteEvent={deleteEvent}
       amendEvent={amendEvent}
+      manyEventsSelected={manyEventsSelected}
     />
   )
 }

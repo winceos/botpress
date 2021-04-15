@@ -3,7 +3,7 @@ import { ItemRenderer, MultiSelect } from '@blueprintjs/select'
 import { lang } from 'botpress/shared'
 import React, { FC, useEffect, useState } from 'react'
 
-import { NLUApi } from '../../api'
+import { NLUApi } from '../../../api'
 
 import style from './style.scss'
 
@@ -17,7 +17,7 @@ export const ContextSelector: FC<Props> = props => {
   const [availableContexts, setContexts] = useState([])
 
   useEffect(() => {
-    // tslint:disable-next-line: no-floating-promises
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
     props.api.fetchContexts().then(setContexts)
   }, [])
 

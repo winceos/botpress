@@ -2,6 +2,7 @@ import { RootStore } from './store'
 
 declare global {
   interface Window {
+    __BP_VISITOR_SOCKET_ID: string
     __BP_VISITOR_ID: string
     botpressWebChat: any
     store: RootStore
@@ -66,6 +67,7 @@ export namespace Renderer {
   export type QuickReply = {
     buttons: any
     quick_replies: any
+    disableFreeText: boolean
   } & Message
 
   export type QuickReplyButton = {
@@ -127,21 +129,25 @@ export interface StudioConnector {
   loadModuleView: any
 }
 
-export type Config = {
+export interface Config {
   botId?: string
   externalAuthToken?: string
   userId?: string
+  conversationId?: number
   /** Allows to set a different user id for different windows (eg: studio, specific bot, etc) */
   userIdScope?: string
   enableReset: boolean
   stylesheet: string
+  isEmulator?: boolean
   extraStylesheet: string
   showConversationsButton: boolean
   showUserName: boolean
   showUserAvatar: boolean
   showTimestamp: boolean
   enableTranscriptDownload: boolean
+  enableConversationDeletion: boolean
   enableArrowNavigation: boolean
+  closeOnEscape: boolean
   botName?: string
   composerPlaceholder?: string
   avatarUrl?: string
@@ -160,6 +166,8 @@ export type Config = {
   disableAnimations: boolean
   /** When true, sets ctrl+Enter as shortcut for reset session then send */
   enableResetSessionShortcut: boolean
+  /** When true, webchat tries to use native webspeech api (uses hosted mozilla and google voice services) */
+  enableVoiceComposer: boolean
   recentConversationLifetime: string
   startNewConvoOnTimeout: boolean
   /** Use sessionStorage instead of localStorage, which means the session expires when tab is closed */
@@ -173,6 +181,14 @@ export type Config = {
   exposeStore: boolean
   /** Reference ensures that a specific value and its signature are valid */
   reference: string
+  /** If true, Websocket is created when the Webchat is opened. Bot cannot be proactive. */
+  lazySocket?: boolean
+  /** If true, chat will no longer play the notification sound for new messages. */
+  disableNotificationSound?: boolean
+  /** Refers to a specific webchat reference in parent window. Useful when using multiple chat window */
+  chatId?: string
+  /** CSS class to be applied to iframe */
+  className?: string
 }
 
 type OverridableComponents = 'below_conversation' | 'before_container' | 'composer'
@@ -204,6 +220,7 @@ export interface BotInfo {
   security: {
     escapeHTML: boolean
   }
+  lazySocket: boolean
 }
 
 interface Conversation {
@@ -237,6 +254,7 @@ export type CurrentConversation = {
 export interface Message {
   id: string
   userId: string
+  eventId: string
   incomingEventId: string
   conversationId: number
   avatar_url: string | undefined
@@ -249,6 +267,11 @@ export interface Message {
   sent_on: Date
   // The typing delay in ms
   timeInMs: number
+}
+
+export interface QueuedMessage {
+  message: Message
+  showAt: Date
 }
 
 export interface HTMLInputEvent extends Event {

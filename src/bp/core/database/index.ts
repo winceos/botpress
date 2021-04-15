@@ -6,9 +6,9 @@ import Knex from 'knex'
 import _ from 'lodash'
 import path from 'path'
 
+import AllTables from './database-tables'
 import { patchKnex } from './helpers'
 import { Table } from './interfaces'
-import AllTables from './tables'
 
 export type DatabaseType = 'postgres' | 'sqlite'
 
@@ -43,9 +43,9 @@ export default class Database {
     await Promise.mapSeries(AllTables, async Tbl => {
       const table = new Tbl(this.knex!)
       if (this.knex.isLite) {
-        await this.knex.raw(`PRAGMA foreign_keys = OFF;`)
+        await this.knex.raw('PRAGMA foreign_keys = OFF;')
         await this.knex.raw(`DROP TABLE IF EXISTS "${table.name}";`)
-        await this.knex.raw(`PRAGMA foreign_keys = ON;`)
+        await this.knex.raw('PRAGMA foreign_keys = ON;')
       } else {
         await this.knex.raw(`DROP TABLE IF EXISTS "${table.name}" CASCADE;`)
       }

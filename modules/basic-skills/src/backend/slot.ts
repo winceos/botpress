@@ -92,16 +92,12 @@ const createNodes = data => {
           node: 'extracted'
         },
         {
-          condition: `temp.notExtracted == "true"`,
+          condition: 'temp.notExtracted == "true"',
           node: '#'
-        },
-        {
-          condition: 'session.slots.notFound > 0',
-          node: 'not-extracted'
         },
         {
           condition: 'true',
-          node: '#'
+          node: 'not-extracted'
         }
       ]
     },

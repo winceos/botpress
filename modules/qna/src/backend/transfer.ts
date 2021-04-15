@@ -23,14 +23,14 @@ export const prepareImport = async (parsedJson: any): Promise<ImportData> => {
     }
     return { questions: result.qnas, content: result.contentElements }
   } catch (err) {
-    debug(`New format doesn't match provided file %o`, { err })
+    debug("New format doesn't match provided file %o", { err })
   }
 
   try {
     const result = (await validate(parsedJson, QnaItemArraySchema)) as QnaItem[]
     return { questions: result, content: undefined }
   } catch (err) {
-    debug(`Old format doesn't match provided file %o`, { err })
+    debug("Old format doesn't match provided file %o", { err })
   }
 
   return {}
@@ -50,25 +50,24 @@ export const importQuestions = async (data: ImportData, storage, bp, statusCallb
     }
   }
 
-  const existingQuestionItems = (await (storage as Storage).fetchQNAs()).map(item => item.id)
-  const itemsToSave = questions.filter(item => !existingQuestionItems.includes(item.id))
-  const entriesToSave = itemsToSave.map(q => q.data)
+  for (const qnaItem of questions) {
+    qnaItem.data.enabled = true
+  }
 
   let questionsSavedCount = 0
-  return Promise.each(entriesToSave, async (question: QnaEntry & { category?: string }) => {
-    const item = { ...question, enabled: true }
-
+  return Promise.each(questions, async (qnaItem: QnaItem & { data: { category?: string } }) => {
     // Support for previous QnA
-    if (item.category) {
-      item.contexts = [item.category]
-      delete item.category
+    if (qnaItem.data.category) {
+      qnaItem.data.contexts = [qnaItem.data.category]
+      delete qnaItem.data.category
     }
 
-    await (storage as Storage).insert(item)
+    await (storage as Storage).upsertItem(qnaItem)
+
     questionsSavedCount += 1
     statusCallback(
       uploadStatusId,
-      `Saved ${questionsSavedCount}/${entriesToSave.length} question${entriesToSave.length === 1 ? '' : 's'}`
+      `Saved ${questionsSavedCount}/${questions.length} question${questions.length === 1 ? '' : 's'}`
     )
   })
 }

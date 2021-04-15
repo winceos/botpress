@@ -14,12 +14,8 @@ import { makeSlotMark, utterancesToValue, valueToUtterances } from './utterances
 
 const plugins = [
   PlaceholderPlugin({
-    placeholder: lang.tr('module.nlu.intents.summaryPlaceholder'),
-    when: (_, node) => node.text.trim() === '' && node.type === 'title'
-  }),
-  PlaceholderPlugin({
     placeholder: lang.tr('module.nlu.intents.utterancePlaceholder'),
-    when: (_, node) => node.text.trim() === '' && node.type === 'paragraph'
+    when: (_, node) => node.text.trim() === ''
   })
 ]
 
@@ -30,7 +26,20 @@ interface Props {
   onChange: (x: string[]) => void
 }
 
-export class UtterancesEditor extends React.Component<Props> {
+interface Selected {
+  utterance: number
+  block: number
+  from: number
+  to: number
+}
+
+interface State {
+  selection: Selected
+  value: Value
+  showSlotMenu: boolean
+}
+
+export class UtterancesEditor extends React.Component<Props, State> {
   state = {
     selection: { utterance: -1, block: -1, from: -1, to: -1 },
     value: utterancesToValue([]),
@@ -138,9 +147,30 @@ export class UtterancesEditor extends React.Component<Props> {
           show={this.state.showSlotMenu}
           onSlotClicked={this.tag.bind(this, editor)}
         />
-        <div className={style.utterances}>{children}</div>
+        <div className={style.utterances} onCopy={this.onCopy}>
+          {children}
+        </div>
       </div>
     )
+  }
+
+  onCopy = event => {
+    const selection = document.getSelection().toString()
+    let lines: string[]
+    if (!selection.length) {
+      // Selected the whole component, we put all utterances in the clipboard
+      lines = valueToUtterances(this.state.value)
+    } else {
+      // Partial selection, we remove the heading numbers and empty lines
+      lines = selection
+        .split('\n')
+        .map(txt => txt.replace(/^\d{1,4}$/, ''))
+        .filter(x => x.length)
+    }
+
+    event.clipboardData.setData('text/plain', lines.join('\n'))
+    event.clipboardData.setData('text/html', `<ul>${lines.map(x => `<li>${x}</li>`).join('')}</ul>`)
+    event.preventDefault()
   }
 
   tag = (editor: CoreEditor, slot: NLU.SlotDefinition) => {
@@ -174,9 +204,9 @@ export class UtterancesEditor extends React.Component<Props> {
     }
   }
 
-  dispatchChanges = _.debounce(value => {
+  dispatchChanges = (value: Value) => {
     this.props.onChange(valueToUtterances(value))
-  }, 2500)
+  }
 
   dispatchNeeded = operations => {
     return operations
@@ -184,13 +214,14 @@ export class UtterancesEditor extends React.Component<Props> {
       .filter(x => ['insert_text', 'remove_text', 'add_mark', 'remove_mark', 'split_node'].includes(x)).size
   }
 
-  onChange = ({ value, operations }) => {
-    let selectionState = {}
+  onChange = ({ value, operations }: { value: Value; operations: any }) => {
+    let selection: Selected | undefined
     if (operations.filter(x => x.get('type') === 'set_selection').size) {
-      selectionState = this.onSelectionChanged(value)
+      selection = this.onSelectionChanged(value)
     }
 
-    this.setState({ value, ...selectionState })
+    const newState: Partial<State> = selection ? { value, selection } : { value }
+    this.setState(newState as State)
 
     if (this.dispatchNeeded(operations)) {
       this.dispatchChanges(value)
@@ -223,7 +254,6 @@ export class UtterancesEditor extends React.Component<Props> {
     const isWrong = utteranceIdx < this.utteranceKeys.length - 1 && isEmpty
 
     const elementCx = classnames(style.utterance, {
-      [style.title]: node.type === 'title' && utteranceIdx === 0,
       [style.active]: props.isFocused,
       [style.wrong]: isWrong
     })
@@ -233,7 +263,7 @@ export class UtterancesEditor extends React.Component<Props> {
       case 'paragraph':
         const utterance = (
           <p className={elementCx} {...attributes}>
-            <span contentEditable={false} className={style.index}>
+            <span contentEditable={false} className={style.index} unselectable="on">
               {utteranceIdx + 1}
             </span>
             {children}
@@ -270,7 +300,7 @@ export class UtterancesEditor extends React.Component<Props> {
     )
   }
 
-  onSelectionChanged = (value: Value) => {
+  onSelectionChanged = (value: Value): Selected => {
     const selection: Selection = value.get('selection').toJS()
 
     let from = -1
@@ -291,13 +321,13 @@ export class UtterancesEditor extends React.Component<Props> {
           // need the setTimeout for tagging with click
           setTimeout(this.hideSlotPopover, 200)
         }
-      } else if (from == to && this.state.showSlotMenu) {
+      } else if (from === to && this.state.showSlotMenu) {
         this.hideSlotPopover()
       }
     } else {
       this.hideSlotPopover()
     }
 
-    return { selection: { utterance, block, from, to } }
+    return { utterance, block, from, to }
   }
 }

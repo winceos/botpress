@@ -1,4 +1,4 @@
-import { LanguageSource } from './backend/typings'
+import { LanguageSource } from 'common/nlu/engine'
 
 export interface Config {
   /**
@@ -15,14 +15,6 @@ export interface Config {
   ducklingEnabled: boolean
 
   /**
-   * The interval at which to automatically sync the models in the background
-   * Set this value to "false" to disable background sync
-   * @deprecated > 12.2
-   * @default 30s
-   */
-  autoTrainInterval: string
-
-  /**
    * Whether or not you want your models to be trained and loaded on bot mounts
    * @default true
    * @deprecated > 12.2
@@ -34,4 +26,30 @@ export interface Config {
    * @default [{ "endpoint": "https://lang-01.botpress.io" }]
    */
   languageSources: LanguageSource[]
+
+  /**
+   * Maximum allowed model cache size
+   * @default 850mb
+   */
+  modelCacheSize: string
+
+  /**
+   * Maximum number of concurrent trainings per Botpress instance
+   * @default 1
+   * @optional
+   */
+  maxTrainingPerInstance?: number
+
+  /**
+   * Whether or not to train bots that require training on mount
+   * @default false
+   * @optional
+   */
+  queueTrainingOnBotMount?: boolean
+
+  /**
+   * Whether or not you want to use the deprecated legacy election
+   * @default false
+   */
+  legacyElection: boolean
 }

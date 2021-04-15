@@ -13,6 +13,12 @@ import path from 'path'
 import { Condition, CSVTest, Test, TestResult, TestResultDetails } from '../shared/typings'
 import { computeSummary } from '../shared/utils'
 
+type BPDS_BotConfig = sdk.BotConfig & {
+  bpdsId: string
+}
+
+const NONE = 'none'
+
 const TestsSchema = Joi.array().items(
   Joi.object({
     id: Joi.string().required(),
@@ -134,18 +140,20 @@ export default async (bp: typeof sdk) => {
 
   router.post('/export', async (req, res) => {
     // TODO add a little validation
-    const targetPath = isRunningFromSources()
+    const botId = req.params.botId
+    const targetPath = await isRunningFromSources(bp, botId)
     if (!targetPath) {
       return res.status(400).send('Not in a git repository`')
     }
 
+    const botConfig = await bp.bots.getBotById(botId)
     const tests = await getAllTests(req.params.botId)
     try {
-      const csv = results2CSV(tests, req.body.results)
+      const csv = results2CSV(tests, req.body.results, botConfig.nluSeed)
       fs.writeFileSync(targetPath, csv)
       res.sendStatus(200)
     } catch (err) {
-      console.log(err)
+      console.error(err)
       res.sendStatus(500)
     }
   })
@@ -159,24 +167,24 @@ export default async (bp: typeof sdk) => {
     })
 
     const testResults = _.flatten(resultsBatch).reduce((dic, testRes) => ({ ...dic, [testRes.id]: testRes }), {})
-    // uncomment this when working on out of scope
-    // const f1Scorer = new MultiClassF1Scorer()
-    // _.zip(tests, _.flatten(resultsBatch)).forEach(([test, res]) => {
-    //   const expected = test.conditions[0][2].endsWith('none') ? 'out' : 'in'
-    //   // @ts-ignore
-    //   const actual = res.nlu.outOfScope[test.context].label
-    //   f1Scorer.record(expected, actual)
-    //   // @ts-ignore
-    // })
-    // testResults.OOSF1 = f1Scorer.getResults()
+    const accuracy = _.flatten(resultsBatch).filter(res => res.success).length / tests.length
+    bp.logger.forBot(req.params.botId).info(`finished running tests with ${accuracy} of accuracy`)
     res.send(testResults)
   })
 }
 
-function results2CSV(tests: Test[], results: _.Dictionary<TestResult>) {
+function results2CSV(tests: Test[], results: _.Dictionary<TestResult>, seed?: number) {
   const summary = computeSummary(tests, results)
   const records = [
-    ['utterance', 'context', 'conditions', 'status', `date: ${new Date().toLocaleDateString()}`, `summary: ${summary}`],
+    [
+      'utterance',
+      'context',
+      'conditions',
+      'status',
+      `date: ${new Date().toLocaleDateString()}`,
+      `summary: ${summary}`,
+      `nlu seed: ${seed}`
+    ],
     ...tests.map(t => [
       t.utterance,
       t.context,
@@ -187,14 +195,34 @@ function results2CSV(tests: Test[], results: _.Dictionary<TestResult>) {
   return stringify(records)
 }
 
-function isRunningFromSources(): string | undefined {
+async function isRunningFromSources(bp: typeof sdk, botId: string): Promise<string | undefined> {
   try {
+    const botConfig = (await bp.bots.getBotById(botId)) as BPDS_BotConfig
+    const bpdsId = botConfig.bpdsId
+    if (!bpdsId) {
+      return
+    }
+
     const sourceDirectory = path.resolve(process.PROJECT_LOCATION, '../..')
-    const latestResultsPath = path.resolve(sourceDirectory, `./modules/nlu-testing/latest-results.csv`)
+    const botTemplatesPath = path.resolve(sourceDirectory, './modules/nlu-testing/src/bot-templates')
+    const childDirs = fs.readdirSync(botTemplatesPath)
+
+    const botTemplateUnderTesting = childDirs.find(template => {
+      const configPath = path.resolve(botTemplatesPath, template, 'bot.config.json')
+      const configContent = fs.readFileSync(configPath, { encoding: 'utf8' })
+      const config = JSON.parse(configContent) as BPDS_BotConfig
+      return config.bpdsId === bpdsId
+    })
+    if (!botTemplateUnderTesting) {
+      return
+    }
+
+    const latestResultsPath = path.resolve(botTemplatesPath, botTemplateUnderTesting, 'latest-results.csv')
     const exists = fs.existsSync(latestResultsPath)
+
     return exists ? latestResultsPath : undefined
   } catch {
-    return undefined
+    return
   }
 }
 
@@ -220,7 +248,7 @@ async function runTest(test: Test, axiosConfig: AxiosRequestConfig): Promise<Tes
 
 function conditionMatch(nlu: sdk.IO.EventUnderstanding, [key, matcher, expected], ctx: string): TestResultDetails {
   if (key === 'intent') {
-    expected = expected.endsWith('none') ? 'none' : expected
+    expected = expected.endsWith(NONE) ? NONE : expected
     const received = nlu.intent.name
     let success = expected === received
     if (expected.endsWith('disambiguation')) {
@@ -239,13 +267,13 @@ function conditionMatch(nlu: sdk.IO.EventUnderstanding, [key, matcher, expected]
       expected
     }
   } else if (key === 'context') {
-    // tslint:disable-next-line
+    // eslint-disable-next-line
     let [received, ctxPred] = _.chain(nlu.predictions)
       .toPairs()
       .maxBy('1.confidence')
       .value()
 
-    received = received !== 'oos' ? received : 'none'
+    received = received !== 'oos' ? received : NONE
     const success = expected === received
     return {
       success,
@@ -268,36 +296,43 @@ function conditionMatchNDU(nlu: sdk.IO.EventUnderstanding, [key, matcher, expect
     return checkSlotMatch(nlu, key.split(':')[1], expected)
   }
   if (key === 'context') {
-    if (expected === 'none') {
-      expected = 'oos'
-    }
-    const [received, { confidence }] = _.chain(nlu.predictions)
+    const [received, ctxPredObj] = _.chain(nlu.predictions)
       .toPairs()
       .maxBy('1.confidence')
       .value()
 
-    const success = expected === received
-    const conf = Math.round(confidence * 100)
+    let conf = ctxPredObj.confidence
+    let success = expected === received
+
+    if (expected === NONE) {
+      const inConf = ctxPredObj.confidence * ctxPredObj.intents.filter(i => i.label !== NONE)[0].confidence
+      const outConf = ctxPredObj.oos
+      success = outConf > inConf
+      conf = success ? outConf : conf
+    }
+
     return {
       success,
       reason: success
         ? ''
         : `Context doesn't match. \nexpected: ${expected} \nreceived: ${received} \nconfidence: ${conf}`,
-      received: received,
+      received,
       expected
     }
   }
 
   if (key === 'intent') {
-    const oosConfidence = nlu.predictions.oos.confidence
     const highestRankingIntent = _.chain(nlu.predictions)
-      .toPairs()
-      .flatMap(([ctx, ctxPredObj]) => {
-        return ctxPredObj.intents.map(intentPred => {
-          const oosFactor = ctx === 'oos' ? 1 : 1 - oosConfidence
+      .values()
+      .flatMap(ctxPreds => {
+        return ctxPreds.intents.map(intentPred => {
+          let confidence = intentPred.confidence * (1 - ctxPreds.oos) * ctxPreds.confidence
+          if (intentPred.label === NONE) {
+            confidence = Math.min(intentPred.confidence * ctxPreds.confidence * ctxPreds.oos, 1)
+          }
           return {
             label: intentPred.label,
-            confidence: intentPred.confidence * oosFactor * ctxPredObj.confidence // copy pasted from ndu conditions.ts (now how we elect intent)
+            confidence
           }
         })
       })

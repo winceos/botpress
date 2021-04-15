@@ -1,12 +1,13 @@
 import { ConverseConfig } from 'botpress/sdk'
+import { CookieOptions } from 'express'
 import { Algorithm } from 'jsonwebtoken'
 
 import { ActionServer, UniqueUser } from '../../common/typings'
-import { IncidentRule } from '../services/alerting-service'
+import { IncidentRule } from '../health/alerting-service'
 
 export type BotpressCondition = '$isProduction' | '$isDevelopment'
 
-export type ModuleConfigEntry = {
+export interface ModuleConfigEntry {
   location: string
   enabled: boolean
 }
@@ -19,7 +20,7 @@ export interface DialogConfig {
   janitorInterval: string
   /**
    * Interval before a session's context expires.
-   * e.g. when the conversation is stale and has not reach the END of the flow.
+   * e.g. when the conversation is stale and has not reached the END of the flow.
    * This will reset the position of the user in the flow.
    * @default 2m
    */
@@ -74,7 +75,7 @@ export interface LogsConfig {
  * We use the library "ms", so head over to this page to see supported formats: https://www.npmjs.com/package/ms
  */
 
-export type BotpressConfig = {
+export interface BotpressConfig {
   version: string
   appSecret: string
   httpServer: {
@@ -102,12 +103,17 @@ export type BotpressConfig = {
      * @default 10mb
      */
     bodyLimit: string | number
+    /**
+     * CORS policy for the server. You can provide other configuration parameters
+     * listed on this page: https://expressjs.com/en/resources/middleware/cors.html
+     */
     cors: {
       /**
        * @default true
        */
       enabled?: boolean
       origin?: string
+      credentials?: boolean
     }
     /**
      * Represents the complete base URL exposed externally by your bot. This is useful if you configure the bot
@@ -136,6 +142,23 @@ export type BotpressConfig = {
      * @default ["websocket","polling"]
      */
     socketTransports: string[]
+    rateLimit: {
+      /**
+       * * Security option to rate limit potential attacker trying to brute force something
+       * @default false
+       */
+      enabled: boolean
+      /**
+       * Time window to compute rate limiting
+       * @default 30s
+       */
+      limitWindow: string
+      /**
+       * * Maximum number of request in limit window to ban an IP. Keep in mind that this includes admin, studio and chat request so don't put it too low
+       * @default 600
+       */
+      limit: number
+    }
     /**
      * Adds default headers to the server's responses
      * @default {"X-Powered-By":"Botpress"}
@@ -182,6 +205,45 @@ export type BotpressConfig = {
      * will be available in `event.credentials`.
      */
     externalAuth?: ExternalAuthConfig
+    /**
+     * Configure the branding of the admin panel and the studio. A valid license is required
+     */
+    branding: {
+      admin: {
+        /**
+         * Change the name displayed in the title bar on the admin panel
+         * @example "Botpress Admin Panel"
+         */
+        title?: string
+        /**
+         * Replace the default favicon
+         * @example "assets/ui-studio/public/img/favicon.png"
+         */
+        favicon?: string
+        /**
+         * Path to your custom stylesheet
+         * @example "assets/custom/my-stylesheet.css"
+         */
+        customCss?: string
+      }
+      studio: {
+        /**
+         * Change the name displayed in the title bar on the studio
+         * @example "Botpress Studio"
+         */
+        title?: string
+        /**
+         * Replace the default favicon
+         * @example "assets/ui-studio/public/img/favicon.png"
+         */
+        favicon?: string
+        /**
+         * Path to your custom stylesheet
+         * @example "assets/my-stylesheet.css"
+         */
+        customCss: string
+      }
+    }
   }
   /**
    * An array of e-mails of users which will have root access to Botpress (manage users, server settings)
@@ -226,7 +288,7 @@ export type BotpressConfig = {
   jwtToken: {
     /**
      * The duration for which the token granting access to manage Botpress will be active.
-     * @default 6h
+     * @default 1h
      */
     duration: string
     /**
@@ -234,6 +296,16 @@ export type BotpressConfig = {
      * @default true
      */
     allowRefresh: boolean
+    /**
+     * Use an HTTP-Only secure cookie instead of the local storage for the JWT Token
+     * @default false
+     */
+    useCookieStorage: boolean
+    /**
+     * Configure the options of the cookie sent to the user, for example the domain
+     * @default {}
+     */
+    cookieOptions?: CookieOptions
   }
   /**
    * When enabled, a bot revision will be stored in the revisions directory when it change or its about to change stage
@@ -279,6 +351,14 @@ export type BotpressConfig = {
    * @default false
    */
   experimental: boolean
+
+  telemetry: {
+    /**
+     * The number of entries stored in the telemetry database
+     * @default 1000
+     */
+    entriesLimit: number
+  }
 }
 
 export interface ExternalAuthConfig {
@@ -340,7 +420,7 @@ export interface DataRetentionConfig {
  * @example "profile.email": "30d"
  * @default {}
  */
-export type RetentionPolicy = {
+export interface RetentionPolicy {
   [key: string]: string
 }
 
@@ -378,7 +458,7 @@ export interface AuthStrategyBasic {
   /**
    * The maximum number of wrong passwords the user can enter before his account is locked out.
    * Set it to 0 for unlimited tries
-   * @default 0
+   * @default 3
    */
   maxLoginAttempt: number
   /**
@@ -508,7 +588,9 @@ export interface AuthStrategyLdap {
   certificates: string[]
 }
 
-export type FieldMapping = { [bpAttribute: string]: string }
+export interface FieldMapping {
+  [bpAttribute: string]: string
+}
 
 export interface MonitoringConfig {
   /**
@@ -607,7 +689,7 @@ export interface EventCollectorConfig {
   ignoredEventProperties: string[]
   /**
    * These properties are only stored with the event when the user is logged on the studio
-   * @default ["ndu.triggers","ndu.predictions","nlu.predictions"]
+   * @default ["ndu.triggers","ndu.predictions","nlu.predictions","state","processing","activeProcessing"]
    */
   debuggerProperties: string[]
 }

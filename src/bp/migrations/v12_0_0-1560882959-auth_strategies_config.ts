@@ -1,5 +1,5 @@
 import * as sdk from 'botpress/sdk'
-import { Migration, MigrationOpts } from 'core/services/migration'
+import { Migration, MigrationOpts } from 'core/migration'
 
 const migration: Migration = {
   info: {
@@ -13,7 +13,7 @@ const migration: Migration = {
     const hasCollabStrategy = config.pro.collaboratorsAuthStrategies && config.pro.collaboratorsAuthStrategies.length
 
     if (hasAuthStrategy && hasCollabStrategy) {
-      return { success: true, message: `Auth Strategies already configured, skipping...` }
+      return { success: true, message: 'Auth Strategies already configured, skipping...' }
     }
 
     await configProvider.mergeBotpressConfig({

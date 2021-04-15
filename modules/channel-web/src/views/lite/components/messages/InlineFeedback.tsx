@@ -1,5 +1,4 @@
 import { EventFeedback } from 'lite/typings'
-import _ from 'lodash'
 import React, { FC, useEffect, useState } from 'react'
 
 import ThumbsDown from '../../icons/ThumbsDown'
@@ -16,7 +15,7 @@ export const InlineFeedback: FC<Props> = ({ eventFeedbacks, incomingEventId, onF
   const [feedbackSent, setFeedbackSent] = useState(false)
 
   useEffect(() => {
-    if (eventFeedbacks && eventFeedbacks.find(x => x.incomingEventId === incomingEventId && x.feedback != undefined)) {
+    if (eventFeedbacks && eventFeedbacks.find(x => x.incomingEventId === incomingEventId && x.feedback != null)) {
       setFeedbackSent(true)
     }
   }, [eventFeedbacks])

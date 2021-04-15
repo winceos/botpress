@@ -1,16 +1,15 @@
 import { lang } from 'botpress/shared'
 import classnames from 'classnames'
-import { parseActionInstruction } from 'common/action'
 import _ from 'lodash'
 import Mustache from 'mustache'
 import React, { Component } from 'react'
-import { OverlayTrigger, Popover } from 'react-bootstrap'
 import Markdown from 'react-markdown'
 import { connect } from 'react-redux'
 import { fetchContentItem, refreshFlowsLinks } from '~/actions'
 
+import { isMissingCurlyBraceClosure } from '../../../components/Util/form.util'
 import withLanguage from '../../../components/Util/withLanguage'
-import { textToItemId } from '../diagram/nodes_v2/utils'
+import { ActionPopover } from './actionPopover'
 
 import style from './style.scss'
 
@@ -23,6 +22,8 @@ interface Props {
   contentLang: string
   layoutv2?: boolean
 }
+
+export const textToItemId = text => text?.match(/^say #!(.*)$/)?.[1]
 
 class ActionItem extends Component<Props> {
   state = {
@@ -47,45 +48,12 @@ class ActionItem extends Component<Props> {
     this.setState({ itemId: textToItemId(this.props.text) })
   }
 
-  renderAction() {
-    const actionInstruction = parseActionInstruction(this.props.text.trim())
-
-    const actionName = `${actionInstruction.actionName} (args)`
-
-    let callPreview
-    if (actionInstruction.argsStr) {
-      try {
-        const parameters = JSON.parse(actionInstruction.argsStr)
-        callPreview = JSON.stringify(parameters, null, 2)
-      } catch (err) {
-        console.error(err)
-      }
-    }
-
-    const popoverHoverFocus = (
-      <Popover id="popover-action" title={`⚡ ${actionName}`}>
-        Called with these arguments:
-        <pre>{callPreview}</pre>
-      </Popover>
-    )
-
-    return (
-      <OverlayTrigger trigger={['hover', 'focus']} placement="top" delayShow={500} overlay={popoverHoverFocus}>
-        <div className={classnames(this.props.className, style['fn'], style['action-item'])}>
-          <span className={style.icon}>⚡</span>
-          <span className={style.name}>{actionName}</span>
-          {this.props.children}
-        </div>
-      </OverlayTrigger>
-    )
-  }
-
   render() {
     const action = this.props.text
     const isAction = typeof action !== 'string' || !action.startsWith('say ')
 
     if (isAction) {
-      return this.renderAction()
+      return <ActionPopover text={this.props.text} className={this.props.className} />
     }
 
     const item = this.props.items[this.state.itemId]
@@ -137,11 +105,15 @@ class ActionItem extends Component<Props> {
 
     const htmlTpl = textContent.replace(/{{([a-z$@0-9. _-]*?)}}/gi, x => {
       const name = stripDots(x.replace(/{|}/g, ''))
-      vars[name] = '<span class="var">' + x + '</span>'
-      return '{' + stripDots(x) + '}'
+      vars[name] = `<span class="var">${x}</span>`
+      return `{${stripDots(x)}}`
     })
 
-    const mustached = restoreDots(Mustache.render(htmlTpl, vars))
+    let mustached = restoreDots(htmlTpl)
+
+    if (!isMissingCurlyBraceClosure(htmlTpl)) {
+      mustached = restoreDots(Mustache.render(htmlTpl, vars))
+    }
 
     const html = { __html: mustached }
 

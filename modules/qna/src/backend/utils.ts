@@ -41,13 +41,14 @@ export const getQnaEntryPayloads = async (
   }
 
   const electedAnswer = getAlternativeAnswer(qnaEntry, lang)
-  if (electedAnswer.startsWith('#!')) {
+  if (electedAnswer?.startsWith('#!')) {
     renderer = `!${electedAnswer.replace('#!', '')}`
   } else {
     args = {
       ...args,
       text: electedAnswer,
-      typing: true
+      typing: true,
+      markdown: true
     }
   }
 

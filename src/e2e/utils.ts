@@ -3,7 +3,7 @@ import { Dialog, ElementHandle, HttpMethod, MouseButtons, Page } from 'puppeteer
 
 import { bpConfig } from '../../jest-puppeteer.config'
 
-import { clickOn, expectMatchElement } from './expectPuppeteer'
+import { clickOn, expectMatchElement, fillField } from './expectPuppeteer'
 
 export const getPage = async (): Promise<Page> => {
   await page.setViewport(bpConfig.windowSize)
@@ -18,8 +18,18 @@ export const getPage = async (): Promise<Page> => {
   return page
 }
 
+export const loginIfNeeded = async () => {
+  if (page.url().includes('login')) {
+    await fillField('#email', bpConfig.email)
+    await fillField('#password', bpConfig.password)
+    await clickOn('#btn-signin')
+    return page.waitForNavigation()
+  }
+}
+
 export const gotoStudio = async (section?: string) => {
-  await gotoAndExpect(`${bpConfig.host}/studio/${bpConfig.botId}${section ? '/' + section : ''}`)
+  const resource = section ? `/${section}` : ''
+  await gotoAndExpect(`${bpConfig.host}/studio/${bpConfig.botId}${resource}`)
   return page.waitFor(200)
 }
 
@@ -29,21 +39,32 @@ export const gotoAndExpect = async (url: string, matchUrl?: string) => {
   await expect(page.url()).toMatch(matchUrl || url)
 }
 
-const getResponse = async (url: string, method?: HttpMethod) => {
+export const getResponse = async (url: string, method?: HttpMethod) => {
   return page.waitForResponse(res => {
     const resUrl = res.url()
-    console.log(`url: ${url}, resUrl: ${resUrl}`)
+    console.info(`url: ${url}, resUrl: ${resUrl}`)
     return resUrl.includes(url) && (method ? res.request().method() === method : true)
   })
 }
 
-export const expectCallSuccess = async (url: string, method?: HttpMethod): Promise<void> => {
+export const expectCallSuccess = async (url: string, method?: HttpMethod): Promise<any> => {
   const response = await getResponse(url, method)
   expect(response.status()).toBe(200)
+  return response.json()
 }
 
 export const expectAdminApiCallSuccess = async (endOfUrl: string, method?: HttpMethod): Promise<void> => {
-  const response = await getResponse(`${bpConfig.apiHost}/api/v1/admin/${endOfUrl}`, method)
+  const response = await getResponse(`${bpConfig.apiHost}/api/v2/admin/${endOfUrl}`, method)
+  expect(response.status()).toBe(200)
+}
+
+export const expectModuleApiCallSuccess = async (
+  module: string,
+  bot: string,
+  resource: string,
+  method?: HttpMethod
+): Promise<void> => {
+  const response = await getResponse(`${bpConfig.apiHost}/api/v1/bots/${bot}/mod/${module}/${resource}`, method)
   expect(response.status()).toBe(200)
 }
 
@@ -63,7 +84,7 @@ export enum CONFIRM_DIALOG {
 }
 
 export const autoAnswerDialog = (promptText?: string, repeat?: boolean) => {
-  const dialog = async (dialog: Dialog) => await dialog.accept(promptText)
+  const dialog = async (dialog: Dialog) => dialog.accept(promptText)
 
   if (!repeat) {
     page.once('dialog', dialog)
@@ -96,7 +117,7 @@ export const clickOnTreeNode = async (searchText: string, button: MouseButtons =
 }
 
 export const closeToaster = async () => {
-  await clickOn(".recipe-toaster svg[data-icon='cross']")
+  await clickOn("svg[data-icon='cross']")
   await page.waitForFunction(() => {
     return document.querySelector('.bp3-overlay').childElementCount === 0
   })
@@ -112,18 +133,18 @@ const shouldLogRequest = (url: string) => {
 
 page.on('request', req => {
   if (shouldLogRequest(req.url())) {
-    console.log(`${getTime()} > REQUEST: ${req.method()} ${req.url()}`)
+    console.info(`${getTime()} > REQUEST: ${req.method()} ${req.url()}`)
   }
 })
 
 page.on('response', resp => {
   if (shouldLogRequest(resp.url())) {
-    console.log(`${getTime()} < RESPONSE: ${resp.request().method()} ${resp.url()} (${resp.status()})`)
+    console.info(`${getTime()} < RESPONSE: ${resp.request().method()} ${resp.url()} (${resp.status()})`)
   }
 })
 
 page.on('framenavigated', frame => {
-  console.log(`${getTime()} FRAME NAVIGATED: ${frame.url()}`)
+  console.info(`${getTime()} FRAME NAVIGATED: ${frame.url()}`)
 })
 
 export const getTime = () => {

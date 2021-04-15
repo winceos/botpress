@@ -1,18 +1,22 @@
 import * as sdk from 'botpress/sdk'
 
 import en from '../translations/en.json'
+import es from '../translations/es.json'
 import fr from '../translations/fr.json'
-import { FLAG_REASON, FlaggedEvent } from '../types'
+import { FlaggedEvent, FLAG_REASON } from '../types'
 
 import initApi from './api'
 import Db from './db'
+
+const EVENT_NAME: keyof BotpressCoreEvents = 'bp_core_feedback_negative'
+let listener: (arg: BotpressCoreEvents['bp_core_feedback_negative']) => void
 
 const onServerReady = async (bp: typeof sdk) => {
   const db = new Db(bp)
   await db.initialize()
   await initApi(bp, db)
 
-  process.BOTPRESS_EVENTS.on('bp_core_feedback_negative', async ({ channel, botId, type, eventId }) => {
+  listener = async ({ channel, botId, type, eventId }) => {
     const storedEvent = await bp.events.findEvents({ id: eventId })
     if (!storedEvent) {
       return
@@ -26,16 +30,23 @@ const onServerReady = async (bp: typeof sdk) => {
         l => l && l !== 'n/a'
       )[0],
       preview: event.preview,
-      reason: 'auto_hook' as FLAG_REASON
+      reason: 'thumbs_down' as FLAG_REASON
     }
 
     await db.addEvent(data)
-  })
+  }
+
+  process.BOTPRESS_EVENTS.on(EVENT_NAME, listener)
+}
+
+const onModuleUnmount = async (_bp: typeof sdk) => {
+  process.BOTPRESS_EVENTS.off(EVENT_NAME, listener)
 }
 
 const entryPoint: sdk.ModuleEntryPoint = {
   onServerReady,
-  translations: { en, fr },
+  onModuleUnmount,
+  translations: { en, fr, es },
   definition: {
     name: 'misunderstood',
     menuIcon: 'gesture',

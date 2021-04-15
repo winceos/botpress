@@ -4,7 +4,7 @@ import _ from 'lodash'
 export default {
   id: 'user_intent_is',
   label: 'User asks something (intent)',
-  description: `The user's intention is {intentName}`,
+  description: "The user's intention is {intentName}",
   callback: '/mod/nlu/condition/intentChanged',
   displayOrder: 0,
   params: {
@@ -15,8 +15,8 @@ export default {
     component: 'LiteEditor'
   },
   evaluate: (event, { intentName, topicName }) => {
-    const oosConfidence = _.get(event, `nlu.predictions.oos.confidence`, 0)
     const topicConf = _.get(event, `nlu.predictions.${topicName}.confidence`, 0)
+    const oosConfidence = _.get(event, `nlu.predictions.${topicName}.oos`, 0)
     const topicIntents = _.get(event, `nlu.predictions.${topicName}.intents`, [])
     const intentConf = _.get(
       topicIntents.find(x => x.label === intentName),

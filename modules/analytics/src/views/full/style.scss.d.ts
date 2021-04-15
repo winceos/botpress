@@ -8,6 +8,7 @@ interface CssExports {
   'diffNumber': string;
   'diffNumberDown': string;
   'diffNumberUp': string;
+  'disabled': string;
   'empty': string;
   'emptyState': string;
   'exportButton': string;
@@ -36,6 +37,7 @@ interface CssExports {
   'radialChartLabel': string;
   'section': string;
   'sectionsWrapper': string;
+  'threeQuarter': string;
   'threeQuarterGrid': string;
   'wIcon': string;
 }

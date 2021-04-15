@@ -11,7 +11,7 @@ import {
 import { DateRange, DateRangePicker, IDateRangeShortcut } from '@blueprintjs/datetime'
 import '@blueprintjs/datetime/lib/css/blueprint-datetime.css'
 import axios from 'axios'
-import { lang } from 'botpress/shared'
+import { lang, utils } from 'botpress/shared'
 import cx from 'classnames'
 import _ from 'lodash'
 import moment from 'moment'
@@ -32,13 +32,13 @@ import {
   thisWeek,
   thisYear
 } from './dates'
-import style from './style.scss'
-import { fillMissingValues } from './utils'
 import FlatProgressChart from './FlatProgressChart'
 import ItemsList from './ItemsList'
 import NumberMetric from './NumberMetric'
 import RadialMetric from './RadialMetric'
+import style from './style.scss'
 import TimeSeriesChart from './TimeSeriesChart'
+import { fillMissingValues, getNotNaN } from './utils'
 
 interface State {
   previousRangeMetrics: MetricEntry[]
@@ -49,6 +49,7 @@ interface State {
   selectedChannel: string
   shownSection: string
   disableAnalyticsFetching?: boolean
+  topQnaQuestions: { id: string; question?: string; count: number }[]
 }
 
 interface ExportPeriod {
@@ -73,7 +74,7 @@ const navigateToElement = (name: string, type: string) => () => {
   if (type === 'qna') {
     url = `/modules/qna?id=${name.replace('__qna__', '')}`
   } else if (type === 'workflow') {
-    url = `/oneflow/${name}`
+    url = `/flows/${name}`
   }
   window.postMessage({ action: 'navigate-url', payload: url }, '*')
 }
@@ -126,8 +127,13 @@ const fetchReducer = (state: State, action): State => {
       dateRange,
       disableAnalyticsFetching: true
     }
+  } else if (action.type === 'receivedTopQnaQuestions') {
+    return {
+      ...state,
+      topQnaQuestions: action.data.topQnaQuestions
+    }
   } else {
-    throw new Error(`That action type isn't supported.`)
+    throw new Error("That action type isn't supported.")
   }
 }
 
@@ -135,6 +141,8 @@ const defaultChannels = [
   { value: 'all', label: lang.tr('module.analytics.channels.all') },
   { value: 'api', label: lang.tr('module.analytics.channels.api') }
 ]
+
+const qnaQuestionsCache = { found: {}, notFound: new Set<string>() }
 
 const Analytics: FC<any> = ({ bp }) => {
   const loadJson = useRef(null)
@@ -147,7 +155,8 @@ const Analytics: FC<any> = ({ bp }) => {
     previousRangeMetrics: [],
     pageTitle: lang.tr('module.analytics.dashboard'),
     selectedChannel: defaultChannels[0].value,
-    shownSection: 'dashboard'
+    shownSection: 'dashboard',
+    topQnaQuestions: []
   })
 
   useEffect(() => {
@@ -171,9 +180,14 @@ const Analytics: FC<any> = ({ bp }) => {
       return
     }
 
-    // tslint:disable-next-line: no-floating-promises
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
     fetchAnalytics(state.selectedChannel, state.dateRange).then(metrics => {
+      utils.inspect({ id: state.dateRange, metrics })
       dispatch({ type: 'receivedMetrics', data: { dateRange: state.dateRange, metrics } })
+      const newChannels = _.uniq(_.map(metrics, 'channel')).map(x => {
+        return { value: x, label: capitalize(x) }
+      })
+      setChannels(_.uniqBy([...channels, ...newChannels], 'value'))
     })
 
     /* Get the previous range data so we can compare them and see what changed */
@@ -182,11 +196,16 @@ const Analytics: FC<any> = ({ bp }) => {
     const oldEndDate = moment(state.dateRange[0]).subtract(1, 'days')
     const previousRange = [startDate.subtract(endDate.diff(startDate, 'days') + 1, 'days'), oldEndDate]
 
-    // tslint:disable-next-line: no-floating-promises
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
     fetchAnalytics(state.selectedChannel, previousRange).then(metrics => {
       dispatch({ type: 'receivedPreviousRangeMetrics', data: { dateRange: previousRange, metrics } })
     })
   }, [state.dateRange, state.selectedChannel])
+
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+    fetchQnaQuestions()
+  }, [state.metrics])
 
   const fetchAnalytics = async (channel: string, dateRange): Promise<MetricEntry[]> => {
     const startDate = moment(dateRange[0]).unix()
@@ -199,6 +218,49 @@ const Analytics: FC<any> = ({ bp }) => {
       }
     })
     return data.metrics
+  }
+
+  const fetchQnaQuestions = async () => {
+    const metrics = orderMetrics(getMetric('msg_sent_qna_count').filter(metric => metric.subMetric)).slice(0, 10)
+
+    const topQnaQuestions = await Promise.all(
+      metrics.map(async ({ name: id, count }) => {
+        if (id in qnaQuestionsCache.found) {
+          return { count, id, question: qnaQuestionsCache.found[id] }
+        }
+
+        if (qnaQuestionsCache.notFound.has(id)) {
+          return { count, id }
+        }
+
+        let response
+        try {
+          response = await fetchQnaQuestion(id.replace('__qna__', ''))
+        } catch (e) {
+          qnaQuestionsCache.notFound.add(id)
+          return { count, id }
+        }
+
+        const {
+          data: { questions }
+        } = response
+        const question = (questions[lang.getLocale()] ||
+          questions[lang.defaultLocale] ||
+          Object.values(questions)[0])[0]
+        qnaQuestionsCache.found[id] = question
+        return { count, id, question }
+      })
+    )
+
+    dispatch({
+      type: 'receivedTopQnaQuestions',
+      data: { topQnaQuestions }
+    })
+  }
+
+  const fetchQnaQuestion = async (id: string): Promise<any> => {
+    const { data } = await bp.axios.get(`mod/qna/questions/${id}`)
+    return data
   }
 
   const handleChannelChange = async ({ target: { value: selectedChannel } }) => {
@@ -248,57 +310,75 @@ const Analytics: FC<any> = ({ bp }) => {
   }
 
   const getReturningUsers = () => {
-    const activeUsersCount = getMetricCount('active_users_count')
+    const returningUsersCount = getMetricCount('returning_users_count')
     const newUsersCount = getMetricCount('new_users_count')
-    const percent = Math.round((activeUsersCount / (newUsersCount + activeUsersCount)) * 100)
+    const percent = Math.round((returningUsersCount / (newUsersCount + returningUsersCount)) * 100)
 
     return getNotNaN(percent, '%')
   }
 
   const getNewUsersPercent = () => {
-    const existingUsersCount = getMetricCount('active_users_count')
+    const returningUsersCount = getMetricCount('returning_users_count')
     const newUsersCount = getMetricCount('new_users_count')
-    const percent = Math.round((newUsersCount / (existingUsersCount + newUsersCount)) * 100)
+    const percent = Math.round((newUsersCount / (newUsersCount + returningUsersCount)) * 100)
 
     return getNotNaN(percent, '%')
   }
 
-  const getNotNaN = (value, suffix = '') => (Number.isNaN(value) ? 'N/A' : `${Math.round(value)}${suffix}`)
-
   const getMetric = metricName => state.metrics.filter(x => x.metric === metricName)
 
-  const getTopItems = (metricName: string, type: string) => {
-    const grouped = _.groupBy(getMetric(metricName), 'subMetric')
-    const results = _.orderBy(
-      Object.keys(grouped).map(x => ({ name: x, count: _.sumBy(grouped[x], 'value') })),
-      x => x.count,
-      'desc'
-    )
+  const getTopItems = (
+    metricName: string,
+    type: string,
+    options?: {
+      nameRenderer?: (name: string) => string
+      filter?: (x: any) => boolean
+    }
+  ) => {
+    const { nameRenderer, filter } = options || {}
+
+    let metrics = getMetric(metricName)
+    if (filter) {
+      metrics = metrics.filter(filter)
+    }
+    const results = orderMetrics(metrics)
 
     return results.map(x => ({
-      label: `${x.name} (${x.count})`,
+      label: `${nameRenderer ? nameRenderer(x.name) : x.name}`,
+      count: x.count,
       href: '',
       onClick: navigateToElement(x.name, type)
     }))
   }
 
+  const orderMetrics = metrics => {
+    const grouped = _.groupBy(metrics, 'subMetric')
+    return _.orderBy(
+      Object.keys(grouped).map(x => ({ name: x, count: _.sumBy(grouped[x], 'value') })),
+      x => x.count,
+      'desc'
+    )
+  }
+
   const renderEngagement = () => {
     const newUserCountDiff = getMetricCount('new_users_count') - getPreviousRangeMetricCount('new_users_count')
-    const activeUserCountDiff = getMetricCount('active_users_count') - getPreviousRangeMetricCount('active_users_count')
+    const returningUserCountDiff = getMetricCount('returning_users_count') - getPreviousRangeMetricCount('returning_users_count')
     const activeUsers = fillMissingValues(getMetric('active_users_count'), state.dateRange[0], state.dateRange[1])
 
     return (
       <div className={style.metricsContainer}>
         <NumberMetric
+          className={style.half}
           diffFromPreviousRange={newUserCountDiff}
           previousDateRange={state.previousDateRange}
           name={lang.tr('module.analytics.newUsers', { nb: getMetricCount('new_users_count') })}
           value={getNewUsersPercent()}
         />
         <NumberMetric
-          diffFromPreviousRange={activeUserCountDiff}
+          className={style.half}
+          diffFromPreviousRange={returningUserCountDiff}
           previousDateRange={state.previousDateRange}
-          name={lang.tr('module.analytics.returningUsers', { nb: getMetricCount('active_users_count') })}
+          name={lang.tr('module.analytics.returningUsers', { nb: getMetricCount('returning_users_count') })}
           value={getReturningUsers()}
         />
         <TimeSeriesChart
@@ -316,8 +396,9 @@ const Analytics: FC<any> = ({ bp }) => {
 
     return (
       <div className={style.metricsContainer}>
-        <TimeSeriesChart name="Sessions" data={sessionsCount} className={style.threeQuarterGrid} channels={channels} />
+        <TimeSeriesChart name="Sessions" data={sessionsCount} className={style.fullGrid} channels={channels} />
         <NumberMetric
+          className={style.half}
           name={lang.tr('module.analytics.messageExchanged')}
           value={getAvgMsgPerSessions()}
           iconBottom="chat"
@@ -334,39 +415,125 @@ const Analytics: FC<any> = ({ bp }) => {
           value={getMetricCount('msg_sent_qna_count')}
           className={style.half}
         />
+      </div>
+    )
+  }
+
+  const renderInteractions = () => {
+    return (
+      <div className={cx(style.metricsContainer, style.fullWidth)}>
         <ItemsList
           name={lang.tr('module.analytics.mostUsedWorkflows')}
           items={getTopItems('enter_flow_count', 'workflow')}
           itemLimit={10}
-          className={cx(style.genericMetric, style.half, style.list)}
+          className={cx(style.genericMetric, style.quarter, style.list)}
         />
         <ItemsList
           name={lang.tr('module.analytics.mostAskedQuestions')}
-          items={getTopItems('msg_sent_qna_count', 'qna')}
-          itemLimit={10}
-          hasTooltip
-          className={cx(style.genericMetric, style.half, style.list)}
+          items={state.topQnaQuestions.map(q => ({
+            count: q.count,
+            label: q.question || renderDeletedQna(q.id),
+            onClick: q.question ? navigateToElement(q.id, 'qna') : undefined
+          }))}
+          className={cx(style.genericMetric, style.threeQuarter, style.list)}
         />
       </div>
     )
   }
 
-  const renderHandlingUnderstanding = () => {
-    const { total, inside, outside } = getMisunderStoodData()
+  const renderDeletedQna = (id: string) =>
+    `[${lang.tr('module.analytics.deletedQna')}, ID: ${id.replace('__qna__', '')}]`
+
+  const getLanguagesData = () => {
+    const metricsByDay = state.metrics.filter(m => m.metric === 'msg_nlu_language')
+
+    const metrics = _(metricsByDay)
+      .groupBy('subMetric')
+      .map((objs, key) => ({
+        language: key,
+        value: _.sumBy(objs, 'value')
+      }))
+      .value()
+
+    if (metrics.length === 0) {
+      return []
+    }
+
+    const total = _.sum(metrics.map(m => m.value))
+
+    return _.sortBy(metrics, m => m.value)
+      .reverse()
+      .map(m => ({ value: getNotNaN((m.value / total) * 100, '%'), language: m.language }))
+  }
+
+  const getQNAFeedbackData = () => {
     const positiveFeedback = getMetricCount('feedback_positive_qna')
     const negativeFeedback = getMetricCount('feedback_negative_qna')
-    const positivePct = Math.round((positiveFeedback / (positiveFeedback + negativeFeedback)) * 100)
+    const totalFeedback = positiveFeedback + negativeFeedback
+
+    return {
+      totalFeedback,
+      positivePercent: getNotNaN((positiveFeedback / totalFeedback) * 100, '%'),
+      negativeFeedback: getNotNaN((negativeFeedback / totalFeedback) * 100, '%')
+    }
+  }
+
+  const renderHandlingUnderstanding = () => {
+    const misunderstood = getMisunderStoodData()
+    const languages = getLanguagesData()
+    const feedback = getQNAFeedbackData()
 
     return (
       <div className={cx(style.metricsContainer, style.fullWidth)}>
         <div className={cx(style.genericMetric, style.quarter)}>
           <div>
-            <p className={style.numberMetricValue}>{total}</p>
+            <p className={style.numberMetricValue}>{misunderstood.total}</p>
             <h3 className={style.metricName}>{lang.tr('module.analytics.misunderstoodMessages')}</h3>
           </div>
           <div>
-            <FlatProgressChart value={inside} color="#DE4343" name={`${inside} inside flows`} />
-            <FlatProgressChart value={outside} color="#F2B824" name={`${outside} outside flows`} />
+            <FlatProgressChart
+              value={misunderstood.inside}
+              color="#DE4343"
+              name={`${misunderstood.inside} inside flows`}
+            />
+            <FlatProgressChart
+              value={misunderstood.outside}
+              color="#F2B824"
+              name={`${misunderstood.outside} outside flows`}
+            />
+          </div>
+        </div>
+        <div className={cx(style.genericMetric, style.quarter)}>
+          <div>
+            <h3 className={style.metricName}>{lang.tr('module.analytics.messagesByLanguage')}</h3>
+          </div>
+          <div>
+            {languages.map(i => (
+              <FlatProgressChart
+                key={i.language}
+                value={i.value}
+                color="#F2B824"
+                name={`${lang.tr(`isoLangs.${i.language}.name`)}: ${i.value}`}
+              />
+            ))}
+          </div>
+        </div>
+        <div className={cx(style.genericMetric, style.quarter)}>
+          <div>
+            <p className={style.numberMetricValue}>{feedback.totalFeedback}</p>
+            <h3 className={style.metricName}>{lang.tr('module.analytics.totalQnaFeedback')}</h3>
+          </div>
+          <div>
+            <FlatProgressChart
+              value={feedback.positivePercent}
+              color="#68A750"
+              name={lang.tr('module.analytics.positiveQnaFeedback', { nb: feedback.positivePercent })}
+            />
+            <FlatProgressChart
+              value={feedback.negativeFeedback}
+              color="#FF4F7D"
+              name={lang.tr('module.analytics.negativeQnaFeedback', { nb: feedback.negativeFeedback })}
+            />
           </div>
         </div>
         {isNDU && (
@@ -393,11 +560,6 @@ const Analytics: FC<any> = ({ bp }) => {
               value={Math.round(
                 (getMetricCount('workflow_completed_count') / getMetricCount('workflow_started_count')) * 100
               )}
-              className={style.quarter}
-            />
-            <RadialMetric
-              name={lang.tr('module.analytics.positiveQnaFeedback', { nb: positiveFeedback })}
-              value={isNaN(positivePct) ? 0 : positivePct}
               className={style.quarter}
             />
           </Fragment>
@@ -439,7 +601,7 @@ const Analytics: FC<any> = ({ bp }) => {
 
   const exportCsv = async () => {
     const data = [
-      `"date","botId","channel","metric","subMetric","value"`,
+      '"date","botId","channel","metric","subMetric","value"',
       ...state.metrics.map(entry => {
         return [entry.date, entry.botId, entry.channel, entry.metric, entry.subMetric, entry.value]
           .map(x => (x || 'N/A').toString().replace(/"/g, '\\"'))
@@ -450,7 +612,7 @@ const Analytics: FC<any> = ({ bp }) => {
 
     const link = document.createElement('a')
     link.href = URL.createObjectURL(new Blob([data]))
-    link.download = `analytics.csv`
+    link.download = 'analytics.csv'
     link.click()
   }
   const exportJson = () => {
@@ -472,7 +634,7 @@ const Analytics: FC<any> = ({ bp }) => {
 
     const link = document.createElement('a')
     link.href = URL.createObjectURL(new Blob([JSON.stringify(json, undefined, 2)]))
-    link.download = `analytics.json`
+    link.download = 'analytics.json'
     link.click()
   }
 
@@ -499,7 +661,7 @@ const Analytics: FC<any> = ({ bp }) => {
           data: { dateRange: [moment(currentPeriod.startDate).toDate(), moment(currentPeriod.endDate).toDate()] }
         })
       } catch (err) {
-        console.error(`Could not load metrics`, err)
+        console.error('Could not load metrics', err)
       }
     }
   }
@@ -560,6 +722,10 @@ const Analytics: FC<any> = ({ bp }) => {
           <div className={cx(style.section, style.half)}>
             <h2>{lang.tr('module.analytics.conversations')}</h2>
             {renderConversations()}
+          </div>
+          <div className={style.section}>
+            <h2>{lang.tr('module.analytics.interactions')}</h2>
+            {renderInteractions()}
           </div>
           <div className={style.section}>
             <h2>{lang.tr('module.analytics.handlingAndUnderstanding')}</h2>

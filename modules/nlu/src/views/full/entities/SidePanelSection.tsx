@@ -1,11 +1,10 @@
-import { Button, Classes } from '@blueprintjs/core'
 import { NLU } from 'botpress/sdk'
 import { confirmDialog, lang } from 'botpress/shared'
 import { Item, ItemList, SearchBar } from 'botpress/ui'
 import React, { FC, useState } from 'react'
 
 import { NluItem } from '..'
-import { NLUApi } from '../../api'
+import { NLUApi } from '../../../api'
 
 import { EntityNameModal } from './EntityNameModal'
 
@@ -15,6 +14,7 @@ interface Props {
   currentItem: NluItem
   setCurrentItem: (x: NluItem) => void
   reloadEntities: () => void
+  reloadIntents: () => void
 }
 
 export const EntitySidePanelSection: FC<Props> = props => {
@@ -22,11 +22,6 @@ export const EntitySidePanelSection: FC<Props> = props => {
   const [modalOpen, setModalOpen] = useState(false)
   const [entity, setEntity] = useState<NLU.EntityDefinition>()
   const [entityAction, setEntityAction] = useState<any>('create')
-
-  const createEntity = () => {
-    setEntityAction('create')
-    setModalOpen(true)
-  }
 
   const renameEntity = (entity: NLU.EntityDefinition) => {
     setEntity(entity)
@@ -52,6 +47,7 @@ export const EntitySidePanelSection: FC<Props> = props => {
 
       await props.api.deleteEntity(entity.name)
       await props.reloadEntities()
+      await props.reloadIntents()
     }
   }
 
@@ -83,19 +79,15 @@ export const EntitySidePanelSection: FC<Props> = props => {
 
   return (
     <div>
-      <Button
-        className={Classes.MINIMAL}
-        icon="new-object"
-        text={lang.tr('module.nlu.entities.new')}
-        onClick={createEntity}
-      />
-      <SearchBar
-        id="entities-filter"
-        icon="filter"
-        placeholder={lang.tr('module.nlu.entities.filterPlaceholder')}
-        onChange={setEntitiesFilter}
-        showButton={false}
-      />
+      {props.entities.length > 1 && (
+        <SearchBar
+          id="entities-filter"
+          icon="filter"
+          placeholder={lang.tr('module.nlu.entities.filterPlaceholder')}
+          onChange={setEntitiesFilter}
+          showButton={false}
+        />
+      )}
       <ItemList
         items={entityItems}
         onElementClicked={({ value: name }) => props.setCurrentItem({ type: 'entity', name })}

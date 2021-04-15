@@ -1,6 +1,5 @@
 import React, { Component } from 'react'
-import { InjectedIntlProps } from 'react-intl'
-import { injectIntl } from 'react-intl'
+import { InjectedIntlProps, injectIntl } from 'react-intl'
 
 import { Renderer } from '../../../typings'
 
@@ -13,7 +12,7 @@ class LoginPromptClass extends Component<Renderer.Message & InjectedIntlProps> {
   handleInputChanged = event => this.setState({ [event.target.name]: event.target.value })
 
   handleFormSubmit = event => {
-    // tslint:disable-next-line: no-floating-promises
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
     this.props.onSendData?.({
       type: 'login_prompt',
       text: 'Provided login information',

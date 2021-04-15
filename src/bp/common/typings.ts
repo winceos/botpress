@@ -1,8 +1,8 @@
-import { BotDetails, Flow, FlowNode, RolloutStrategy, StageRequestApprovers } from 'botpress/sdk'
+import { BotDetails, Flow, FlowNode, IO, RolloutStrategy, StageRequestApprovers, StrategyUser } from 'botpress/sdk'
 import { Request } from 'express'
 
 import { BotpressConfig } from '../core/config/botpress.config'
-import { StrategyUser } from 'botpress/sdk'
+import { LicenseInfo, LicenseStatus } from './licensing-service'
 
 export interface IDisposeOnExit {
   disposeOnExit(): void
@@ -21,18 +21,6 @@ export interface CreatedUser {
   email: string
   tempPassword: string
 }
-
-export interface WorkspaceUser {
-  email: string
-  strategy: string
-  role: string
-  workspace: string
-  workspaceName?: string
-}
-
-export type WorkspaceUserInfo = {
-  attributes: any
-} & WorkspaceUser
 
 export interface AuthStrategyConfig {
   strategyType: string
@@ -74,7 +62,9 @@ export interface AuthRole {
 export interface TokenUser {
   email: string
   strategy: string
+  tokenVersion: number
   isSuperAdmin: boolean
+  csrfToken?: string
   exp?: number
   iat?: number
 }
@@ -83,6 +73,12 @@ export interface StoredToken {
   token: string
   expiresAt: number
   issuedAt: number
+}
+
+export interface TokenResponse {
+  jwt: string
+  csrf: string
+  exp: number
 }
 
 export type RequestWithUser = Request & {
@@ -121,7 +117,7 @@ export interface Stage {
 
 export interface UserProfile {
   email: string
-  isSuperAdmin?: boolean
+  isSuperAdmin: boolean
   strategyType: string
   strategy: string
   firstname?: string
@@ -204,6 +200,23 @@ export interface LibraryElement {
   path: string
 }
 
+export interface OutgoingEventCommonArgs {
+  event: IO.Event
+  // Any other additional property
+  [property: string]: any
+}
+
+export interface EventCommonArgs {
+  event: IO.IncomingEvent
+  user: { [attribute: string]: any }
+  temp: { [property: string]: any }
+  bot: { [property: string]: any }
+  session: IO.CurrentSession
+  workflow: IO.WorkflowHistory
+  // Any other additional property
+  [property: string]: any
+}
+
 export interface ServerHealth {
   serverId: string
   hostname: string
@@ -250,3 +263,12 @@ export interface ActionParameterDefinition {
 export type ActionServerWithActions = ActionServer & {
   actions: ActionDefinition[] | undefined
 }
+
+export type LicensingStatus = {
+  isPro: boolean
+  isBuiltWithPro: boolean
+  fingerprints: {
+    cluster_url: string
+  }
+  license?: LicenseInfo
+} & LicenseStatus

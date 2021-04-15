@@ -1,6 +1,6 @@
 import { CmsSearchContentElements, KvsGet, KvsSet, ReplyToEvent, SetAttributes } from 'botpress/apiSdk'
 import * as sdk from 'botpress/sdk'
-import { createForAction } from 'core/api'
+import { createForAction } from 'core/app/api'
 import { Router } from 'express'
 import _ from 'lodash'
 
@@ -42,7 +42,7 @@ export class SdkApiRouter extends CustomRouter {
         }
 
         if (!payloads?.length) {
-          return res.status(400).send(`contentId or payloads must be set`)
+          return res.status(400).send('contentId or payloads must be set')
         }
 
         await this.api.events.replyToEvent(event, payloads, (event as sdk.IO.IncomingEvent).id)

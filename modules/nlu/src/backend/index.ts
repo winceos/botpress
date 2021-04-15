@@ -2,29 +2,64 @@ import 'bluebird-global'
 import * as sdk from 'botpress/sdk'
 import _ from 'lodash'
 
+import { createApi } from '../api'
 import en from '../translations/en.json'
+import es from '../translations/es.json'
 import fr from '../translations/fr.json'
 
+import { registerRouter, removeRouter } from './api'
+import { NLUApplication } from './application'
+import { bootStrap } from './bootstrap'
 import dialogConditions from './dialog-conditions'
-import EntityService from './entities/entities-service'
-import { getIntents, updateIntent } from './intents/intent-service'
-import { getOnBotMount } from './module-lifecycle/on-bot-mount'
-import { getOnBotUnmount } from './module-lifecycle/on-bot-unmount'
-import { getOnServerReady } from './module-lifecycle/on-server-ready'
-import { getOnSeverStarted } from './module-lifecycle/on-server-started'
-import { NLUState } from './typings'
+import { registerMiddlewares, removeMiddlewares } from './middlewares'
 
-const state: NLUState = { nluByBot: {} }
+class AppNotInitializedError extends Error {
+  constructor() {
+    super('NLU Application not initialized')
+  }
+}
 
-const onServerStarted = getOnSeverStarted(state)
-const onServerReady = getOnServerReady(state)
-const onBotMount = getOnBotMount(state)
-const onBotUnmount = getOnBotUnmount(state)
+let app: NLUApplication | undefined
+
+const onServerStarted = async (bp: typeof sdk) => {
+  app = await bootStrap(bp)
+  await registerMiddlewares(bp, app)
+}
+
+const onServerReady = async (bp: typeof sdk) => {
+  if (!app) {
+    throw new AppNotInitializedError()
+  }
+  await registerRouter(bp, app)
+  await app.resumeTrainings()
+}
+
+const onBotMount = async (bp: typeof sdk, botId: string) => {
+  if (!app) {
+    throw new AppNotInitializedError()
+  }
+  const botConfig = await bp.bots.getBotById(botId)
+  if (!botConfig) {
+    throw new Error(`No config found for bot ${botId}`)
+  }
+  await app.mountBot(botConfig)
+}
+
+const onBotUnmount = async (bp: typeof sdk, botId: string) => {
+  if (!app) {
+    throw new AppNotInitializedError()
+  }
+  return app.unmountBot(botId)
+}
+
 const onModuleUnmount = async (bp: typeof sdk) => {
-  bp.events.removeMiddleware('nlu.incoming')
-  bp.http.deleteRouterForBot('nlu')
-  // if module gets deactivated but server keeps running, we want to destroy bot state
-  Object.keys(state.nluByBot).forEach(botID => () => onBotUnmount(bp, botID))
+  if (!app) {
+    throw new AppNotInitializedError()
+  }
+
+  await removeMiddlewares(bp)
+  removeRouter(bp)
+  await app.teardown()
 }
 
 const onTopicChanged = async (bp: typeof sdk, botId: string, oldName?: string, newName?: string) => {
@@ -35,20 +70,19 @@ const onTopicChanged = async (bp: typeof sdk, botId: string, oldName?: string, n
     return
   }
 
-  const ghost = bp.ghost.forBot(botId)
-  const entityService = new EntityService(ghost, botId)
-  const intentDefs = await getIntents(ghost)
+  const api = await createApi(bp, botId)
+  const intentDefs = await api.fetchIntentsWithQNAs()
 
   for (const intentDef of intentDefs) {
-    const ctxIdx = intentDef.contexts.indexOf(oldName)
+    const ctxIdx = intentDef.contexts.indexOf(oldName as string)
     if (ctxIdx !== -1) {
       intentDef.contexts.splice(ctxIdx, 1)
 
       if (isRenaming) {
-        intentDef.contexts.push(newName)
+        intentDef.contexts.push(newName!)
       }
 
-      await updateIntent(ghost, intentDef.name, intentDef, entityService)
+      await api.updateIntent(intentDef.name, intentDef)
     }
   }
 }
@@ -61,7 +95,7 @@ const entryPoint: sdk.ModuleEntryPoint = {
   onModuleUnmount,
   dialogConditions,
   onTopicChanged,
-  translations: { en, fr },
+  translations: { en, fr, es },
   definition: {
     name: 'nlu',
     moduleView: {

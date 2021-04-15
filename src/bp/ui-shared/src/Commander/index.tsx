@@ -4,9 +4,9 @@ import React, { FC, useEffect, useState } from 'react'
 import CommandPalette from 'react-command-palette'
 import { generatePath } from 'react-router'
 
+import { isOperationAllowed } from '../AccessControl'
 import { lang } from '../translations'
 import { controlKey } from '../utils/keyboardShortcuts'
-import { isOperationAllowed } from '../AccessControl'
 
 import { getCommonShortcuts } from './shortcuts'
 import style from './style.scss'
@@ -65,7 +65,7 @@ const Commander: FC<CommanderProps> = props => {
             if (_.isFunction(shortcut.method)) {
               shortcut.method()
             } else {
-              console.error(`Invalid argument`)
+              console.error('Invalid argument')
             }
             return
         }

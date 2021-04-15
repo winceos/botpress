@@ -1,4 +1,4 @@
-import { clickOn, fillField } from '../expectPuppeteer'
+import { clickOn, fillField, expectMatchElement } from '../expectPuppeteer'
 import {
   autoAnswerDialog,
   clickOnTreeNode,
@@ -10,7 +10,7 @@ import {
 } from '../utils'
 
 const waitForFilesToLoad = async () =>
-  await page.waitForFunction(`document.querySelectorAll(".bp3-icon-document").length > 0`)
+  page.waitForFunction('document.querySelectorAll(".bp3-icon-document").length > 0')
 
 describe('Module - Code Editor', () => {
   beforeAll(async () => {
@@ -32,7 +32,7 @@ describe('Module - Code Editor', () => {
     await page.focus('#monaco-editor')
     await page.mouse.click(469, 297)
     await page.waitFor(500) // Required so the editor is correctly focused at the right place
-    await page.keyboard.type(`const lol = 'hi' //`)
+    await page.keyboard.type("const lol = 'hi' //")
 
     await Promise.all([
       expectBotApiCallSuccess('mod/code-editor/save', 'POST'),
@@ -69,5 +69,17 @@ describe('Module - Code Editor', () => {
     await expectBotApiCallSuccess('mod/code-editor/remove', 'POST')
     const response = await waitForBotApiResponse('mod/code-editor/files')
     expect(response['bot.actions'].find(x => x.name === '.hello_copy.js')).toBeUndefined()
+  })
+
+  it('Open two tabs', async () => {
+    await waitForFilesToLoad()
+
+    await clickOnTreeNode('builtin.json', 'left')
+    await expectBotApiCallSuccess('mod/code-editor/readFile', 'POST')
+    await expectMatchElement('div[id="builtin.json"]', { text: 'builtin.json' })
+
+    await clickOnTreeNode('channel-web.json', 'left')
+    await expectBotApiCallSuccess('mod/code-editor/readFile', 'POST')
+    await expectMatchElement('div[id="channel-web.json"]', { text: 'channel-web.json' })
   })
 })

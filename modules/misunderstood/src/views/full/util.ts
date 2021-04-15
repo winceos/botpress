@@ -1,6 +1,6 @@
 import { lang } from 'botpress/shared'
 
-import { FLAG_REASON, FLAGGED_MESSAGE_STATUS, RESOLUTION_TYPE } from '../../types'
+import { FLAGGED_MESSAGE_STATUS, FLAG_REASON, RESOLUTION_TYPE } from '../../types'
 
 export const STATUSES = [
   {
@@ -29,6 +29,10 @@ export const REASONS = {
   [FLAG_REASON.action]: {
     title: lang.tr('module.misunderstood.flaggedByAction'),
     icon: 'code'
+  },
+  [FLAG_REASON.thumbs_down]: {
+    title: lang.tr('module.misunderstood.flaggedByThumbsDown'),
+    icon: 'thumbs-down'
   }
 }
 

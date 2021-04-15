@@ -1,4 +1,6 @@
 import { DirectoryListingOptions } from 'botpress/sdk'
+import { TYPES } from 'core/app/types'
+import Database from 'core/database'
 import { filterByGlobs, forceForwardSlashes } from 'core/misc/utils'
 import { WrapErrorsWith } from 'errors'
 import { inject, injectable } from 'inversify'
@@ -7,15 +9,13 @@ import nanoid from 'nanoid'
 import path from 'path'
 import { VError } from 'verror'
 
-import Database from '../../database'
-import { TYPES } from '../../types'
 import { BPError } from '../dialog/errors'
 
 import { FileRevision, StorageDriver } from '.'
 
 // TODO: Create a janitor that clears deleted files
 @injectable()
-export default class DBStorageDriver implements StorageDriver {
+export class DBStorageDriver implements StorageDriver {
   constructor(@inject(TYPES.Database) private database: Database) {}
 
   async upsertFile(filePath: string, content: string | Buffer, recordRevision: boolean): Promise<void>
@@ -73,6 +73,22 @@ export default class DBStorageDriver implements StorageDriver {
       return !!exists
     } catch (e) {
       throw new VError(e, `[DB Driver] Error checking if file  exists "${filePath}"`)
+    }
+  }
+
+  async fileSize(filePath: string): Promise<number> {
+    try {
+      const size = await this.database
+        .knex('srv_ghost_files')
+        .where({ file_path: filePath, deleted: false })
+        .select(this.database.knex.raw('length(content) as len'))
+        .limit(1)
+        .first()
+        .then(entry => entry.len)
+
+      return size
+    } catch (e) {
+      throw new VError(e, `[DB Driver] Error checking file size for "${filePath}"`)
     }
   }
 
@@ -160,7 +176,7 @@ export default class DBStorageDriver implements StorageDriver {
         })
 
       if (folder.length) {
-        query = query.andWhere('file_path', 'like', folder + '%')
+        query = query.andWhere('file_path', 'like', `${folder}%`)
       }
 
       if (options.sortOrder) {
@@ -189,7 +205,7 @@ export default class DBStorageDriver implements StorageDriver {
 
       if (pathPrefix.length) {
         pathPrefix = pathPrefix.replace(/^.\//g, '') // Remove heading './' if present
-        query = query.where('file_path', 'like', pathPrefix + '%')
+        query = query.where('file_path', 'like', `${pathPrefix}%`)
       }
 
       return await query.then(entries =>
@@ -214,7 +230,7 @@ export default class DBStorageDriver implements StorageDriver {
         .knex('srv_ghost_index')
         .where({
           file_path: filePath,
-          revision: revision
+          revision
         })
         .del()
     } catch (e) {

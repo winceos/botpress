@@ -1,9 +1,21 @@
+import { parseUtterance } from 'common/utterance-parser'
 import _ from 'lodash'
 import { MarkJSON, NodeJSON, TextJSON, Value, ValueJSON } from 'slate'
 
-import { ParsedSlot, parseUtterance } from '../../../backend/utterance/utterance-parser'
-
 export const SLOT_MARK = 'slotName'
+
+interface ParsedSlot {
+  name: string
+  value: string
+  rawPosition: {
+    start: number
+    end: number
+  }
+  cleanPosition: {
+    start: number
+    end: number
+  }
+}
 
 const textNode = (text: string, from: number, to: number | undefined = undefined): TextJSON => ({
   object: 'text',
@@ -34,9 +46,9 @@ export const textNodesFromUtterance = (rawUtterance: string, idx: number = 0): T
     .value() as TextJSON[]
 }
 
-export const utterancesToValue = (utterances: string[], selection = undefined) => {
+export const utterancesToValue = (utterances: string[], selection = undefined): Value => {
   const summary = utterances[0] || ''
-  const rest = utterances.length > 1 ? utterances.slice(1) : ['']
+  const rest = utterances.length > 1 ? utterances.slice(1) : []
 
   const value: ValueJSON = {
     object: 'value',
@@ -64,7 +76,7 @@ export const utterancesToValue = (utterances: string[], selection = undefined) =
   return Value.fromJS(value)
 }
 
-export const valueToUtterances = value => {
+export const valueToUtterances = (value: Value): string[] => {
   return value
     .getIn(['document', 'nodes'])
     .map(block =>

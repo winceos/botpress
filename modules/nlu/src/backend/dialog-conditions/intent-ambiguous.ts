@@ -10,7 +10,7 @@ interface Params {
 export default {
   id: 'intent_is_ambiguous',
   label: 'Intent is ambiguous within topic',
-  description: `The users's intention is can be interpreted as multiple intents within the same topic`,
+  description: "The users's intention is can be interpreted as multiple intents within the same topic",
   displayOrder: 1,
   params: {
     ambiguityThreshold: { label: 'Ambiguity threshold', type: 'number', defaultValue: 0.1 },
@@ -27,7 +27,6 @@ export default {
       _.chain(event?.nlu?.predictions ?? {})
         .toPairs()
         .orderBy(x => x[1].confidence, 'desc')
-        .filter(x => x[0] !== 'oos')
         .first()
         .value() || []
 
@@ -36,7 +35,7 @@ export default {
       return 0
     }
 
-    const higestIntents = _.chain(topicPreds.intents)
+    const higestIntents = _.chain(topicPreds?.intents)
       .filter(i => i.label !== 'none')
       .orderBy('confidence', 'desc')
       .map('confidence')

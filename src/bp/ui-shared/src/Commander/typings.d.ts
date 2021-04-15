@@ -20,11 +20,11 @@ interface ShortcutExecute extends GenericShortcut {
 
 export type QuickShortcut = ShortcutRedirect | ShortcutExecute
 
-export type CommanderProps = {
+export interface CommanderProps {
   location?: 'studio' | 'admin'
   shortcuts: QuickShortcut[]
   history: any
-  user: Pick<UserProfile, 'isSuperAdmin' | 'permissions'>
+  user?: Pick<UserProfile, 'isSuperAdmin' | 'permissions'>
 }
 
 export interface Command {

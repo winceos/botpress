@@ -1,5 +1,5 @@
 import * as sdk from 'botpress/sdk'
-import { Migration, MigrationOpts } from 'core/services/migration'
+import { Migration, MigrationOpts } from 'core/migration'
 
 const FLOW_DIR = 'flows'
 const ERROR_FLOW = 'error.flow.json'
@@ -24,7 +24,6 @@ const migration: Migration = {
           id: '3rr0r',
           name: 'entry',
           onEnter: ['say #!builtin_text-error'],
-          // tslint:disable-next-line: no-null-keyword
           onReceive: null,
           next: []
         }

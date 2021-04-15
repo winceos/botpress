@@ -1,5 +1,5 @@
 import * as sdk from 'botpress/sdk'
-import { Migration, MigrationOpts } from 'core/services/migration'
+import { Migration, MigrationOpts } from 'core/migration'
 
 const migration: Migration = {
   info: {
@@ -10,7 +10,7 @@ const migration: Migration = {
   up: async ({ configProvider }: MigrationOpts): Promise<sdk.MigrationResult> => {
     const config = await configProvider.getBotpressConfig()
     if (config.actionServers) {
-      return { success: true, message: `Action Servers configuration already exists, skipping...` }
+      return { success: true, message: 'Action Servers configuration already exists, skipping...' }
     }
 
     await configProvider.mergeBotpressConfig({

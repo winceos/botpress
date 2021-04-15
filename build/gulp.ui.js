@@ -7,14 +7,16 @@ const yn = require('yn')
 const verbose = process.argv.includes('--verbose')
 
 const build = () => {
+  gulp.task('build:shared', gulp.series([cleanShared, sharedBuild]))
   gulp.task('build:studio', gulp.series([buildStudio, cleanStudio, cleanStudioAssets, copyStudio]))
-  gulp.task('build:admin', gulp.series([buildAdmin, copyAdmin]))
+  gulp.task('build:admin', gulp.series([buildAdmin, cleanAdmin, copyAdmin]))
+  gulp.task('build:lite', gulp.series([buildLite, cleanLite, copyLite]))
 
   if (yn(process.env.GULP_PARALLEL)) {
-    return gulp.parallel(['build:studio', 'build:admin'])
+    return gulp.series(['build:shared', gulp.parallel(['build:studio', 'build:admin', 'build:lite'])])
   }
 
-  return gulp.series(['build:studio', 'build:admin'])
+  return gulp.series(['build:shared', 'build:studio', 'build:admin', 'build:lite'])
 }
 
 // Required since modules are using some dependencies from the studio
@@ -22,6 +24,12 @@ const initStudio = cb => {
   const studio = exec('yarn', { cwd: 'src/bp/ui-studio' }, err => cb(err))
   verbose && studio.stdout.pipe(process.stdout)
   studio.stderr.pipe(process.stderr)
+}
+
+const buildSharedLite = () => {
+  gulp.task('build:sharedLite', gulp.series([sharedLiteBuild]))
+
+  return gulp.series(['build:sharedLite'])
 }
 
 const buildShared = () => {
@@ -41,17 +49,37 @@ const buildStudio = cb => {
 const buildAdmin = cb => {
   const prod = process.argv.includes('--prod') ? '--nomap --prod' : ''
 
-  const admin = exec(`yarn && yarn build ${prod}`, { cwd: 'src/bp/ui-admin' }, err => cb(err))
+  const admin = exec(`yarn && yarn build ${prod}`, { cwd: 'src/bp/admin/ui' }, err => cb(err))
   verbose && admin.stdout.pipe(process.stdout)
   admin.stderr.pipe(process.stderr)
 }
 
 const copyAdmin = () => {
-  return gulp.src('./src/bp/ui-admin/build/**/*').pipe(gulp.dest('./out/bp/ui-admin/public'))
+  return gulp.src('./src/bp/admin/ui/build/**/*').pipe(gulp.dest('./out/bp/admin/ui/public'))
+}
+
+const buildLite = cb => {
+  const prod = process.argv.includes('--prod') ? '--nomap --prod' : ''
+
+  const admin = exec(`yarn && yarn build ${prod}`, { cwd: 'src/bp/ui-lite' }, err => cb(err))
+  verbose && admin.stdout.pipe(process.stdout)
+  admin.stderr.pipe(process.stderr)
+}
+
+const cleanLite = () => {
+  return gulp.src('./out/bp/ui-lite/public', { allowEmpty: true }).pipe(rimraf())
+}
+
+const copyLite = () => {
+  return gulp.src('./src/bp/ui-lite/public/**/*').pipe(gulp.dest('./out/bp/ui-lite/public'))
 }
 
 const cleanStudio = () => {
   return gulp.src('./out/bp/ui-studio/public', { allowEmpty: true }).pipe(rimraf())
+}
+
+const cleanAdmin = () => {
+  return gulp.src('./out/bp/admin/ui/public', { allowEmpty: true }).pipe(rimraf())
 }
 
 const cleanStudioAssets = () => {
@@ -67,7 +95,7 @@ const createStudioSymlink = () => {
 }
 
 const watchAdmin = cb => {
-  const admin = exec('yarn && yarn start:dev', { cwd: 'src/bp/ui-admin' }, err => cb(err))
+  const admin = exec('yarn && yarn start:dev', { cwd: 'src/bp/admin/ui' }, err => cb(err))
   admin.stdout.pipe(process.stdout)
   admin.stderr.pipe(process.stderr)
 }
@@ -89,11 +117,17 @@ const cleanShared = () => {
 const watchShared = gulp.series([
   cleanShared,
   cb => {
-    const shared = exec('yarn && yarn start', { cwd: 'src/bp/ui-shared' }, err => cb(err))
+    const shared = exec('yarn && yarn watch', { cwd: 'src/bp/ui-shared' }, err => cb(err))
     shared.stdout.pipe(process.stdout)
     shared.stderr.pipe(process.stderr)
   }
 ])
+
+const sharedLiteBuild = cb => {
+  const shared = exec('yarn', { cwd: 'src/bp/ui-shared-lite' }, err => cb(err))
+  shared.stdout.pipe(process.stdout)
+  shared.stderr.pipe(process.stderr)
+}
 
 const sharedBuild = cb => {
   const shared = exec('yarn && yarn build', { cwd: 'src/bp/ui-shared' }, err => cb(err))
@@ -110,5 +144,6 @@ module.exports = {
   watchAdmin,
   initStudio,
   watchShared,
+  buildSharedLite,
   buildShared
 }

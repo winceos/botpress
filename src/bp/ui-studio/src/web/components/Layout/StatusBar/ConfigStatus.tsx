@@ -6,7 +6,7 @@ import EventBus from '~/util/EventBus'
 
 import ActionItem from './ActionItem'
 
-const adminUrl = `${window['API_PATH']}/admin/server`
+const adminUrl = `${window['API_PATH']}/admin`
 
 const ConfigStatus = () => {
   const [isDifferent, setDifferent] = useState(false)
@@ -14,7 +14,7 @@ const ConfigStatus = () => {
   const [isOpen, setOpen] = useState(false)
 
   useEffect(() => {
-    // tslint:disable-next-line: no-floating-promises
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
     fetchHash()
 
     const configUpdated = event => setDifferent(event.initialHash !== event.newHash)
@@ -39,7 +39,7 @@ const ConfigStatus = () => {
 
   const fetchHash = async () => {
     try {
-      const { data } = await axios.get(`${adminUrl}/configHash`)
+      const { data } = await axios.get(`${adminUrl}/management/configHash`)
       if (data.initialHash && data.currentHash && data.initialHash !== data.currentHash) {
         setDifferent(true)
       }
@@ -50,7 +50,7 @@ const ConfigStatus = () => {
 
   const restartServer = async () => {
     try {
-      await axios.post(`${adminUrl}/rebootServer`)
+      await axios.post(`${adminUrl}/management/rebootServer`)
       setRestart(true)
     } catch (err) {
       toastFailure(err.message)

@@ -16,6 +16,12 @@ class ComposerStore {
   public message: string = ''
 
   @observable
+  public locked: boolean = false
+
+  @observable
+  public hidden: boolean = false
+
+  @observable
   private _sentHistory: string[] = []
 
   @observable
@@ -70,6 +76,16 @@ class ComposerStore {
 
     this.updateMessage(this._sentHistory[newIndex])
     this._sentHistoryIndex = newIndex
+  }
+
+  @action.bound
+  setLocked(locked: boolean) {
+    this.locked = locked
+  }
+
+  @action.bound
+  setHidden(hidden: boolean) {
+    this.hidden = hidden
   }
 }
 

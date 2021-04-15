@@ -1,7 +1,7 @@
 import * as sdk from 'botpress/sdk'
-import { GhostService } from 'core/services'
-import { Migration, MigrationOpts } from 'core/services/migration'
-import { TYPES } from 'core/types'
+import { TYPES } from 'core/app/types'
+import { GhostService } from 'core/bpfs'
+import { Migration, MigrationOpts } from 'core/migration'
 import _ from 'lodash'
 
 const migration: Migration = {
@@ -11,9 +11,9 @@ const migration: Migration = {
   },
   up: async ({ inversify }: MigrationOpts): Promise<sdk.MigrationResult> => {
     const ghost = inversify.get<GhostService>(TYPES.GhostService)
-    const workspaces: any = await ghost.global().readFileAsObject('/', `workspaces.json`)
+    const workspaces: any = await ghost.global().readFileAsObject('/', 'workspaces.json')
     if (workspaces.length > 1) {
-      return { success: false, message: `More than one workspace exist in the file, data would be lost.` }
+      return { success: false, message: 'More than one workspace exist in the file, data would be lost.' }
     }
 
     const newWorkspace = [

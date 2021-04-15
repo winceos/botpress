@@ -4,10 +4,8 @@ import React from 'expose-loader?React!react'
 import ReactDOM from 'expose-loader?ReactDOM!react-dom'
 import axios from 'axios'
 import { HotKeys } from 'react-hotkeys'
-import { getToken } from '~/util/Auth'
 import { Provider } from 'react-redux'
-
-import store from './store'
+import { CSRF_TOKEN_HEADER } from 'common/auth'
 
 // Required to fix outline issue
 import './style.scss'
@@ -19,6 +17,7 @@ import 'expose-loader?Reactstrap!reactstrap' // TODO Remove me once we migrated 
 import 'expose-loader?BlueprintJsCore!@blueprintjs/core'
 import 'expose-loader?BlueprintJsSelect!@blueprintjs/select'
 import 'expose-loader?BotpressShared!ui-shared'
+import 'expose-loader?BotpressContentTypePicker!~/components/Content/Select'
 import 'expose-loader?BotpressContentPicker!~/components/Content/Select/Widget'
 import 'expose-loader?SmartInput!~/components/SmartInput'
 import 'expose-loader?ElementsList!~/components/Shared/ElementsList'
@@ -29,16 +28,22 @@ import 'expose-loader?BotpressUtils!~/components/Shared/Utils'
 import 'expose-loader?DocumentationProvider!~/components/Util/DocumentationProvider'
 import { initializeTranslations } from './translations'
 /* eslint-enable */
-import { utils } from 'botpress/shared'
+import { utils, auth, telemetry } from 'botpress/shared'
+import store from './store'
 
 import 'ui-shared/dist/theme.css'
 require('bootstrap/dist/css/bootstrap.css')
 require('storm-react-diagrams/dist/style.min.css')
 require('./theme.scss')
 
-const token = getToken()
+const token = auth.getToken()
 if (token) {
-  axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
+  if (window.USE_JWT_COOKIES) {
+    axios.defaults.headers.common[CSRF_TOKEN_HEADER] = token
+  } else {
+    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
+  }
+
   axios.defaults.headers.common['X-BP-Workspace'] = window.WORKSPACE_ID
 }
 
@@ -60,3 +65,5 @@ if (!window.BOT_ID) {
     document.getElementById('app')
   )
 }
+
+telemetry.startFallback(axios.create({ baseURL: window.API_PATH })).catch()

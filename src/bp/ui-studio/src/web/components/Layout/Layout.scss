@@ -22,6 +22,10 @@
   top: 50px !important;
 }
 
+:global(.emulator-open) {
+  padding-right: var(--emulator-width) !important;
+}
+
 .aside {
   background-color: var(--c-background--dark-3);
   overflow-x: hidden;
@@ -88,10 +92,10 @@
 }
 
 .container :global(.Resizer.horizontal) {
-  height: 5px;
+  height: 2px;
   margin: 0 -5px;
-  border-top: 5px solid rgba(255, 255, 255, 0.1);
-  border-bottom: 5px solid rgba(255, 255, 255, 0.1);
+  border-top: 2px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
   box-sizing: border-box;
   background: transparent;
   opacity: 0.5;
@@ -102,7 +106,7 @@
   &:hover {
     -webkit-transition: all 2s ease;
     transition: all 2s ease;
-    border-top: 5px solid rgba(0, 0, 0, 0.2);
-    border-bottom: 5px solid rgba(0, 0, 0, 0.2);
+    border-top: 2px solid rgba(0, 0, 0, 0.2);
+    border-bottom: 2px solid rgba(0, 0, 0, 0.2);
   }
 }

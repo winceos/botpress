@@ -10,7 +10,11 @@ export const defaultRoles: AuthRole[] = [
     rules: [
       { res: '*', op: '+r+w' },
       {
-        res: 'module.code-editor.global.configs',
+        res: 'module.code-editor.global.main_config',
+        op: '-r-w'
+      },
+      {
+        res: 'module.code-editor.global.module_config',
         op: '-r-w'
       }
     ]
@@ -28,7 +32,11 @@ export const defaultRoles: AuthRole[] = [
         op: '+r-w'
       },
       {
-        res: 'module.code-editor.global.configs',
+        res: 'module.code-editor.global.main_config',
+        op: '-r-w'
+      },
+      {
+        res: 'module.code-editor.global.module_config',
         op: '-r-w'
       }
     ]
@@ -47,6 +55,11 @@ export const defaultRoles: AuthRole[] = [
       {
         res: 'module.code-editor.*',
         op: '-r-w'
+      },
+      { res: 'admin.logs.*', op: '-r' },
+      {
+        res: 'admin.bots.archive',
+        op: '-r'
       }
     ]
   }
@@ -123,10 +136,12 @@ export const CHAT_USER_ROLE = {
 export const BUILTIN_MODULES = [
   'analytics',
   'basic-skills',
-  'builtin',
+  'bot-improvement',
+  'broadcast',
   'builtin',
   'channel-messenger',
   'channel-slack',
+  'channel-smooch',
   'channel-teams',
   'channel-telegram',
   'channel-web',
@@ -135,7 +150,10 @@ export const BUILTIN_MODULES = [
   'extensions',
   'history',
   'hitl',
+  'misunderstood',
+  'ndu',
   'nlu',
   'qna',
-  'testing'
+  'testing',
+  'uipath'
 ]

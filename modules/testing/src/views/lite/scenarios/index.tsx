@@ -3,13 +3,13 @@ import _ from 'lodash'
 import React from 'react'
 import { MdPolymer } from 'react-icons/md'
 
-import style from './style.scss'
-import { AppToaster } from './toaster'
 import ScenarioDetails from './ScenarioDetails'
 import SplashScreen from './SplashScreen'
+import style from './style.scss'
+import { AppToaster } from './toaster'
 
-const WEBCHAT_WIDTH = 400
-const DEV_TOOLS_WIDTH = 450
+const WEBCHAT_WIDTH = 240
+const DEV_TOOLS_WIDTH = 240
 
 export const updater = { callback: undefined }
 

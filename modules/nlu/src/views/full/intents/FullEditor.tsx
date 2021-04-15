@@ -1,16 +1,17 @@
 import { AxiosInstance } from 'axios'
 import { NLU } from 'botpress/sdk'
+import { utils } from 'botpress/shared'
 import cx from 'classnames'
 import _ from 'lodash'
-import React, { FC, useEffect, useState } from 'react'
+import React, { FC, useEffect, useRef, useState } from 'react'
 
-import { NLUApi } from '../../api'
+import { NLUApi } from '../../../api'
 
+import { ContextSelector } from './ContextSelector'
+import IntentHint from './IntentHint'
 import Slots from './slots/Slots'
 import style from './style.scss'
 import { removeSlotFromUtterances, renameSlotInUtterances } from './utterances-state-utils'
-import { ContextSelector } from './ContextSelector'
-import IntentHint from './IntentHint'
 import { UtterancesEditor } from './UtterancesEditor'
 
 interface Props {
@@ -18,16 +19,24 @@ interface Props {
   api: NLUApi
   contentLang: string
   showSlotPanel?: boolean
-  axios: AxiosInstance
   liteEditor?: boolean
 }
 
 export const IntentEditor: FC<Props> = props => {
   const [intent, setIntent] = useState<NLU.IntentDefinition>()
 
+  const debouncedApiSaveIntent = useRef(
+    _.debounce((newIntent: NLU.IntentDefinition) => props.api.createIntent(newIntent), 2500)
+  )
+
   useEffect(() => {
-    // tslint:disable-next-line: no-floating-promises
-    props.api.fetchIntent(props.intent).then(setIntent)
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+    props.api.fetchIntent(props.intent).then(intent => {
+      setIntent(intent)
+      utils.inspect(intent)
+    })
+
+    return () => debouncedApiSaveIntent.current.flush()
   }, [props.intent])
 
   if (!intent) {
@@ -37,13 +46,14 @@ export const IntentEditor: FC<Props> = props => {
 
   const saveIntent = (newIntent: NLU.IntentDefinition) => {
     setIntent(newIntent)
-    // tslint:disable-next-line: no-floating-promises
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
     props.api.createIntent(newIntent)
   }
 
-  const handleUtterancesChange = (newUtterances: string[]) => {
+  const handleUtterancesChange = async (newUtterances: string[]) => {
     const newIntent = { ...intent, utterances: { ...intent.utterances, [props.contentLang]: newUtterances } }
-    saveIntent(newIntent)
+    setIntent(newIntent)
+    await debouncedApiSaveIntent.current(newIntent)
   }
 
   const handleSlotsChange = (slots: NLU.SlotDefinition[], { operation, name, oldName }) => {
@@ -71,12 +81,7 @@ export const IntentEditor: FC<Props> = props => {
               api={props.api}
             />
           )}
-          <IntentHint
-            intent={intent}
-            liteEditor={props.liteEditor}
-            contentLang={props.contentLang}
-            axios={props.axios}
-          />
+          <IntentHint intent={intent} liteEditor={props.liteEditor} contentLang={props.contentLang} />
         </div>
         <UtterancesEditor
           intentName={intent.name}
@@ -85,9 +90,7 @@ export const IntentEditor: FC<Props> = props => {
           slots={intent.slots}
         />
       </div>
-      {props.showSlotPanel && (
-        <Slots slots={intent.slots} api={props.api} axios={props.axios} onSlotsChanged={handleSlotsChange} />
-      )}
+      {props.showSlotPanel && <Slots slots={intent.slots} api={props.api} onSlotsChanged={handleSlotsChange} />}
     </div>
   )
 }

@@ -1,25 +1,28 @@
 import { Button, ButtonGroup, Intent } from '@blueprintjs/core'
 import { AxiosStatic } from 'axios'
 import { lang } from 'botpress/shared'
+import { SplashScreen } from 'botpress/ui'
 import pick from 'lodash/pick'
 import React from 'react'
 
-import { ApiFlaggedEvent, RESOLUTION_TYPE, ResolutionData } from '../../../types'
+import { ApiFlaggedEvent, ResolutionData, RESOLUTION_TYPE } from '../../../types'
 import StickyActionBar from '../StickyActionBar'
 
-import style from './style.scss'
 import AmendForm from './AmendForm'
 import ChatPreview from './ChatPreview'
+import style from './style.scss'
 
 interface Props {
   axios: AxiosStatic
   language: string
-  event: ApiFlaggedEvent
+  event: ApiFlaggedEvent | null
+  eventNotFound: boolean
   totalEventsCount: number
   eventIndex: number
   skipEvent: () => void
   deleteEvent: () => void
   amendEvent: (resolutionData: ResolutionData) => void
+  manyEventsSelected: boolean
 }
 
 interface State {
@@ -68,16 +71,34 @@ class NewEventView extends React.Component<Props, State> {
   }
 
   render() {
-    const { axios, language, event, totalEventsCount, eventIndex, skipEvent, deleteEvent } = this.props
+    const {
+      axios,
+      language,
+      event,
+      totalEventsCount,
+      eventIndex,
+      skipEvent,
+      deleteEvent,
+      eventNotFound,
+      manyEventsSelected
+    } = this.props
     const { isAmending, resolutionType, resolution, resolutionParams } = this.state
 
     return (
       <>
-        <h3>{lang.tr('module.misunderstood.newMisunderstood', { eventIndex, totalEventsCount })}</h3>
+        <h3>{lang.tr('module.misunderstood.newMisunderstood', { eventIndex: eventIndex + 1, totalEventsCount })}</h3>
 
         {!isAmending && (
           <>
-            <ChatPreview messages={event.context} />
+            {eventNotFound ? (
+              <SplashScreen
+                title={lang.tr('module.misunderstood.couldNotLoadConversation')}
+                description={lang.tr('module.misunderstood.conversationDeleted')}
+                icon="warning-sign"
+              />
+            ) : (
+              <ChatPreview messages={event.context} />
+            )}
             <StickyActionBar>
               <Button onClick={deleteEvent} icon="trash" intent={Intent.DANGER} disabled={isAmending}>
                 {lang.tr('module.misunderstood.ignore')}
@@ -86,22 +107,29 @@ class NewEventView extends React.Component<Props, State> {
                 onClick={skipEvent}
                 icon="arrow-right"
                 intent={Intent.WARNING}
-                disabled={isAmending || eventIndex === totalEventsCount - 1}
+                disabled={isAmending || eventIndex === totalEventsCount - 1 || manyEventsSelected}
               >
                 {lang.tr('module.misunderstood.skip')}
               </Button>
-              <Button onClick={this.startAmend} icon="confirm" intent={Intent.PRIMARY} disabled={isAmending}>
+              <Button
+                onClick={this.startAmend}
+                icon="confirm"
+                intent={Intent.PRIMARY}
+                disabled={isAmending || manyEventsSelected}
+              >
                 {lang.tr('module.misunderstood.amend')}
               </Button>
             </StickyActionBar>
           </>
         )}
 
-        <h4 className={style.newEventPreview}>
-          {lang.tr('module.misunderstood.showMisunderstoodMessage', {
-            preview: <span className={style.newEventPreviewMessage}>{event.preview}</span>
-          })}
-        </h4>
+        {event && (
+          <h4 className={style.newEventPreview}>
+            {lang.tr('module.misunderstood.showMisunderstoodMessage', {
+              preview: <span className={style.newEventPreviewMessage}>{event.preview}</span>
+            })}
+          </h4>
+        )}
 
         {isAmending && (
           <AmendForm

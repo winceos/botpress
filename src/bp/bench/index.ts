@@ -177,15 +177,15 @@ class Bench {
 
   log = (message, showTimestamp = false) => {
     if (showTimestamp) {
-      console.log(`[${moment().format('HH:mm:ss')}] ${message}`)
+      console.info(`[${moment().format('HH:mm:ss')}] ${message}`)
     } else {
-      console.log(message)
+      console.info(message)
     }
   }
 }
 
 export default argv => {
   const benchmark = new Bench(argv)
-  // tslint:disable-next-line: no-floating-promises
+  // eslint-disable-next-line @typescript-eslint/no-floating-promises
   benchmark.start()
 }
