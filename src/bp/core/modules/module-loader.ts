@@ -9,6 +9,7 @@ import {
   ModuleEntryPoint,
   Skill
 } from 'botpress/sdk'
+import { ObjectCache } from 'common/object-cache'
 import { ModuleInfo } from 'common/typings'
 import { createForModule } from 'core/app/api'
 import { BotService } from 'core/bots'
@@ -63,7 +64,8 @@ const MODULE_SCHEMA = joi.object().keys({
     menuIcon: joi.string().optional(),
     menuText: joi.string().optional(),
     homepage: joi.string().optional(),
-    experimental: joi.boolean().optional()
+    experimental: joi.boolean().optional(),
+    workspaceApp: joi.object().optional()
   })
 })
 
@@ -110,7 +112,8 @@ export class ModuleLoader {
     @tagged('name', 'ModuleLoader')
     private logger: Logger,
     @inject(TYPES.GhostService) private ghost: GhostService,
-    @inject(TYPES.ConfigProvider) private configProvider: ConfigProvider
+    @inject(TYPES.ConfigProvider) private configProvider: ConfigProvider,
+    @inject(TYPES.ObjectCache) private cache: ObjectCache
   ) {}
 
   public get configReader() {
@@ -151,7 +154,7 @@ export class ModuleLoader {
 
   // FIXME: Load modules for bots using onBotMount instead of init
   public async loadModules(modules: ModuleEntryPoint[]) {
-    this.configReader = new ConfigReader(this.logger, modules, this.ghost)
+    this.configReader = new ConfigReader(this.logger, modules, this.ghost, this.cache)
     await this.configReader.initialize()
     const initedModules = {}
 

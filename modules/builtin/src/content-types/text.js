@@ -1,4 +1,5 @@
 const base = require('./_base')
+const utils = require('./_utils')
 
 function render(data) {
   const events = []
@@ -21,51 +22,13 @@ function render(data) {
   ]
 }
 
-function renderMessenger(data) {
-  const events = []
-
-  if (data.typing) {
-    events.push({
-      type: 'typing',
-      value: data.typing
-    })
-  }
-
-  return [
-    ...events,
-    {
-      type: 'text',
-      text: data.text
-    }
-  ]
-}
-
-function renderTeams(data) {
-  const events = []
-
-  if (data.typing) {
-    events.push({
-      type: 'typing'
-    })
-  }
-
-  return [
-    ...events,
-    {
-      type: 'message',
-      text: data.text
-    }
-  ]
-}
-
 function renderElement(data, channel) {
-  if (channel === 'messenger') {
-    return renderMessenger(data)
-  } else if (channel === 'teams') {
-    return renderTeams(data)
-  } else {
-    return render(data)
+  // These channels now use channel renderers
+  if (['telegram', 'twilio', 'slack', 'smooch', 'vonage', 'teams', 'messenger'].includes(channel)) {
+    return utils.extractPayload('text', data)
   }
+
+  return render(data)
 }
 
 module.exports = {

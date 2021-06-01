@@ -207,7 +207,11 @@ declare module 'botpress/sdk' {
     moduleView?: ModuleViewOptions
     /** If set to true, no menu item will be displayed */
     noInterface?: boolean
-    /** An icon to display next to the name, if none is specified, it will receive a default one */
+    /**
+     * An icon to display next to the name, if none is specified, it will receive a default one
+     * There is a separate icon for the admin and the studio, if you set menuIcon to 'icon.svg',
+     * please provide an icon named 'studio_icon.svg' and 'admin_icon.svg'
+     */
     menuIcon?: string
     /**
      * The name displayed on the menu
@@ -218,6 +222,13 @@ declare module 'botpress/sdk' {
     homepage?: string
     /** Whether or not the module is likely to change */
     experimental?: boolean
+    /** Workspace Apps are accessible on the admin panel */
+    workspaceApp?: {
+      /** Adds a link on the Bots page to access this app for a specific bot */
+      bots?: boolean
+      /** Adds an icon on the menu to access this app without a bot ID */
+      global?: boolean
+    }
   }
 
   /**
@@ -263,173 +274,6 @@ declare module 'botpress/sdk' {
     constructor(eventName: string, payload: any)
     public static forVisitor(visitorId: string, eventName: string, payload: any): RealTimePayload
     public static forAdmins(eventName: string, payload: any): RealTimePayload
-  }
-
-  export namespace MLToolkit {
-    export namespace FastText {
-      export type TrainCommand = 'supervised' | 'quantize' | 'skipgram' | 'cbow'
-      export type Loss = 'hs' | 'softmax'
-
-      export interface TrainArgs {
-        lr: number
-        dim: number
-        ws: number
-        epoch: number
-        minCount: number
-        minCountLabel: number
-        neg: number
-        wordNgrams: number
-        loss: Loss
-        model: string
-        input: string
-        bucket: number
-        minn: number
-        maxn: number
-        thread: number
-        lrUpdateRate: number
-        t: number
-        label: string
-        pretrainedVectors: string
-        qout: boolean
-        retrain: boolean
-        qnorm: boolean
-        cutoff: number
-        dsub: number
-      }
-
-      export interface PredictResult {
-        label: string
-        value: number
-      }
-
-      export interface Model {
-        cleanup: () => void
-        trainToFile: (method: TrainCommand, modelPath: string, args: Partial<TrainArgs>) => Promise<void>
-        loadFromFile: (modelPath: string) => Promise<void>
-        predict: (str: string, nbLabels: number) => Promise<PredictResult[]>
-        queryWordVectors(word: string): Promise<number[]>
-        queryNearestNeighbors(word: string, nb: number): Promise<string[]>
-      }
-
-      export interface ModelConstructor {
-        new (): Model
-        new (lazy: boolean, keepInMemory: boolean, queryOnly: boolean): Model
-      }
-
-      export const Model: ModelConstructor
-    }
-
-    export namespace KMeans {
-      export interface KMeansOptions {
-        maxIterations?: number
-        tolerance?: number
-        withIterations?: boolean
-        distanceFunction?: DistanceFunction
-        seed?: number
-        initialization?: 'random' | 'kmeans++' | 'mostDistant' | number[][]
-      }
-
-      export interface Centroid {
-        centroid: number[]
-        error: number
-        size: number
-      }
-
-      // TODO convert this to class we build the source of ml-kmeans
-      export interface KmeansResult {
-        // constructor(
-        //   clusters: number[],
-        //   centroids: Centroid[],
-        //   converged: boolean,
-        //   iterations: number,
-        //   distance: DistanceFunction
-        // )
-        clusters: number[]
-        centroids: Centroid[]
-        iterations: number
-        nearest: (data: DataPoint[]) => number[]
-      }
-
-      export type DataPoint = number[]
-
-      export type DistanceFunction = (point0: DataPoint, point1: DataPoint) => number
-
-      export const kmeans: (data: DataPoint[], K: number, options: KMeansOptions) => KmeansResult
-    }
-
-    export namespace SVM {
-      export interface SVMOptions {
-        classifier: 'C_SVC' | 'NU_SVC' | 'ONE_CLASS' | 'EPSILON_SVR' | 'NU_SVR'
-        kernel: 'LINEAR' | 'POLY' | 'RBF' | 'SIGMOID'
-        seed: number
-        c?: number | number[]
-        gamma?: number | number[]
-        probability?: boolean
-        reduce?: boolean
-      }
-
-      export interface DataPoint {
-        label: string
-        coordinates: number[]
-      }
-
-      export interface Prediction {
-        label: string
-        confidence: number
-      }
-
-      export interface TrainProgressCallback {
-        (progress: number): void
-      }
-
-      export class Trainer {
-        constructor()
-        train(points: DataPoint[], options?: SVMOptions, callback?: TrainProgressCallback): Promise<string>
-        isTrained(): boolean
-      }
-
-      export class Predictor {
-        constructor(model: string)
-        predict(coordinates: number[]): Promise<Prediction[]>
-        isLoaded(): boolean
-        getLabels(): string[]
-      }
-    }
-
-    export namespace CRF {
-      export class Tagger {
-        tag(xseq: Array<string[]>): { probability: number; result: string[] }
-        open(model_filename: string): boolean
-        marginal(xseq: Array<string[]>): { [label: string]: number }[]
-      }
-
-      export interface TrainerOptions {
-        [key: string]: string
-      }
-
-      export interface TrainProgressCallback {
-        (iteration: number): void
-      }
-
-      interface DataPoint {
-        features: Array<string[]>
-        labels: string[]
-      }
-
-      export class Trainer {
-        train(elements: DataPoint[], options: TrainerOptions, progressCallback?: TrainProgressCallback): Promise<string>
-      }
-    }
-
-    export namespace SentencePiece {
-      export interface Processor {
-        loadModel: (modelPath: string) => void
-        encode: (inputText: string) => string[]
-        decode: (pieces: string[]) => string
-      }
-
-      export const createProcessor: () => Processor
-    }
   }
 
   export namespace NLU {
@@ -527,13 +371,24 @@ declare module 'botpress/sdk' {
       name: string
       value: any
       source: any
-      entity: Entity
+      entity: Entity | null
       confidence: number
       start: number
       end: number
     }
 
     export type SlotCollection = Dic<Slot>
+
+    export interface ContextPrediction {
+      confidence: number
+      oos: number
+      intents: {
+        label: string
+        confidence: number
+        slots: NLU.SlotCollection
+        extractor: string
+      }[]
+    }
   }
 
   export namespace NDU {
@@ -767,7 +622,7 @@ declare module 'botpress/sdk' {
        */
       bot: any
       /** Used internally by Botpress to keep the user's current location and upcoming instructions */
-      context: DialogContext
+      context?: DialogContext
       /** This variable points to the currently active workflow */
       workflow: WorkflowHistory
       /**
@@ -917,6 +772,12 @@ declare module 'botpress/sdk' {
       handler: MiddlewareHandler
       /** Indicates if this middleware should act on incoming or outgoing events */
       direction: EventDirection
+      /**
+       * Allows to specify a timeout for the middleware instead of using the middleware chain timeout value
+       * @example '500ms', '2s', '5m'
+       * @default '2s'
+       * */
+      timeout?: string
     }
 
     export interface EventConstructor {
@@ -941,18 +802,6 @@ declare module 'botpress/sdk' {
    * @see MiddlewareDefinition to learn more about middleware.
    */
   export type EventDirection = 'incoming' | 'outgoing'
-
-  export interface Notification {
-    botId: string
-    message: string
-    /** Can be info, error, success */
-    level: string
-    moduleId?: string
-    moduleIcon?: string
-    moduleName?: string
-    /** An URL to redirect to when the notification is clicked */
-    redirectUrl?: string
-  }
 
   export interface UpsertOptions {
     /** Whether or not to record a revision @default true */
@@ -1706,6 +1555,18 @@ declare module 'botpress/sdk' {
     title?: string | MultiLangText
   }
 
+  export interface AudioContent extends Content {
+    type: 'audio'
+    audio: string
+    title?: string | MultiLangText
+  }
+
+  export interface VideoContent extends Content {
+    type: 'video'
+    video: string
+    title?: string | MultiLangText
+  }
+
   export interface CarouselContent extends Content {
     type: 'carousel'
     items: CardContent[]
@@ -1719,34 +1580,45 @@ declare module 'botpress/sdk' {
     actions: ActionButton[]
   }
 
+  export interface LocationContent extends Content {
+    type: 'location'
+    latitude: number
+    longitude: number
+    address?: string | MultiLangText
+    title?: string | MultiLangText
+  }
+
+  export enum ButtonAction {
+    SaySomething = 'Say something',
+    OpenUrl = 'Open URL',
+    Postback = 'Postback'
+  }
+
   export interface ActionButton {
+    action: ButtonAction
     title: string
-    action: string
   }
 
   export interface ActionSaySomething extends ActionButton {
-    action: 'Say something'
     text: string | MultiLangText
   }
 
   export interface ActionOpenURL extends ActionButton {
-    action: 'Open URL'
     url: string
   }
 
   export interface ActionPostback extends ActionButton {
-    action: 'Postback'
     payload: string
   }
 
   export interface ChoiceContent extends Content {
     type: 'single-choice'
-    message: string | MultiLangText
+    text: string | MultiLangText
     choices: ChoiceOption[]
   }
 
   export interface ChoiceOption {
-    message: string | MultiLangText
+    title: string | MultiLangText
     value: string
   }
 
@@ -1844,7 +1716,9 @@ declare module 'botpress/sdk' {
 
   export interface AxiosOptions {
     /** When true, it will return the local url instead of the external url  */
-    localUrl: boolean
+    localUrl?: boolean
+    /** Temporary property so modules can query studio routes */
+    studioUrl?: boolean
   }
 
   export interface RedisLock {
@@ -2271,10 +2145,6 @@ declare module 'botpress/sdk' {
     ): Promise<WorkspaceUser[] | WorkspaceUserWithAttributes[]>
   }
 
-  export namespace notifications {
-    export function create(botId: string, notification: Notification): Promise<any>
-  }
-
   export namespace ghost {
     /**
      * Access the Ghost Service for a specific bot. Check the {@link ScopedGhostService} for the operations available on the scoped element.
@@ -2594,6 +2464,34 @@ declare module 'botpress/sdk' {
       export function image(url: string, caption?: string | MultiLangText): ImageContent
 
       /**
+       * Renders an audio element
+       * @param url Url of the audio file to send
+       * @param caption Caption to appear alongside your audio
+       */
+      export function audio(url: string, caption?: string | MultiLangText): AudioContent
+
+      /**
+       * Renders a video element
+       * @param url Url of the video file to send
+       * @param caption Caption to appear alongside your video
+       */
+      export function video(url: string, caption?: string | MultiLangText): VideoContent
+
+      /**
+       * Renders a location element
+       * @param latitude Latitude of location in decimal degrees
+       * @param longitude Longitude of location in decimal degrees
+       * @param address Street adress associated with location
+       * @param title Explanatory title for this location
+       */
+      export function location(
+        latitude: number,
+        longitude: number,
+        address?: string | MultiLangText,
+        title?: string | MultiLangText
+      ): LocationContent
+
+      /**
        * Renders a carousel element
        * @param cards The cards of the carousel
        * @example
@@ -2640,20 +2538,20 @@ declare module 'botpress/sdk' {
 
       /**
        * Render a choice element
-       * @param message Message to ask to the user
+       * @param text Message to ask to the user
        * @param choices Choices that the user can select
        * @example
        * bp.render.choice("Yes or no?", bp.render.option('yes'), bp.render.option('no'))
        */
-      export function choice(message: string | MultiLangText, ...choices: ChoiceOption[]): ChoiceContent
+      export function choice(text: string | MultiLangText, ...choices: ChoiceOption[]): ChoiceContent
 
       /**
        * Renders an option for a choice element
        * @param value Value associated with the option
-       * @param message Text to shown to the user (has no impact on the processing).
+       * @param title Text to shown to the user (has no impact on the processing).
        * If not provided the value will be shown by default
        */
-      export function option(value: string, message?: string): ChoiceOption
+      export function option(value: string, title?: string): ChoiceOption
 
       /**
        * Translates a content element to a specific language

@@ -36,11 +36,11 @@ declare namespace NodeJS {
     PROJECT_LOCATION: string
     LOADED_MODULES: { [module: string]: string }
     pkg: any
-    IS_LICENSED: boolean
+    IS_LICENSED?: boolean
     IS_PRO_AVAILABLE: boolean
     IS_PRO_ENABLED: boolean
     CLUSTER_ENABLED: boolean
-    ASSERT_LICENSED: Function
+    ASSERT_LICENSED?: Function
     BOTPRESS_VERSION: string
     TELEMETRY_URL: string
     core_env: BotpressEnvironmentVariables
@@ -73,6 +73,9 @@ declare type PRO_FEATURES = 'seats'
 declare interface BotpressEnvironmentVariables {
   /** Replace the path of the NodeJS Native Extensions for external OS-specific libraries such as fastText and CRFSuite */
   readonly NATIVE_EXTENSIONS_DIR?: string
+
+  /** Replace the path of nlu binaries file */
+  readonly NLU_BIN_DIR?: string
 
   /** Change the BPFS storage mechanism ("database" or "disk"). Defaults to "disk" */
   readonly BPFS_STORAGE?: 'database' | 'disk'
@@ -247,6 +250,12 @@ declare interface BotpressEnvironmentVariables {
    * @default 100mb
    */
   readonly BP_BPFS_MAX_FILE_SIZE?: string
+
+  /**
+   * Overrides the maximum concurrency for BPFS upload
+   * @default 50
+   */
+  readonly BP_BPFS_UPLOAD_CONCURRENCY?: number
 
   /**
    * Disable the file upload feature on the Code Editor
