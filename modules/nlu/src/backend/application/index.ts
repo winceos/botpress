@@ -1,3 +1,4 @@
+import { Health } from '@botpress/nlu-client'
 import _ from 'lodash'
 import yn from 'yn'
 
@@ -34,7 +35,7 @@ export class NLUApplication {
     return this._trainingQueue.teardown()
   }
 
-  public async getHealth() {
+  public async getHealth(): Promise<Health | undefined> {
     try {
       const { health } = await this._engine.getInfo()
       return health
@@ -90,7 +91,7 @@ export class NLUApplication {
     return async (lang: string) => {
       const trainSet = await defService.getTrainSet(lang)
       const trainInput = mapTrainSet(trainSet)
-      const { exists, modelId } = await this._engine.hasModelFor(bot.id, trainInput)
+      const { exists, modelId } = await bot.hasModelFor(trainInput)
       const trainId = { botId, language: lang }
       if (exists) {
         await this.trainRepository.inTransaction(trx => trx.delete(trainId))

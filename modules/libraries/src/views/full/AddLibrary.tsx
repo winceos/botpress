@@ -1,6 +1,5 @@
 import { Button, ControlGroup, InputGroup, Radio, RadioGroup } from '@blueprintjs/core'
 import { lang, toast } from 'botpress/shared'
-import { isOperationAllowed } from 'botpress/utils'
 import React, { useState } from 'react'
 
 import Dropdown from './LibDropdown'
@@ -87,6 +86,8 @@ const AddLibrary = props => {
     // const { data } = await props.axios.get(`/mod/libraries/details/${item.name}`)
   }
 
+  const isSuperAdmin = props.userProfile?.isSuperAdmin
+
   return (
     <div>
       <div className={style.title}>{lang.tr('module.libraries.addLibrary')}</div>
@@ -95,9 +96,7 @@ const AddLibrary = props => {
         <Radio label={lang.tr('module.libraries.searchGithub')} value="github" />
         <Radio label={lang.tr('module.libraries.uploadArchive')} value="archive" />
 
-        {isOperationAllowed && isOperationAllowed({ superAdmin: true }) && (
-          <Radio label={lang.tr('module.libraries.customCommand')} value="command" />
-        )}
+        {isSuperAdmin && <Radio label={lang.tr('module.libraries.customCommand')} value="command" />}
       </RadioGroup>
       <br />
 

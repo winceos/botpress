@@ -1,4 +1,4 @@
-import { Button, ButtonGroup, Intent } from '@blueprintjs/core'
+import { Button, Intent } from '@blueprintjs/core'
 import { AxiosStatic } from 'axios'
 import { lang, ModuleUI } from 'botpress/shared'
 import pick from 'lodash/pick'
@@ -9,7 +9,6 @@ import StickyActionBar from '../StickyActionBar'
 
 import AmendForm from './AmendForm'
 import ChatPreview from './ChatPreview'
-import style from './style.scss'
 
 interface Props {
   axios: AxiosStatic
@@ -123,15 +122,6 @@ class NewEventView extends React.Component<Props, State> {
             </StickyActionBar>
           </>
         )}
-
-        {event && (
-          <h4 className={style.newEventPreview}>
-            {lang.tr('module.misunderstood.showMisunderstoodMessage', {
-              preview: <span className={style.newEventPreviewMessage}>{event.preview}</span>
-            })}
-          </h4>
-        )}
-
         {isAmending && (
           <AmendForm
             language={language}

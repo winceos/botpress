@@ -5,10 +5,14 @@ import api from './api'
 import WebchatDatabase from './db'
 import socket from './socket'
 
-const onServerStarted = async (bp: typeof sdk) => {
-  const db = new WebchatDatabase(bp)
-  await db.initialize()
+let db: WebchatDatabase
 
+const onServerStarted = async (bp: typeof sdk) => {
+  db = new WebchatDatabase(bp)
+  await db.initialize()
+}
+
+const onServerReady = async (bp: typeof sdk) => {
   await api(bp, db)
   await socket(bp, db)
 }
@@ -20,10 +24,10 @@ const onModuleUnmount = async (bp: typeof sdk) => {
 
 const entryPoint: sdk.ModuleEntryPoint = {
   onServerStarted,
+  onServerReady,
   onModuleUnmount,
   definition: {
     name: 'channel-web',
-    menuIcon: 'chrome_reader_mode',
     fullName: 'Web Chat',
     homepage: 'https://botpress.com',
     noInterface: true,

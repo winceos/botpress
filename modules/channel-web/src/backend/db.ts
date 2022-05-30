@@ -1,410 +1,145 @@
 import * as sdk from 'botpress/sdk'
-import { Raw } from 'knex'
 import _ from 'lodash'
-import moment from 'moment'
+import LRUCache from 'lru-cache'
 import ms from 'ms'
-import uuid from 'uuid'
-
-import { Config } from '../config'
-
-import { DBMessage } from './typings'
-
-const SEPARATOR = '*'
 
 export default class WebchatDb {
-  private readonly MAX_RETRY_ATTEMPTS = 3
   private knex: sdk.KnexExtended
-  private users: typeof sdk.users
-  private batchedMessages: DBMessage[] = []
-  private batchedConvos: Dic<Raw<any>> = {}
-  private messagePromise: Promise<void | number[]>
-  private convoPromise: Promise<void>
-  private batchSize: number
+  private cacheByVisitor: LRUCache<string, UserMapping>
+  private cacheByUser: LRUCache<string, UserMapping>
 
   constructor(private bp: typeof sdk) {
-    this.users = bp.users
     this.knex = bp.database
-    this.batchSize = this.knex.isLite ? 40 : 2000
-
-    setInterval(() => this.flush(), ms('1s'))
+    this.cacheByVisitor = new LRUCache({ max: 10000, maxAge: ms('5min') })
+    this.cacheByUser = new LRUCache({ max: 10000, maxAge: ms('5min') })
+  }
+  async initialize() {
+    await this.knex.createTableIfNotExists('web_user_map', table => {
+      table.string('botId')
+      table.string('visitorId')
+      table.uuid('userId').unique()
+      table.primary(['botId', 'visitorId'])
+    })
   }
 
-  flush() {
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
-    this.flushMessages()
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
-    this.flushConvoUpdates()
-  }
+  //===================================
+  // This section was copied in the
+  // HITLNext module. Please make sure
+  // to add your changes there too.
+  //===================================
 
-  async flushMessages() {
-    if (this.messagePromise || !this.batchedMessages.length) {
-      return
+  async mapVisitor(botId: string, visitorId: string) {
+    const userMapping = await this.getMappingFromVisitor(botId, visitorId)
+    let userId = userMapping?.userId
+
+    const createUserAndMapping = async () => {
+      userId = (await this.bp.messaging.forBot(botId).createUser()).id
+      await this.createUserMapping(botId, visitorId, userId)
     }
 
-    const batchCount = this.batchedMessages.length >= this.batchSize ? this.batchSize : this.batchedMessages.length
-    const elements = this.batchedMessages.splice(0, batchCount)
-
-    this.messagePromise = this.knex
-      .batchInsert(
-        'web_messages',
-        elements.map(x => _.omit(x, 'retry')),
-        this.batchSize
-      )
-      .catch(err => {
-        this.bp.logger.attachError(err).error("Couldn't store messages to the database. Re-queuing elements")
-        const elementsToRetry = elements
-          .map(x => ({ ...x, retry: x.retry ? x.retry + 1 : 1 }))
-          .filter(x => x.retry < this.MAX_RETRY_ATTEMPTS)
-        this.batchedMessages.push(...elementsToRetry)
-      })
-      .finally(() => {
-        this.messagePromise = undefined
-      })
-  }
-
-  async flushConvoUpdates() {
-    if (this.convoPromise || !Object.keys(this.batchedConvos).length) {
-      return
-    }
-
-    this.convoPromise = this.knex
-      .transaction(async trx => {
-        const queries = []
-
-        for (const key in this.batchedConvos) {
-          const [conversationId, userId, botId] = key.split(SEPARATOR)
-          const value = this.batchedConvos[key]
-
-          const query = this.knex('web_conversations')
-            .where({ id: conversationId, userId, botId })
-            .update({ last_heard_on: value })
-            .transacting(trx)
-
-          queries.push(query)
-        }
-
-        this.batchedConvos = {}
-
-        await Promise.all(queries)
-          .then(trx.commit)
-          .catch(trx.rollback)
-      })
-      .finally(() => {
-        this.convoPromise = undefined
-      })
-  }
-
-  async getUserInfo(userId: string, user: sdk.User) {
-    if (!user) {
-      user = (await this.users.getOrCreateUser('web', userId)).result
-    }
-
-    let fullName = 'User'
-
-    if (user && user.attributes) {
-      const { first_name, last_name } = user.attributes
-
-      if (first_name || last_name) {
-        fullName = `${first_name || ''} ${last_name || ''}`.trim()
+    if (!userMapping) {
+      await createUserAndMapping()
+    } else {
+      // Prevents issues when switching between different Messaging servers
+      // TODO: Remove this check once the 'web_user_map' table is removed
+      if (!(await this.checkUserExist(botId, userMapping.userId))) {
+        await this.deleteMappingFromVisitor(botId, visitorId)
+        await createUserAndMapping()
       }
     }
 
-    return { fullName, avatar_url: _.get(user, 'attributes.picture_url') }
+    return userId
   }
 
-  async initialize() {
-    return this.knex
-      .createTableIfNotExists('web_conversations', function(table) {
-        table.increments('id').primary()
-        table.string('userId')
-        table.string('botId')
-        table.string('title')
-        table.string('description')
-        table.string('logo_url')
-        table.timestamp('created_on')
-        table.timestamp('last_heard_on') // The last time the user interacted with the bot. Used for "recent" conversation
-        table.timestamp('user_last_seen_on')
-        table.timestamp('bot_last_seen_on')
-        table.index(['userId', 'botId'], 'wcub_idx')
-      })
-      .then(() => {
-        return this.knex.createTableIfNotExists('web_messages', function(table) {
-          table.string('id').primary()
-          table.integer('conversationId')
-          table.string('incomingEventId')
-          table.string('eventId')
-          table.string('userId')
-          table.string('message_type') // @ deprecated Remove in a future release (11.9)
-          table.text('message_text') // @ deprecated Remove in a future release (11.9)
-          table.jsonb('message_raw') // @ deprecated Remove in a future release (11.9)
-          table.jsonb('message_data') // @ deprecated Remove in a future release (11.9)
-          table.jsonb('payload')
-          table.string('full_name')
-          table.string('avatar_url')
-          table.timestamp('sent_on')
-          table.index(['conversationId', 'sent_on'], 'wmcs_idx')
-        })
-      })
-      .then(() => {
-        // Index creation with where condition is unsupported by knex
-        return this.knex.raw(
-          'CREATE INDEX IF NOT EXISTS wmcms_idx ON web_messages ("conversationId", message_type, sent_on DESC) WHERE message_type != \'visit\';'
-        )
-      })
-  }
-
-  async appendUserMessage(
-    botId: string,
-    userId: string,
-    conversationId: number,
-    payload: any,
-    eventId: string,
-    user?: sdk.User
-  ) {
-    const { fullName, avatar_url } = await this.getUserInfo(userId, user)
-    const { type, text, raw, data } = payload
-
-    const now = new Date()
-    const message: DBMessage = {
-      id: uuid.v4(),
-      conversationId,
-      eventId,
-      incomingEventId: eventId,
-      userId,
-      full_name: fullName,
-      avatar_url,
-      message_type: type,
-      message_text: text,
-      message_raw: this.knex.json.set(raw),
-      message_data: this.knex.json.set(data),
-      payload: this.knex.json.set(payload),
-      sent_on: this.knex.date.format(now)
+  async getMappingFromVisitor(botId: string, visitorId: string): Promise<UserMapping | undefined> {
+    const cached = this.cacheByVisitor.get(`${botId}_${visitorId}`)
+    if (cached) {
+      return cached
     }
 
-    this.batchedMessages.push(message)
-    this.batchedConvos[`${conversationId}${SEPARATOR}${userId}${SEPARATOR}${botId}`] = this.knex.date.format(now)
+    try {
+      const rows = await this.knex('web_user_map').where({ botId, visitorId })
 
-    return {
-      ...message,
-      sent_on: now,
-      message_raw: raw,
-      message_data: data,
-      payload
-    }
-  }
+      if (rows?.length) {
+        const mapping = rows[0] as UserMapping
+        this.cacheByVisitor.set(`${botId}_${visitorId}`, mapping)
+        return mapping
+      }
+    } catch (err) {
+      this.bp.logger.error('An error occurred while fetching a visitor mapping.', err)
 
-  async appendBotMessage(
-    botName: string,
-    botAvatar: string,
-    conversationId: number,
-    payload: any,
-    incomingEventId: string,
-    eventId: string
-  ) {
-    const { type, text, raw, data } = payload
-
-    const now = new Date()
-    const message: DBMessage = {
-      id: uuid.v4(),
-      conversationId,
-      eventId,
-      incomingEventId,
-      userId: undefined,
-      full_name: botName,
-      avatar_url: botAvatar,
-      message_type: type,
-      message_text: text,
-      message_raw: this.knex.json.set(raw),
-      message_data: this.knex.json.set(data),
-      payload: this.knex.json.set(payload),
-      sent_on: this.knex.date.format(now)
-    }
-
-    this.batchedMessages.push(message)
-
-    return {
-      ...message,
-      sent_on: now,
-      message_raw: raw,
-      message_data: data,
-      payload
-    }
-  }
-
-  async createConversation(botId, userId, { originatesFromUserMessage = false } = {}) {
-    const uid = Math.random()
-      .toString()
-      .substr(2, 6)
-    const title = `Conversation ${uid}`
-
-    await this.knex('web_conversations')
-      .insert({
-        botId,
-        userId,
-        created_on: this.knex.date.now(),
-        last_heard_on: originatesFromUserMessage ? this.knex.date.now() : undefined,
-        title
-      })
-      .then()
-
-    const conversation = await this.knex('web_conversations')
-      .where({ title, userId, botId })
-      .select('id')
-      .then()
-      .get(0)
-
-    return conversation && conversation.id
-  }
-
-  async getOrCreateRecentConversation(botId: string, userId: string, { originatesFromUserMessage = false } = {}) {
-    // TODO: Lifetime config by bot
-    const config = await this.bp.config.getModuleConfigForBot('channel-web', botId)
-
-    const recentCondition = this.knex.date.isAfter(
-      'last_heard_on',
-      moment()
-        .subtract(ms(config.recentConversationLifetime), 'ms')
-        .toDate()
-    )
-
-    const conversation = await this.knex('web_conversations')
-      .select('id')
-      .whereNotNull('last_heard_on')
-      .andWhere({ userId, botId })
-      .andWhere(recentCondition)
-      .orderBy('last_heard_on', 'desc')
-      .limit(1)
-      .then()
-      .get(0)
-
-    return conversation ? conversation.id : this.createConversation(botId, userId, { originatesFromUserMessage })
-  }
-
-  async listConversations(userId: string, botId: string) {
-    const conversations = (await this.knex('web_conversations')
-      .select('id')
-      .where({ userId, botId })
-      .orderBy('last_heard_on', 'desc')
-      .limit(100)
-      .then()) as any[]
-
-    const conversationIds = conversations.map(c => c.id)
-
-    let lastMessages: any = this.knex
-      .from('web_messages')
-      .distinct(
-        this.knex.raw(
-          'ON ("conversationId") message_type, message_text, full_name, avatar_url, sent_on, "conversationId"'
-        )
-      )
-      .whereIn('conversationId', conversationIds)
-      .orderBy('conversationId')
-      .orderBy('sent_on', 'desc')
-
-    if (this.knex.isLite) {
-      const lastMessagesDate = this.knex('web_messages')
-        .whereIn('conversationId', conversationIds)
-        .groupBy('conversationId')
-        .select(this.knex.raw('max(sent_on) as date'))
-
-      lastMessages = this.knex
-        .from('web_messages')
-        .select('*')
-        .whereIn('sent_on', lastMessagesDate)
-    }
-
-    return this.knex
-      .from(function(this: any) {
-        this.from('web_conversations')
-          .where({ userId, botId })
-          .as('wc')
-      })
-      .innerJoin(lastMessages.as('wm'), 'wm.conversationId', 'wc.id')
-      .orderBy('wm.sent_on', 'desc')
-      .select(
-        'wc.id',
-        'wc.title',
-        'wc.description',
-        'wc.logo_url',
-        'wc.created_on',
-        'wc.last_heard_on',
-        'wm.message_type',
-        'wm.message_text',
-        this.knex.raw('wm.full_name as message_author'),
-        this.knex.raw('wm.avatar_url as message_author_avatar'),
-        this.knex.raw('wm.sent_on as message_sent_on')
-      )
-  }
-
-  async isValidConversationOwner(userId: string, conversationId: number, botId: string): Promise<boolean> {
-    const conversation = await this.knex('web_conversations')
-      .select('id')
-      .where({ userId, botId, id: conversationId })
-      .then()
-      .get(0)
-
-    return conversation?.id === conversationId
-  }
-
-  async getConversation(userId, conversationId, botId) {
-    const config = (await this.bp.config.getModuleConfigForBot('channel-web', botId)) as Config
-    const condition: any = { userId, botId }
-
-    if (conversationId && conversationId !== 'null') {
-      condition.id = conversationId
-    }
-
-    const conversation = await this.knex('web_conversations')
-      .where(condition)
-      .then()
-      .get(0)
-
-    if (!conversation) {
       return undefined
     }
-
-    const messages = await this.getConversationMessages(conversationId, config.maxMessagesHistory)
-
-    messages.forEach(m => {
-      return Object.assign(m, {
-        message_raw: this.knex.json.get(m.message_raw),
-        message_data: this.knex.json.get(m.message_data),
-        payload: this.knex.json.get(m.payload)
-      })
-    })
-
-    return Object.assign({}, conversation, {
-      messages: _.orderBy(messages, ['sent_on'], ['asc'])
-    })
   }
 
-  async deleteConversationMessages(conversationId: number) {
-    return this.knex.transaction(async trx => {
-      // TODO: Delete the related events using bp SDK
-
-      await trx('web_messages')
-        .del()
-        .where({ conversationId })
-    })
+  async deleteMappingFromVisitor(botId: string, visitorId: string): Promise<void> {
+    try {
+      this.cacheByVisitor.del(`${botId}_${visitorId}`)
+      await this.bp
+        .database('web_user_map')
+        .where({ botId, visitorId })
+        .delete()
+    } catch (err) {
+      this.bp.logger.error('An error occurred while deleting a visitor mapping.', err)
+    }
   }
 
-  async getConversationMessages(conversationId, limit: number, fromId?: string): Promise<any> {
-    let query = this.knex('web_messages').where({ conversationId })
-
-    if (fromId) {
-      query = query.andWhere('id', '<', fromId)
+  async getMappingFromUser(userId: string): Promise<UserMapping | undefined> {
+    const cached = this.cacheByUser.get(userId)
+    if (cached) {
+      return cached
     }
 
-    return query
-      .whereNot({ message_type: 'visit' })
-      .orderBy('sent_on', 'desc')
-      .limit(limit)
+    try {
+      const rows = await this.knex('web_user_map').where({ userId })
+
+      if (rows?.length) {
+        const mapping = rows[0] as UserMapping
+        this.cacheByUser.set(userId, mapping)
+        return mapping
+      }
+    } catch (err) {
+      this.bp.logger.error('An error occurred while fetching a user mapping.', err)
+
+      return undefined
+    }
   }
 
-  async getFeedbackInfoForEventIds(target: string, eventIds: string[]) {
-    return this.knex('events')
-      .select(['incomingEventId', 'feedback'])
-      .whereIn('incomingEventId', eventIds)
-      .andWhere({ target, direction: 'incoming' })
+  async createUserMapping(botId: string, visitorId: string, userId: string): Promise<UserMapping> {
+    const mapping = { botId, visitorId, userId }
+
+    try {
+      await this.knex('web_user_map').insert(mapping)
+      this.cacheByVisitor.set(`${botId}_${visitorId}`, mapping)
+
+      return mapping
+    } catch (err) {
+      this.bp.logger.error('An error occurred while creating a user mapping.', err)
+
+      return undefined
+    }
   }
+
+  async getFeedbackInfoForMessageIds(_target: string, messageIds: string[]) {
+    return this.knex('events')
+      .select(['events.messageId', 'incomingEvents.feedback'])
+      .innerJoin('events as incomingEvents', 'incomingEvents.id', 'events.incomingEventId')
+      .whereIn('events.messageId', messageIds)
+  }
+
+  private async checkUserExist(botId: string, userId: string): Promise<boolean> {
+    const user = await this.bp.messaging.forBot(botId).getUser(userId)
+
+    return user?.id === userId
+  }
+
+  //===================================
+  // End of copied section
+  //===================================
+}
+
+export interface UserMapping {
+  botId: string
+  visitorId: string
+  userId: string
 }

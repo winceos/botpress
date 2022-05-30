@@ -94,3 +94,59 @@ export const renderUnsafeHTML = (message: string = '', escaped: boolean): string
   const html = snarkdown(message)
   return html.replace(/<a href/gi, '<a target="_blank" href')
 }
+
+const rtlLocales = [
+  'ae' /* Avestan */,
+  'ar' /* 'العربية', Arabic */,
+  'arc' /* Aramaic */,
+  'bcc' /* 'بلوچی مکرانی', Southern Balochi */,
+  'bqi' /* 'بختياري', Bakthiari */,
+  'ckb' /* 'Soranî / کوردی', Sorani */,
+  'dv' /* Dhivehi */,
+  'fa' /* 'فارسی', Persian */,
+  'glk' /* 'گیلکی', Gilaki */,
+  'he' /* 'עברית', Hebrew */,
+  'ku' /* 'Kurdî / كوردی', Kurdish */,
+  'mzn' /* 'مازِرونی', Mazanderani */,
+  'nqo' /* N'Ko */,
+  'pnb' /* 'پنجابی', Western Punjabi */,
+  'ps' /* 'پښتو', Pashto, */,
+  'sd' /* 'سنڌي', Sindhi */,
+  'ug' /* 'Uyghurche / ئۇيغۇرچە', Uyghur */,
+  'ur' /* 'اردو', Urdu */,
+  'yi' /* 'ייִדיש', Yiddish */
+]
+
+// 'en-US' becomes ['en', '-us'] 'en' becomes ['en']
+const localeRegex = /^([a-zA-Z]*)([_\-a-zA-Z]*)$/
+
+export const isRTLLocale = (locale: string | undefined | null): boolean => {
+  if (!locale) {
+    return false
+  }
+  locale = locale.toLowerCase()
+  const matches = localeRegex.exec(locale)
+
+  if (!matches) {
+    return false
+  }
+
+  return rtlLocales.includes(matches[1])
+}
+
+export const isRTLText = new RegExp(
+  '[' +
+    [
+      '\u0600-\u06FF', // Arabic
+      '\u0750-\u077F', // Arabic Supplement
+      '\u08A0-\u08FF', // Arabic Extended-A
+      '\u0870-\u089F', // Arabic Extended-B
+      '\uFB50-\uFDFF', // Arabic Pres. Forms-A
+      '\uFE70-\uFEFF', // Arabic Pres. Forms-B
+      '\u0780-\u07BF', // Thaana (Dhivehi)
+      '\u0590-\u05FF', // Hebrew
+      '\uFB1D-\uFB4F', // Hebrew Presentation Forms
+      '\u07C0-\u07FF' // N'Ko
+    ].join('') +
+    ']'
+)

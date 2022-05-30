@@ -1,10 +1,10 @@
 import * as sdk from 'botpress/sdk'
 import Knex from 'knex'
-import { mergeWith, omit, take } from 'lodash'
+import { mergeWith, omit, take, Dictionary } from 'lodash'
 import moment from 'moment'
 import ms from 'ms'
 
-const TABLE_NAME = 'bot_analytics'
+export const TABLE_NAME = 'bot_analytics'
 
 const Metric = <const>[
   'sessions_count',
@@ -26,20 +26,27 @@ const Metric = <const>[
   'feedback_positive_workflow',
   'feedback_negative_workflow'
 ]
-type MetricTypes = typeof Metric[number]
+export type MetricTypes = typeof Metric[number]
 
-const mergeEntries = (a: Dic<number>, b: Dic<number>): Dic<number> => {
+const mergeEntries = (a: Dictionary<number>, b: Dictionary<number>): Dictionary<number> => {
   return mergeWith(a, b, (v1, v2) => (v1 || 0) + (v2 || 0))
 }
 
 export default class Database {
-  private knex: Knex & sdk.KnexExtension
-  private cache_entries: Dic<number> = {}
+  knex: Knex & sdk.KnexExtension
+  private readonly flusher: ReturnType<typeof setInterval>
+
+  private cache_entries: Dictionary<number> = {}
   private flush_lock: boolean
 
   constructor(private bp: typeof sdk) {
     this.knex = bp.database
-    setInterval(() => this.flushMetrics(), ms('10s'))
+    this.flusher = setInterval(() => this.flushMetrics(), ms('10s'))
+  }
+
+  // Mostly useful for tests - kill the setInterval so jest can exit
+  destroy() {
+    clearInterval(this.flusher)
   }
 
   async initialize() {

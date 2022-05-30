@@ -1,16 +1,15 @@
 import { AxiosInstance, AxiosRequestConfig } from 'axios'
 import { EventFeedback } from 'lite/typings'
 import get from 'lodash/get'
-import uuid from 'uuid'
+import uuidgen from 'uuid'
+import { uuid } from '../typings'
 
 export default class WebchatApi {
   private axios: AxiosInstance
   private axiosConfig: AxiosRequestConfig
-  private userId: string
   private botId: string
 
-  constructor(userId: string, axiosInstance: AxiosInstance) {
-    this.userId = userId
+  constructor(axiosInstance: AxiosInstance) {
     this.axios = axiosInstance
     this.axios.interceptors.request.use(
       config => {
@@ -34,10 +33,6 @@ export default class WebchatApi {
     }
   }
 
-  updateUserId(userId: string) {
-    this.userId = userId
-  }
-
   updateAxiosConfig({ botId = undefined, externalAuthToken = undefined } = {}) {
     this.botId = botId
     this.axiosConfig = botId
@@ -52,6 +47,14 @@ export default class WebchatApi {
           'X-BP-ExternalAuth': `Bearer ${externalAuthToken}`
         }
       }
+    }
+  }
+
+  async setCustomUserId(userId: string) {
+    try {
+      await this.axios.post('/users/customId', { ...this.baseUserPayload, customId: userId }, this.axiosConfig)
+    } catch (err) {
+      console.error('Error while setting a custom user id', err)
     }
   }
 
@@ -90,7 +93,7 @@ export default class WebchatApi {
     }
   }
 
-  async fetchConversation(conversationId: number) {
+  async fetchConversation(conversationId: uuid) {
     try {
       const { data } = await this.axios.post(
         '/conversations/get',
@@ -103,7 +106,7 @@ export default class WebchatApi {
     }
   }
 
-  async resetSession(conversationId: number): Promise<void> {
+  async resetSession(conversationId: uuid): Promise<void> {
     try {
       await this.axios.post('/conversations/reset', { ...this.baseUserPayload, conversationId }, this.axiosConfig)
     } catch (err) {
@@ -111,7 +114,7 @@ export default class WebchatApi {
     }
   }
 
-  async createConversation(): Promise<number> {
+  async createConversation(): Promise<uuid> {
     try {
       const { data } = await this.axios.post('/conversations/new', this.baseUserPayload, this.axiosConfig)
       return data.convoId
@@ -120,7 +123,7 @@ export default class WebchatApi {
     }
   }
 
-  async downloadConversation(conversationId: number): Promise<any> {
+  async downloadConversation(conversationId: uuid): Promise<any> {
     try {
       const { data } = await this.axios.post(
         '/conversations/download/txt',
@@ -133,7 +136,7 @@ export default class WebchatApi {
     }
   }
 
-  async sendEvent(payload: any, conversationId: number): Promise<void> {
+  async sendEvent(payload: any, conversationId: uuid): Promise<void> {
     try {
       return this.axios.post('/events', { ...this.baseUserPayload, conversationId, payload }, this.axiosConfig)
     } catch (err) {
@@ -141,7 +144,7 @@ export default class WebchatApi {
     }
   }
 
-  async sendMessage(payload: any, conversationId: number): Promise<void> {
+  async sendMessage(payload: any, conversationId: uuid): Promise<void> {
     try {
       return this.axios.post('/messages', { ...this.baseUserPayload, conversationId, payload }, this.axiosConfig)
     } catch (err) {
@@ -149,7 +152,7 @@ export default class WebchatApi {
     }
   }
 
-  async deleteMessages(conversationId: number) {
+  async deleteMessages(conversationId: uuid) {
     try {
       await this.axios.post(
         '/conversations/messages/delete',
@@ -161,29 +164,34 @@ export default class WebchatApi {
     }
   }
 
-  async sendFeedback(feedback: number, eventId: string): Promise<void> {
+  async sendFeedback(feedback: number, messageId: uuid): Promise<void> {
     try {
-      return this.axios.post('/saveFeedback', { eventId, target: this.userId, feedback }, this.axiosConfig)
+      return this.axios.post('/saveFeedback', { messageId, target: window.__BP_VISITOR_ID, feedback }, this.axiosConfig)
     } catch (err) {
       await this.handleApiError(err)
     }
   }
 
-  async getEventIdsFeedbackInfo(eventIds: string[]): Promise<EventFeedback[]> {
+  async getMessageIdsFeedbackInfo(messageIds: uuid[]): Promise<EventFeedback[]> {
     try {
-      const { data } = await this.axios.post('/feedbackInfo', { eventIds, target: this.userId }, this.axiosConfig)
+      const { data } = await this.axios.post(
+        '/feedbackInfo',
+        { messageIds, target: window.__BP_VISITOR_ID },
+        this.axiosConfig
+      )
       return data
     } catch (err) {
       await this.handleApiError(err)
     }
   }
 
-  async uploadFile(file: File, conversationId: number): Promise<void> {
+  async uploadFile(file: File, payload: string, conversationId: uuid): Promise<void> {
     try {
       const data = new FormData()
       data.append('file', file)
       data.append('webSessionId', this.baseUserPayload.webSessionId)
-      data.append('conversationId', conversationId.toString())
+      data.append('conversationId', conversationId)
+      data.append('payload', payload)
 
       return this.axios.post('/messages/files', data, this.axiosConfig)
     } catch (err) {
@@ -191,11 +199,11 @@ export default class WebchatApi {
     }
   }
 
-  async sendVoiceMessage(voice: Buffer, ext: string, conversationId: number): Promise<void> {
+  async sendVoiceMessage(voice: Buffer, ext: string, conversationId: uuid): Promise<void> {
     try {
       const audio = {
         buffer: voice.toString('base64'),
-        title: `${uuid.v4()}.${ext}`
+        title: `${uuidgen.v4()}.${ext}`
       }
       return this.axios.post('/messages/voice', { ...this.baseUserPayload, conversationId, audio }, this.axiosConfig)
     } catch (err) {
@@ -203,7 +211,7 @@ export default class WebchatApi {
     }
   }
 
-  async setReference(reference: string, conversationId: number): Promise<void> {
+  async setReference(reference: string, conversationId: uuid): Promise<void> {
     try {
       return this.axios.post(
         '/conversations/reference',
@@ -213,6 +221,14 @@ export default class WebchatApi {
     } catch (err) {
       await this.handleApiError(err)
     }
+  }
+
+  async listByIncomingEvent(messageId: uuid) {
+    const { data: messages } = await this.axios.get(`/messaging/list-by-incoming-event/${messageId}`, {
+      baseURL: window['BOT_API_PATH']
+    })
+
+    return messages
   }
 
   handleApiError = async error => {

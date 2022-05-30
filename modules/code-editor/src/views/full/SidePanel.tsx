@@ -82,6 +82,7 @@ class PanelContent extends React.Component<Props> {
     this.addFiles('global.module_config', lang.tr('module.code-editor.sidePanel.global'), moduleConfigFiles)
 
     const sharedLibs = []
+    this.addFiles('bot.shared_libs', lang.tr('module.code-editor.sidePanel.currentBot'), sharedLibs)
     this.addFiles('global.shared_libs', lang.tr('module.code-editor.sidePanel.global'), sharedLibs)
 
     this.addFiles('hook_example', EXAMPLE_FOLDER_LABEL, hookFiles)
@@ -139,7 +140,7 @@ class PanelContent extends React.Component<Props> {
   }
 
   renderSectionConfig() {
-    if (!this.hasPermission('global.main_config') || !this.hasPermission('bot.bot_config')) {
+    if (!this.hasPermission('global.main_config') && !this.hasPermission('bot.bot_config')) {
       return null
     }
 
@@ -200,7 +201,7 @@ class PanelContent extends React.Component<Props> {
   }
 
   renderSharedLibs() {
-    if (!this.hasPermission('global.shared_libs')) {
+    if (!this.hasPermission('bot.shared_libs')) {
       return null
     }
 
@@ -259,7 +260,7 @@ class PanelContent extends React.Component<Props> {
         label={lang.tr('module.code-editor.sidePanel.rawFileEditor')}
         actions={[
           {
-            id: 'btn-upload',
+            id: 'btn-upload-sidepanel',
             icon: <Icon icon="upload" />,
             key: 'upload',
             onClick: () => this.setState({ selectedFile: undefined, isUploadModalOpen: true })
@@ -317,7 +318,8 @@ class PanelContent extends React.Component<Props> {
             'before_outgoing_middleware',
             'after_event_processed',
             'before_suggestions_election',
-            'before_session_timeout'
+            'before_session_timeout',
+            'before_conversation_end'
           ].includes(x.id)
         )
       },
@@ -368,6 +370,7 @@ class PanelContent extends React.Component<Props> {
             <React.Fragment>
               {this.renderSectionActions()}
               {this.renderSectionHooks()}
+              {this.renderSharedLibs()}
               {this.renderSectionConfig()}
               {this.renderSectionModuleConfig()}
             </React.Fragment>

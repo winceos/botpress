@@ -2,17 +2,6 @@ import * as sdk from 'botpress/sdk'
 import { UserProfile } from 'common/typings'
 
 // TODO fix this and use those from common/typings
-declare global {
-  interface Window {
-    botpressWebChat: {
-      init: (config: any, containerSelector?: string) => void
-      sendEvent: (payload: any, webchatId?: string) => void
-    }
-    BOT_ID: string
-    BP_STORAGE: any
-    ROOT_PATH: string
-  }
-}
 export interface AuthRule {
   res: string
   op: string
@@ -26,7 +15,7 @@ export type IAgent = sdk.WorkspaceUserWithAttributes & {
 
 export type AgentWithPermissions = IAgent & UserProfile
 
-export type HandoffStatus = 'pending' | 'assigned' | 'resolved'
+export type HandoffStatus = 'pending' | 'assigned' | 'resolved' | 'expired'
 export interface IHandoff {
   id: string
   botId: string
@@ -77,4 +66,22 @@ export interface ISocketMessage {
   resource: string
   type: string
   id: string
+}
+
+export type ExitTypes = 'timedOutWaitingAgent' | 'handoffResolved' | 'noAgent'
+
+export interface SkillData {
+  redirectNoAgent: boolean
+  timeoutDelay: number
+}
+
+// These are properties provided by the studio
+export interface SkillProps<T> {
+  initialData: T
+  onDataChanged: (data: T) => void
+  onValidChanged: (canSubmit: boolean) => void
+  resizeBuilderWindow: (newSize: 'normal' | 'large' | 'small') => void
+  contentLang: string
+  defaultLanguage: string
+  languages: string[]
 }

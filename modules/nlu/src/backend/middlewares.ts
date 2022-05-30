@@ -1,5 +1,6 @@
 import * as sdk from 'botpress/sdk'
 import _ from 'lodash'
+import yn from 'yn'
 
 import { Config } from '../config'
 import { NLUApplication } from './application'
@@ -44,6 +45,7 @@ export const registerMiddlewares = async (bp: typeof sdk, app: NLUApplication) =
     name: PREDICT_MW,
     direction: 'incoming',
     order: 100,
+    timeout: '6s',
     description:
       'Process natural language in the form of text. Structured data with an action and parameters for that action is injected in the incoming message event.',
     handler: async (event: sdk.IO.IncomingEvent, next: sdk.IO.MiddlewareNextCallback) => {
@@ -65,7 +67,7 @@ export const registerMiddlewares = async (bp: typeof sdk, app: NLUApplication) =
         const appendTime = <T>(eu: T) => ({ ...eu, ms: Date.now() - t0 })
 
         let nluResults = { ...predOutput, includedContexts }
-        if (nluResults.spellChecked && nluResults.spellChecked !== preview) {
+        if (nluResults.spellChecked && nluResults.spellChecked !== preview && !yn(process.env.NLU_SKIP_SPELLCHECK)) {
           const predOutput = await bot.predict(nluResults.spellChecked, anticipatedLanguage)
           const spellCheckedResults = { ...predOutput, includedContexts }
           nluResults = pickSpellChecked(appendTime(nluResults), appendTime(spellCheckedResults))

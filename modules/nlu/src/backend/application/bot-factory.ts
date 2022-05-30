@@ -1,7 +1,10 @@
 import * as sdk from 'botpress/sdk'
-
 import _ from 'lodash'
-import { IStanEngine } from '../stan'
+import { LanguageSource } from 'src/config'
+
+import { NLUCloudClient } from '../cloud/client'
+import { NLUClientNoProxy } from '../no-proxy-client'
+import { IStanEngine, StanEngine } from '../stan'
 import pickSeed from './pick-seed'
 import { Bot, IBot } from './scoped/bot'
 import { ScopedDefinitionsService, IDefinitionsService } from './scoped/definitions-service'
@@ -23,16 +26,28 @@ export type IScopedServicesFactory = I<ScopedServicesFactory>
 
 export class ScopedServicesFactory {
   constructor(
-    private _engine: IStanEngine,
+    private _languageSource: LanguageSource & { isLocal: boolean },
     private _logger: sdk.Logger,
     private _makeDefRepo: DefinitionRepositoryFactory
   ) {}
 
+  private makeEngine(botConfig: BotConfig): IStanEngine {
+    const { cloud } = botConfig
+
+    const stanClient = cloud
+      ? new NLUCloudClient({ ...cloud, endpoint: this._languageSource.endpoint })
+      : new NLUClientNoProxy(this._languageSource)
+
+    return new StanEngine(stanClient, this._languageSource.authToken ?? '')
+  }
+
   public makeBot = async (botConfig: BotConfig): Promise<ScopedServices> => {
     const { id: botId } = botConfig
 
+    const engine = this.makeEngine(botConfig)
+
     const { defaultLanguage } = botConfig
-    const { languages: engineLanguages } = await this._engine.getInfo()
+    const { languages: engineLanguages } = await engine.getInfo()
     const languages = _.intersection(botConfig.languages, engineLanguages)
     if (botConfig.languages.length !== languages.length) {
       const missingLangMsg = `Bot ${botId} has configured languages that are not supported by language sources. Configure a before incoming hook to call an external NLU provider for those languages.`
@@ -50,7 +65,7 @@ export class ScopedServicesFactory {
 
     const defService = new ScopedDefinitionsService(botDefinition, defRepo)
 
-    const bot = new Bot(botDefinition, this._engine, defService, this._logger)
+    const bot = new Bot(botDefinition, engine, defService, this._logger)
 
     return {
       defService,

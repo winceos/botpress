@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "declaration": true,
+    "sourceMap": true,
+    "strict": true,
+    "module": "commonjs",
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "target": "es2019",
+    "noImplicitAny": false,
+    "moduleResolution": "node",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "useUnknownInCatchVariables": false,
+    "baseUrl": "./src",
+    "outDir": "dist",
+    "typeRoots": ["./src/typings", "../../node_modules/@types", "./src/common"],
+    "types": ["reflect-metadata", "jest"]
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["dist", "src/**/*.test.*", "node_modules", "src/admin/ui/**/*"]
+}

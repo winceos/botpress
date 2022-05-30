@@ -4,6 +4,7 @@ import { BPRequest } from 'common/http'
 import { Workspace } from 'common/typings'
 import Knex from 'knex'
 import _ from 'lodash'
+import LRUCache from 'lru-cache'
 import ms from 'ms'
 
 import { COMMENT_TABLE_NAME, HANDOFF_TABLE_NAME, MODULE_NAME } from '../constants'
@@ -15,6 +16,12 @@ const debug = DEBUG(MODULE_NAME)
 
 export interface CollectionConditions extends Partial<sdk.SortOrder> {
   limit?: number
+}
+
+// Copy pasted from channel-web db.ts
+export interface UserMapping {
+  visitorId: string
+  userId: string
 }
 
 const commentPrefix = 'comment'
@@ -49,12 +56,16 @@ const userColumnsPrefixed = userColumns.map(s => userPrefix.concat(':', s))
 
 export default class Repository {
   private agentCache: Dic<Omit<IAgent, 'online'>> = {}
+  private cacheByVisitor: LRUCache<string, UserMapping>
+
   /**
    *
    * @param bp
    * @param timeouts Object to store agent session timeouts
    */
-  constructor(private bp: typeof sdk, private timeouts: object) {}
+  constructor(private bp: typeof sdk, private timeouts: object) {
+    this.cacheByVisitor = new LRUCache({ max: 10000, maxAge: ms('5min') })
+  }
 
   private serializeDate(object: object, paths: string[]) {
     const result = _.clone(object)
@@ -359,7 +370,7 @@ export default class Repository {
       await this.listAllAgents()
     }
     if (!this.agentCache[agentId]) {
-      throw Error('Agent doees not exist')
+      throw Error('Agent does not exist')
     }
     return this.agentCache[agentId]
   }
@@ -519,4 +530,89 @@ export default class Repository {
       { count: conditions.limit, sortOrder: [{ column: 'id', desc: true }] }
     )
   }
+
+  //===================================
+  // Copy pasted from channel-web db.ts
+  //===================================
+
+  async mapVisitor(botId: string, visitorId: string) {
+    const userMapping = await this.getMappingFromVisitor(botId, visitorId)
+    let userId = userMapping?.userId
+
+    const createUserAndMapping = async () => {
+      userId = (await this.bp.messaging.forBot(botId).createUser()).id
+      await this.createUserMapping(botId, visitorId, userId)
+    }
+
+    if (!userMapping) {
+      await createUserAndMapping()
+    } else {
+      // Prevents issues when switching between different Messaging servers
+      // TODO: Remove this check once the 'web_user_map' table is removed
+      if (!(await this.checkUserExist(botId, userMapping.userId))) {
+        await this.deleteMappingFromVisitor(botId, visitorId)
+        await createUserAndMapping()
+      }
+    }
+
+    return userId
+  }
+
+  async getMappingFromVisitor(botId: string, visitorId: string): Promise<UserMapping | undefined> {
+    const cached = this.cacheByVisitor.get(`${botId}_${visitorId}`)
+    if (cached) {
+      return cached
+    }
+
+    try {
+      const rows = await this.bp.database('web_user_map').where({ botId, visitorId })
+
+      if (rows?.length) {
+        const mapping = rows[0] as UserMapping
+        this.cacheByVisitor.set(`${botId}_${visitorId}`, mapping)
+        return mapping
+      }
+    } catch (err) {
+      this.bp.logger.error('An error occurred while fetching a visitor mapping.', err)
+
+      return undefined
+    }
+  }
+
+  async deleteMappingFromVisitor(botId: string, visitorId: string): Promise<void> {
+    try {
+      this.cacheByVisitor.del(`${botId}_${visitorId}`)
+      await this.bp
+        .database('web_user_map')
+        .where({ botId, visitorId })
+        .delete()
+    } catch (err) {
+      this.bp.logger.error('An error occurred while deleting a visitor mapping.', err)
+    }
+  }
+
+  async createUserMapping(botId: string, visitorId: string, userId: string): Promise<UserMapping> {
+    const mapping = { botId, visitorId, userId }
+
+    try {
+      await this.bp.database('web_user_map').insert(mapping)
+      this.cacheByVisitor.set(`${botId}_${visitorId}`, mapping)
+
+      return mapping
+    } catch (err) {
+      this.bp.logger.error('An error occurred while creating a user mapping.', err)
+
+      return undefined
+    }
+  }
+
+  private async checkUserExist(botId: string, userId: string): Promise<boolean> {
+    const user = await this.bp.messaging.forBot(botId).getUser(userId)
+
+    return user?.id === userId
+  }
+
+  //===================================
+  // Copy pasted from channel-web db.ts
+  //===================================
 }

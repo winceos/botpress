@@ -2,7 +2,6 @@ import { protos, v1p1beta1 } from '@google-cloud/speech'
 import { TextToSpeechClient } from '@google-cloud/text-to-speech'
 import axios from 'axios'
 import * as sdk from 'botpress/sdk'
-import { closest } from 'common/number'
 import { isBpUrl } from 'common/url'
 import * as mm from 'music-metadata'
 
@@ -18,7 +17,7 @@ import {
   AudioEncoding,
   IRecognizeRequest
 } from './typings'
-import { TimeoutError, timeoutFn } from './utils'
+import { TimeoutError, timeoutFn, closest } from './utils'
 
 const debug = DEBUG('google-speech')
 const debugSpeechToText = debug.sub('speech-to-text')
@@ -118,9 +117,9 @@ export class GoogleSpeechClient {
         debugSpeechToText('Audio file successfully re-sampled')
 
         meta = await mm.parseBuffer(buffer)
-
-        encoding = AudioEncoding.OGG_OPUS
       }
+
+      encoding = AudioEncoding.OGG_OPUS
     } else if (container === Container['ebml/webm'] && codec === Codec.opus) {
       encoding = AudioEncoding.WEBM_OPUS
     } else if (container === Container['iso5/isom/hlsf'] && codec === Codec['mpeg-4/aac']) {
@@ -148,7 +147,7 @@ export class GoogleSpeechClient {
       return
     }
 
-    debugSpeechToText(`Audio file metadata: ${meta}`)
+    debugSpeechToText('Audio file metadata:', meta)
 
     // Note that transcription is limited to 60 seconds audio.
     // Use a GCS file for audio longer than 1 minute.

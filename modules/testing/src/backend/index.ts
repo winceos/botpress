@@ -1,5 +1,4 @@
 import * as sdk from 'botpress/sdk'
-import _ from 'lodash'
 
 import en from '../translations/en.json'
 import fr from '../translations/fr.json'
@@ -38,8 +37,7 @@ const entryPoint: sdk.ModuleEntryPoint = {
     menuText: 'Testing',
     noInterface: false,
     fullName: 'Testing',
-    homepage: 'https://botpress.com',
-    experimental: true
+    homepage: 'https://botpress.com'
   }
 }
 

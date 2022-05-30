@@ -4,23 +4,35 @@ module.exports = {
     es6: true,
     node: true
   },
-  extends: ['prettier', 'prettier/@typescript-eslint'],
+  extends: ['prettier'],
   parser: '@typescript-eslint/parser',
   parserOptions: {
     project: [
-      './src/tsconfig.json',
-      './src/bp/ui-*/tsconfig.json',
-      './src/bp/admin/ui/tsconfig.json',
+      './packages/*/tsconfig.json',
+      './packages/bp/e2e/tsconfig.json',
       './modules/tsconfig*.eslint.json',
+      './internal-modules/tsconfig*.eslint.json',
       './build/module-builder/tsconfig.json',
-      './build/nlu-installer/tsconfig.json'
+      './build/downloader/tsconfig.json'
     ],
     tsconfigRootDir: __dirname,
     sourceType: 'module'
   },
-  ignorePatterns: ['**/index.d.ts', '**/global.d.ts', '**/*.scss.d.ts', '**/*.test.ts', '*.js'],
+  ignorePatterns: [
+    '**/index.d.ts',
+    '**/global.d.ts',
+    '**/knex.d.ts',
+    '**/*.scss.d.ts',
+    '**/*.test.ts',
+    '*.js',
+    '**/node_modules/**',
+    '**/dist/**'
+  ],
   plugins: ['eslint-plugin-import', 'eslint-plugin-jsdoc', '@typescript-eslint'],
   rules: {
+    '@typescript-eslint/array-type': 'error',
+    '@typescript-eslint/no-non-null-asserted-optional-chain': 'error',
+    '@typescript-eslint/await-thenable': 'error',
     '@typescript-eslint/consistent-type-definitions': 'error',
     '@typescript-eslint/member-delimiter-style': [
       'error',

@@ -1,3 +1,4 @@
+import { TrainInput } from '@botpress/nlu-client'
 import * as sdk from 'botpress/sdk'
 import _ from 'lodash'
 import { IStanEngine } from 'src/backend/stan'
@@ -51,6 +52,10 @@ export class Bot implements Trainable, Predictor {
     return this._botId
   }
 
+  public async checkForDirtyModels() {
+    return this._defService.checkForDirtyModels()
+  }
+
   public async mount() {
     await this._defService.initialize()
   }
@@ -100,5 +105,9 @@ export class Bot implements Trainable, Predictor {
   public predict = async (textInput: string, anticipatedLanguage?: string) => {
     const { _predictor, _defaultLanguage } = this
     return _predictor.predict(textInput, anticipatedLanguage ?? _defaultLanguage)
+  }
+
+  public hasModelFor(trainInput: TrainInput) {
+    return this._engine.hasModelFor(this.id, trainInput)
   }
 }

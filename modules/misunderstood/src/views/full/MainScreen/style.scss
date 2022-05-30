@@ -1,3 +1,5 @@
+@import '../variables';
+
 .newEventPreview {
   font-weight: normal;
   margin: 24px 0;
@@ -15,18 +17,19 @@
 .chatPreview {
   display: flex;
   flex-direction: column;
-  padding: 10px;
-  padding-bottom: 0;
+  padding: 10px 10px 0;
   margin: 10px 0;
-  border-radius: 1px;
   border: 1px solid #999;
+  border-radius: 1px;
+  height: calc(100% - #{$stickyBarHeight});
+  overflow-y: scroll;
   background: white;
 }
 
 .chatPreviewMessage {
   display: flex;
   flex-direction: row;
-  max-width: 80%;
+  max-width: 60%;
   padding: 10px;
   margin-bottom: 10px;
 }
@@ -45,9 +48,30 @@
 }
 
 .chatPreviewText {
-  padding: 5px;
-  border-radius: 1px;
+  max-width: 60%;
+  border-radius: 15px;
+  text-align: center;
+  overflow-wrap: break-word;
+  padding: 8px;
   border: 1px solid #ccc;
+
+  &.card {
+    min-width: 60%;
+  }
+
+  p {
+    margin: 0;
+  }
+  img,
+  audio,
+  video {
+    max-width: 100%;
+  }
+}
+
+.chatPreviewMessage_System {
+  text-align: center;
+  color: #676767;
 }
 
 .chatPreviewMessage_Incoming {
@@ -65,7 +89,6 @@
 }
 
 .chatPreviewMessage_Outgoing {
-  align-self: flex-start;
   .chatPreviewAvatar {
     order: 1;
     margin-right: 5px;
@@ -82,10 +105,9 @@
     position: relative;
     background: #db3737;
     border: 1px solid #db3737;
-
     &:before {
       position: absolute;
-      content: "";
+      content: '';
       width: 0;
       height: 0;
       border-top: 8px solid transparent;
@@ -98,7 +120,7 @@
 
     &:after {
       position: absolute;
-      content: "";
+      content: '';
       width: 15px;
       height: 3px;
       left: 0;

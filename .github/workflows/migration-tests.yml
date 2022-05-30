@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - '**/migrations/*'
+permissions:
+  contents: read
 
 jobs:
   migration:
@@ -28,12 +30,13 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@master
-      - uses: actions/setup-node@v1
+      - uses: actions/setup-node@v2
         with:
-          node-version: '12.13.0'
+          node-version-file: '.nvmrc'
+          cache: 'yarn'
       - name: Fetch Node Packages
         run: |
-          yarn add @actions/core @actions/github aws-sdk
+          yarn add -W @actions/core @actions/github aws-sdk
       - name: Build core, UI and modules
         run: |
           NODE_OPTIONS="--max-old-space-size=6000" yarn build

@@ -12,7 +12,7 @@ import { httpAction, legacyAction } from '../utils/templates'
 interface Props {
   isOpen: boolean
   toggle: () => void
-  openFile: (args: any) => void
+  openFile: (args: any) => Promise<void>
   files?: FilesDS
   selectedType: string
   selectedHookType: string
@@ -38,18 +38,16 @@ const NewFileModal: FC<Props> = props => {
     e.preventDefault()
 
     const finalName = name.endsWith('.js') || name.endsWith('.json') ? name : `${name}.js`
+    const isJson = finalName.endsWith('.json')
+    const isJs = finalName.endsWith('.js')
 
-    let content
-    switch (props.selectedType) {
-      case 'action_legacy':
-        content = legacyAction
-        break
-      case 'action_http':
-        content = httpAction
-        break
-      default:
-        content = ' '
-        break
+    let content = ' '
+    if (props.selectedType === 'action_legacy' && isJs) {
+      content = legacyAction
+    } else if (props.selectedType === 'action_http' && isJs) {
+      content = httpAction
+    } else if (isJson) {
+      content = '{\n\t\n}'
     }
 
     await props.openFile({
@@ -121,7 +119,7 @@ const NewFileModal: FC<Props> = props => {
           <div className={Classes.DIALOG_FOOTER_ACTIONS}>
             <Button
               type="submit"
-              id="btn-submit"
+              id="btn-submit-new-file"
               text={lang.tr('submit')}
               intent={Intent.PRIMARY}
               onClick={submit}

@@ -14,6 +14,15 @@ import Socket from './socket'
 
 const debug = DEBUG(MODULE_NAME)
 
+const updateHitlStatus = event => {
+  if (event.type === 'hitlnext' && event.payload) {
+    const { exitType, agentName } = event.payload
+
+    _.set(event, 'state.temp.agentName', agentName)
+    _.set(event, `state.temp.hitlnext-${exitType}`, true)
+  }
+}
+
 const registerMiddleware = async (bp: typeof sdk, state: StateType) => {
   const handoffCache = new LRU<string, string>({ max: 1000, maxAge: ms('1 day') })
   const repository = new Repository(bp, state.timeouts)
@@ -21,7 +30,7 @@ const registerMiddleware = async (bp: typeof sdk, state: StateType) => {
 
   const pipeEvent = async (event: sdk.IO.IncomingEvent, eventDestination: sdk.IO.EventDestination) => {
     debug.forBot(event.botId, 'Piping event', eventDestination)
-    return bp.events.replyToEvent(eventDestination, [{ type: 'typing', value: 10 }, event.payload])
+    return bp.events.replyToEvent(eventDestination, [event.payload])
   }
 
   const handoffCacheKey = (botId: string, threadId: string) => [botId, threadId].join('.')
@@ -41,13 +50,14 @@ const registerMiddleware = async (bp: typeof sdk, state: StateType) => {
   }
 
   const handleIncomingFromUser = async (handoff: IHandoff, event: sdk.IO.IncomingEvent) => {
+    // There only is an agentId & agentThreadId after assignation
     if (handoff.status === 'assigned') {
-      // There only is an agentId & agentThreadId after assignation
-      await pipeEvent(event, {
+      const userId = await repository.mapVisitor(handoff.botId, handoff.agentId)
+      return pipeEvent(event, {
         botId: handoff.botId,
-        target: handoff.agentId,
+        target: userId,
         threadId: handoff.agentThreadId,
-        channel: handoff.userChannel
+        channel: 'web'
       })
     }
 
@@ -80,13 +90,16 @@ const registerMiddleware = async (bp: typeof sdk, state: StateType) => {
   }
 
   const handleIncomingFromAgent = async (handoff: IHandoff, event: sdk.IO.IncomingEvent) => {
-    const { botAvatarUrl }: Config = await bp.config.getModuleConfigForBot(MODULE_NAME, event.botId)
-    const { attributes } = await repository.getAgent(handoff.agentId)
+    const agent = await repository.getAgent(handoff.agentId)
 
-    Object.assign(event.payload, {
-      from: 'agent',
-      botAvatarUrl: botAvatarUrl || attributes?.picture_url
-    })
+    if (handoff.userChannel === 'web' && agent.attributes) {
+      const firstName = agent.attributes.firstname
+      const lastname = agent.attributes.lastname
+      const avatarUrl = agent.attributes.picture_url
+
+      _.set(event, 'payload.channel.web.userName', `${firstName} ${lastname}`)
+      _.set(event, 'payload.channel.web.avatarUrl', avatarUrl)
+    }
 
     await pipeEvent(event, {
       botId: handoff.botId,
@@ -99,6 +112,8 @@ const registerMiddleware = async (bp: typeof sdk, state: StateType) => {
   }
 
   const incomingHandler = async (event: sdk.IO.IncomingEvent, next: sdk.IO.MiddlewareNextCallback) => {
+    updateHitlStatus(event)
+
     // TODO we might want to handle other types
     if (event.type !== 'text') {
       return next(undefined, false, true)

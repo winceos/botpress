@@ -120,6 +120,10 @@ body {
   align-items: flex-start;
 }
 
+.bpw-file-button {
+  padding: 0;
+}
+
 .bpw-button-alt {
   background-color: var(--main-bg-color);
   font-size: 1rem;
@@ -400,7 +404,8 @@ body {
   padding: 0.5rem 0.75rem;
 }
 
-.bpw-bubble-file a {
+.bpw-bubble-file a,
+.bpw-bubble-image a {
   cursor: pointer;
   border-top-left-radius: inherit;
   border-top-right-radius: inherit;
@@ -408,7 +413,9 @@ body {
   border-bottom-left-radius: inherit;
 }
 
-.bpw-bubble-file a img {
+.bpw-bubble-image a img,
+.bpw-bubble-audio audio,
+.bpw-bubble-video video {
   max-height: 240px;
   max-width: 100%;
   border-top-left-radius: inherit;
@@ -615,6 +622,10 @@ body {
   right: 0;
 }
 
+.bpw-keyboard-quick_reply-dropdown {
+  margin: 0.2rem 0.5rem;
+}
+
 .bpw-composer {
   border-top-width: 1px;
   border-top-style: solid;
@@ -630,6 +641,10 @@ body {
 .bpw-composer-inner {
   display: flex;
   padding: 5px;
+}
+
+.bpw-composer-textarea {
+  flex-grow: 2;
 }
 
 .bpw-composer textarea {
@@ -653,7 +668,7 @@ body {
 
 .bpw-send-buttons {
   display: flex;
-  align-items: center;
+  flex-direction: row;
 }
 
 .bpw-send-button {
@@ -1048,4 +1063,35 @@ body {
 
 .bpw-mobx-tools {
   visibility: hidden;
+}
+
+.bpw-rtl .bpw-chat-bubble {
+  direction: rtl;
+}
+
+.bpw-rtl .bpw-composer-inner {
+  flex-direction: row-reverse;
+}
+
+.bpw-rtl .bpw-composer textarea {
+  direction: rtl;
+  padding: 0.75rem 1rem;
+  padding-left: 60px;
+}
+
+.bpw-rtl.bpw-botinfo-container .bpw-botinfo-terms {
+  text-align: right;
+}
+
+.bpw-rtl .bpw-date-container {
+  direction: rtl;
+}
+
+.bpw-rtl .bpw-card-container {
+  text-align: right;
+  direction: rtl;
+}
+
+.bpw-rtl .bpw-keyboard-quick_reply-dropdown {
+  direction: rtl;
 }

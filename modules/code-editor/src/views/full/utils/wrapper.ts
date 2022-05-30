@@ -1,3 +1,5 @@
+import path from 'path'
+
 import { EditableFile } from '../../../backend/typings'
 import { HOOK_SIGNATURES } from '../../../typings/hooks'
 
@@ -12,13 +14,14 @@ const ACTION_LEGACY_SIGNATURE =
 
 const wrapper = {
   add: (file: EditableFile, content: string) => {
-    const { type, hookType, botId } = file
+    const { type, hookType, name } = file
+    const isJs = path.extname(name) === '.js'
 
-    if (type === 'action_legacy') {
+    if (type === 'action_legacy' && isJs) {
       return `${ACTION_LEGACY_SIGNATURE} {\n  ${START_COMMENT}\n\n${content}\n\n  ${END_COMMENT}\n}`
-    } else if (type === 'action_http') {
+    } else if (type === 'action_http' && isJs) {
       return `${ACTION_HTTP_SIGNATURE} {\n  ${START_COMMENT}\n\n${content}\n\n  ${END_COMMENT}\n}`
-    } else if (type === 'hook' && HOOK_SIGNATURES[hookType]) {
+    } else if (type === 'hook' && HOOK_SIGNATURES[hookType] && isJs) {
       let signature = HOOK_SIGNATURES[hookType]
       if (signature.includes('\n')) {
         signature = `${signature.substring(0, signature.length - 1)}\n)`
@@ -59,7 +62,54 @@ const wrapper = {
       .replace(emptyLineAtBeginning, '')
       .replace(emptyLineAtBeginning, '')
       .replace(emptyLineAtEnd, '')
+  },
+  beginning: (content: string) => {
+    const lines = content.split('\n')
+    const startIndex = lines.findIndex(line => line.includes(START_COMMENT))
+
+    if (startIndex === -1) {
+      return 0
+    } else {
+      return startIndex + 2
+    }
+  },
+  end: (content: string) => {
+    const lines = content.split('\n')
+    const endIndex = lines.findIndex(line => line.includes(END_COMMENT))
+
+    if (endIndex === -1) {
+      return lines.length + 1
+    } else {
+      return endIndex + 2
+    }
   }
 }
 
-export { wrapper }
+const findLastIndex = <T>(array: T[], predicate: (value: T, index: number, array: T[]) => boolean): number => {
+  let i = array.length
+  while (i--) {
+    if (predicate(array[i], i, array)) {
+      return i
+    }
+  }
+  return -1
+}
+
+const getContentZone = (lines: string[]) => {
+  let startLine = lines.findIndex(x => x.includes(START_COMMENT))
+  if (startLine !== -1) {
+    startLine += 2
+  }
+
+  let endLine = findLastIndex(lines, x => x.includes(END_COMMENT))
+  const noContent = startLine > endLine
+
+  // Fix for files which doesn't have wrappers
+  if (endLine === -1) {
+    endLine = lines.length
+  }
+
+  return { startLine, endLine, noContent }
+}
+
+export { wrapper, getContentZone }

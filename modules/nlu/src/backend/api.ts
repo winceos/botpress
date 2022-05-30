@@ -7,6 +7,7 @@ import { Config } from '../config'
 
 import { NLUApplication } from './application'
 import { BotDoesntSpeakLanguageError, BotNotMountedError } from './application/errors'
+import { IBot } from './application/scoped/bot'
 import { TrainingSession } from './application/typings'
 import { election } from './election'
 import createRepositoryRouter from './train-repo-router'
@@ -63,10 +64,20 @@ export const registerRouter = async (bp: typeof sdk, app: NLUApplication) => {
 
   const globalConfig: Config = await bp.config.getModuleConfig('nlu')
 
+  router.post('/checkForDirtyModels', async (req, res) => {
+    const bot = app.getBot(req.params.botId) as IBot
+    await bot.checkForDirtyModels()
+
+    res.sendStatus(200)
+  })
+
   router.get('/health', async (req, res) => {
     // When the health is bad, we'll refresh the status in case it has changed (eg: user added languages)
     const health = await app.getHealth()
-    res.send(health)
+    if (!health) {
+      return res.status(404).send('NLU Server is unreachable')
+    }
+    return res.send(health)
   })
 
   router.get('/training/:language', async (req, res) => {

@@ -13,7 +13,16 @@ export const FileMessage = (props: Renderer.FileMessage) => {
 
   const { url, title, storage, text } = props.file
 
-  const extension = path.extname(url)
+  let extension = ''
+  try {
+    const validUrl = new URL(url)
+
+    extension = validUrl.pathname
+  } catch (error) {
+    // Try using path.extname since url might be relative.
+    extension = path.extname(url)
+  }
+
   const mime = mimeTypes.getType(extension)
 
   if (text) {
